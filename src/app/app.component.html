@@ -1,10 +1,17 @@
 <div class="content" role="main">
-  <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
-  <input #fileInput type="file" hidden (change)="onFileSelected($event)">
   <div> Cross-Origin Isolated: {{ coi }} </div>
-  <div style="right: 0; border: 2pt dashed black; margin: 2pt;">
-    <canvas #waveform_canvas></canvas>
+
+  <div>
+    <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
+    <input #fileInput type="file" hidden (change)="onFileSelected($event)">
   </div>
+  <div>
+    <mat-slider min="2" max="500" style="width: 50%;">
+      <input matSliderThumb [(value)]="audioVizScale">
+    </mat-slider>
+  </div>
+
+  <app-audio-waveform [audioVizScale]="audioVizScale" [audioWavData]="audioWavData"></app-audio-waveform>
   <div style="right: 0; border: 2pt dashed black; margin: 2pt;">
     <canvas #spectrogram_canvas></canvas>
   </div>
