@@ -1,7 +1,6 @@
 import { AfterViewInit, Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
 import * as lodash from 'lodash';
-
-type AudioData = { sampleRate: number, channelData: ReadonlyArray<Float32Array> }
+import { AudioData } from '../common';
 
 @Component({
   selector: 'app-audio-waveform',
@@ -12,16 +11,14 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
   @ViewChild('waveform_canvas') waveformCanvas?: ElementRef<HTMLCanvasElement>
   /** samples per pixel */
   @Input() audioVizScale: number = 400; // TODO: change to seconds per pixel
-  @Input() audioWavData?: AudioData
+  @Input() audioData?: AudioData
 
   drawAudioViz(): void {
-    if (this.audioWavData && this.waveformCanvas) {
+    if (this.audioData && this.waveformCanvas) {
       const waveCanvas = this.waveformCanvas.nativeElement;
       waveCanvas.width = waveCanvas.parentElement!.clientWidth
       const waveCanvasCtx = waveCanvas.getContext('2d')!
-
-      const samplesL = this.audioWavData.channelData[0]
-      const samplesR = this.audioWavData.channelData[1]
+      const samples = this.audioData.samples
 
       const tmp = new Float32Array(this.audioVizScale)
       waveCanvasCtx.save()
@@ -29,14 +26,14 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
       waveCanvasCtx.translate(0.5, waveCanvas.height / 2 + 0.5)
       waveCanvasCtx.beginPath()
       waveCanvasCtx.moveTo(0, 0)
-      waveCanvasCtx.lineTo(samplesL.length / this.audioVizScale, 0)
+      waveCanvasCtx.lineTo(samples.length / this.audioVizScale, 0) // TODO: hack
       waveCanvasCtx.stroke()
       waveCanvasCtx.scale(1, -waveCanvas.height / 2.2)
       waveCanvasCtx.beginPath()
-      for (let x = 0; x < Math.floor(samplesL.length / this.audioVizScale); x++) {
-        for (let i = 0; i < tmp.length; i++) {
-          tmp[i] = (samplesL[i + x * this.audioVizScale] + samplesR[i + x * this.audioVizScale]) / 2
-        }
+      for (let x = 0; x < Math.ceil(samples.length / this.audioVizScale); x++) {
+        const chunkSampleStart = x * this.audioVizScale
+        const chunkSampleEnd = Math.min((x + 1) * this.audioVizScale, samples.length)
+        tmp.set(samples.subarray(chunkSampleStart, chunkSampleStart + this.audioVizScale))
 
         const low = lodash.min(tmp)!
         const high = lodash.max(tmp)!
@@ -49,11 +46,9 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    console.log(changes);
     window.requestAnimationFrame(() => this.drawAudioViz())
   }
   ngAfterViewInit(): void {
     window.requestAnimationFrame(() => this.drawAudioViz())
   }
-
 }

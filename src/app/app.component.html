@@ -3,15 +3,24 @@
 
   <div>
     <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
-    <input #fileInput type="file" hidden (change)="onFileSelected($event)">
+    <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/wav">
   </div>
+  <div>
+    <button mat-icon-button aria-label="Play" (click)="startPlayback()" [disabled]="!audioFile">
+      <mat-icon>play_arrow</mat-icon>
+    </button>
+    <button mat-icon-button aria-label="Stop" (click)="stopPlayback()" [disabled]="!audioBufSrcNode">
+      <mat-icon>stop</mat-icon>
+    </button>
+  </div>
+
   <div>
     <mat-slider min="2" max="500" style="width: 50%;">
       <input matSliderThumb [(value)]="audioVizScale">
     </mat-slider>
   </div>
 
-  <app-audio-waveform [audioVizScale]="audioVizScale" [audioWavData]="audioWavData"></app-audio-waveform>
+  <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
   <div style="right: 0; border: 2pt dashed black; margin: 2pt;">
     <canvas #spectrogram_canvas></canvas>
   </div>
