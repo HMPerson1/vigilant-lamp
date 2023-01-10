@@ -14,6 +14,7 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
   @Input() audioData?: AudioData
 
   drawAudioViz(): void {
+    // FIXME: 1 sample / pixel doesn't render correctly
     if (this.audioData && this.waveformCanvas) {
       const waveCanvas = this.waveformCanvas.nativeElement;
       waveCanvas.width = waveCanvas.parentElement!.clientWidth
@@ -32,7 +33,6 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
       waveCanvasCtx.beginPath()
       for (let x = 0; x < Math.ceil(samples.length / this.audioVizScale); x++) {
         const chunkSampleStart = x * this.audioVizScale
-        const chunkSampleEnd = Math.min((x + 1) * this.audioVizScale, samples.length)
         tmp.set(samples.subarray(chunkSampleStart, chunkSampleStart + this.audioVizScale))
 
         const low = lodash.min(tmp)!

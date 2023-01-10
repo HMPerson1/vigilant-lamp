@@ -11,12 +11,11 @@ import { AudioData } from './common';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private ngZone: NgZone) {
-  }
+  constructor(private ngZone: NgZone) { }
 
   title = 'vigilant-lamp'
   coi = window.crossOriginIsolated
-  @ViewChild('spectrogram_canvas') spectrogramCanvas!: ElementRef<HTMLCanvasElement>
+
   audioData?: AudioData
   /** samples per pixel */
   audioVizScale: number = 400
@@ -26,17 +25,19 @@ export class AppComponent {
 
   onFileSelected(event: Event) {
     const fileInput = event.target as HTMLInputElement
-    const reader = new FileReader()
-    reader.onload = async (e) => {
-      this.audioFile = e.target!.result as ArrayBuffer
-      const audioWavData = await wav.decode(this.audioFile) // TODO: accept more file types
-      this.audioData = await new Promise((resolve) => {
-        const samples = lodash.unzipWith(audioWavData.channelData, (...ss) => lodash.mean(ss))
-        // TODO: allow picking one channel
-        resolve({ sampleRate: audioWavData.sampleRate, samples: Float32Array.from(samples) })
-      })
+    if (fileInput.files?.length) {
+      const reader = new FileReader()
+      reader.onload = async (e) => {
+        this.audioFile = e.target!.result as ArrayBuffer
+        const audioWavData = await wav.decode(this.audioFile) // TODO: accept more file types
+        this.audioData = await new Promise((resolve) => {
+          const samples = lodash.unzipWith(audioWavData.channelData, (...ss) => lodash.mean(ss))
+          // TODO: allow picking one channel
+          resolve({ sampleRate: audioWavData.sampleRate, samples: Float32Array.from(samples) })
+        })
+      }
+      reader.readAsArrayBuffer(fileInput.files[0])
     }
-    reader.readAsArrayBuffer(fileInput.files![0])
   }
 
   async startPlayback() {

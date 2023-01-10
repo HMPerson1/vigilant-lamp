@@ -21,8 +21,6 @@
   </div>
 
   <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
-  <div style="right: 0; border: 2pt dashed black; margin: 2pt;">
-    <canvas #spectrogram_canvas></canvas>
-  </div>
+  <app-audio-spectrogram [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-spectrogram>
 
 </div>

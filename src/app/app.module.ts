@@ -7,11 +7,13 @@ import { MatIconModule } from '@angular/material/icon';
 import { AppComponent } from './app.component';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
+import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
 
 @NgModule({
   declarations: [
     AppComponent,
-    AudioWaveformComponent
+    AudioWaveformComponent,
+    AudioSpectrogramComponent
   ],
   imports: [
     MatIconModule,

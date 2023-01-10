@@ -21,6 +21,8 @@
     "@angular/platform-browser-dynamic": "^15.0.4",
     "@angular/router": "^15.0.4",
     "coi-serviceworker": "^0.1.6",
+    "colorjs.io": "^0.4.2",
+    "fourier-transform": "^1.1.2",
     "lodash": "^4.17.21",
     "rxjs": "~7.5.0",
     "tslib": "^2.3.0",
