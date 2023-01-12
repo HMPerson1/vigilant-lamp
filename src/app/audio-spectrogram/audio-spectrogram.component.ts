@@ -1,9 +1,12 @@
 import { AfterViewInit, Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
-// @ts-ignore
-import * as ft from 'fourier-transform/asm'
-import * as lodash from 'lodash';
-import Color from 'colorjs.io'
-import { AudioData, genGaussianWindow } from '../common';
+import Color from 'colorjs.io';
+import { fromWorker } from 'observable-webworker';
+import * as rxjs from 'rxjs';
+import { AudioSamples, SpectrogramWork } from '../common';
+
+const colormap = Color.range('#440154', '#fde725', { outputSpace: 'sRGB' })
+const colormapArr = Array.from({ length: 101 }, (_x, i) => colormap(i / 100).toString())
+const powerToColor = (x: number) => colormapArr[Math.min(Math.max(0, Math.round(100 + x)), 100)]
 
 @Component({
   selector: 'app-audio-spectrogram',
@@ -12,46 +15,59 @@ import { AudioData, genGaussianWindow } from '../common';
 })
 export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
   @ViewChild('spectrogram_canvas') spectrogramCanvas?: ElementRef<HTMLCanvasElement>
+  @Input() timeStep: number = 4000
+  @Input() fftLgWindowSize: number = 13
+  get fftWindowSize(): number { return 2 ** this.fftLgWindowSize }
   /** samples per pixel */
   @Input() audioVizScale: number = 400; // TODO: change to seconds per pixel
-  @Input() audioData?: AudioData
+  #audioData?: AudioSamples
+  #spectrogram?: Float32Array[]
+  get audioData(): AudioSamples | undefined { return this.#audioData }
+  @Input() set audioData(x: AudioSamples | undefined) {
+    this.#audioData = x
+    this.#spectrogram = undefined
+  }
+  get spectrogram(): Promise<ReadonlyArray<Float32Array> | undefined> {
+    if (this.#spectrogram) return Promise.resolve(this.#spectrogram)
+    if (!this.audioData) return Promise.resolve(undefined)
+    const work: SpectrogramWork = {
+      timeStep: this.timeStep,
+      audioSamples: Float32Array.from(this.audioData.samples),
+      fftWindowSize: this.fftWindowSize,
+      gausWindowSigma: 0.2,
+    }
+    return rxjs.firstValueFrom(fromWorker<SpectrogramWork, Float32Array[]>(
+      () => new Worker(new URL('./spectrogram.worker', import.meta.url)),
+      rxjs.of(work),
+      (input) => [input.audioSamples.buffer],
+    )).then((spec) => {
+      this.#spectrogram = spec;
+      return spec
+    })
+  }
 
-  drawAudioViz(): void {
-    if (this.audioData && this.spectrogramCanvas) {
+  async drawAudioViz() {
+    const start = performance.now()
+    const spectrogram = await this.spectrogram
+    if (spectrogram && this.spectrogramCanvas) {
       const waveCanvas = this.spectrogramCanvas.nativeElement;
       waveCanvas.width = waveCanvas.parentElement!.clientWidth
       const waveCanvasCtx = waveCanvas.getContext('2d')!
-      const samples = this.audioData.samples
 
-      const timeStep = 12000
-      const fftWindowSize = 2**12
-      const window = genGaussianWindow(fftWindowSize, fftWindowSize / 8)
-      const colormap = Color.range('#440154','#fde725', { outputSpace: 'sRGB' })
-      const gainToColor = (x: number) => {
-        x = (100 + 20 * Math.log10(x))/100
-        return colormap(Math.max(0, x))
-      }
-
-      const tmp = new Float32Array(fftWindowSize)
       waveCanvasCtx.save()
       waveCanvasCtx.translate(0, waveCanvas.height)
-      waveCanvasCtx.scale(1 / (this.audioVizScale), -fftWindowSize / (2 * waveCanvas.height))
+      waveCanvasCtx.scale(this.timeStep / this.audioVizScale, -(2 * waveCanvas.height) / this.fftWindowSize)
       waveCanvasCtx.fillStyle = 'red'
-      for (let t = 0; t + fftWindowSize < samples.length; t += timeStep) {
-        tmp.set(samples.subarray(t, t + fftWindowSize))
-        for (let i = 0; i < tmp.length; i++) {
-          tmp[i] *= window[i]
-        }
-        const spec = ft(tmp) as Array<number>
-
-        for (let y = 0; y < spec.length; y++) {
-          const power = spec[y];
-          waveCanvasCtx.fillStyle = gainToColor(power).toString()
-          waveCanvasCtx.fillRect(t, y, timeStep, 1)
+      for (const [x, spec_x] of spectrogram.entries()) {
+        for (const [y, power] of spec_x.entries()) {
+          waveCanvasCtx.fillStyle = powerToColor(power)
+          waveCanvasCtx.fillRect(x, y, 1, 1)
         }
       }
       waveCanvasCtx.restore()
     }
+    const end = performance.now()
+    console.log(end - start);
   }
 
   ngOnChanges(changes: SimpleChanges): void {

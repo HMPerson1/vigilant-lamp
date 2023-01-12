@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
 import * as lodash from 'lodash';
-import { AudioData } from '../common';
+import { AudioSamples } from '../common';
 
 @Component({
   selector: 'app-audio-waveform',
@@ -11,7 +11,7 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
   @ViewChild('waveform_canvas') waveformCanvas?: ElementRef<HTMLCanvasElement>
   /** samples per pixel */
   @Input() audioVizScale: number = 400; // TODO: change to seconds per pixel
-  @Input() audioData?: AudioData
+  @Input() audioData?: AudioSamples
 
   drawAudioViz(): void {
     // FIXME: 1 sample / pixel doesn't render correctly

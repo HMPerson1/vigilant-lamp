@@ -3,7 +3,7 @@ import * as lodash from 'lodash';
 import { ChangeDetectorRef } from '@angular/core';
 // @ts-ignore
 import * as wav from 'wav-decoder';
-import { AudioData } from './common';
+import { AudioSamples } from './common';
 
 @Component({
   selector: 'app-root',
@@ -16,7 +16,7 @@ export class AppComponent {
   title = 'vigilant-lamp'
   coi = window.crossOriginIsolated
 
-  audioData?: AudioData
+  audioData?: AudioSamples
   /** samples per pixel */
   audioVizScale: number = 400
   audioContext?: AudioContext
