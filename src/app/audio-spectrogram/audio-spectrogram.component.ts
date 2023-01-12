@@ -51,17 +51,28 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
     const spectrogram = await this.spectrogram
     if (spectrogram && this.spectrogramCanvas) {
       const waveCanvas = this.spectrogramCanvas.nativeElement;
-      waveCanvas.width = waveCanvas.parentElement!.clientWidth
+      waveCanvas.width = Math.floor(waveCanvas.parentElement!.clientWidth)
+      waveCanvas.height = Math.floor(waveCanvas.parentElement!.clientHeight)
       const waveCanvasCtx = waveCanvas.getContext('2d')!
+
+      const logRenderFreqMin = Math.log(20)
+      const logRenderFreqMax = Math.log(this.audioData!.sampleRate / 2)
+
+      const specFreqMax = this.audioData!.sampleRate / 2
+      const renderYMax = waveCanvas.height
+      const logBkScale = Math.log(specFreqMax / (this.fftWindowSize / 2))
+      const bucket_add = logBkScale - logRenderFreqMin
+      const bucket_mul = renderYMax / (logRenderFreqMax - logRenderFreqMin)
+      const bucketToY = (bucket: number): number => (Math.log(bucket) + bucket_add) * bucket_mul
+      const bucketYSize = (bucket: number): number => (Math.log(bucket + 1) - Math.log(bucket)) * bucket_mul
 
       waveCanvasCtx.save()
       waveCanvasCtx.translate(0, waveCanvas.height)
-      waveCanvasCtx.scale(this.timeStep / this.audioVizScale, -(2 * waveCanvas.height) / this.fftWindowSize)
-      waveCanvasCtx.fillStyle = 'red'
+      waveCanvasCtx.scale(this.timeStep / this.audioVizScale, -1)
       for (const [x, spec_x] of spectrogram.entries()) {
-        for (const [y, power] of spec_x.entries()) {
+        for (const [bucket_i, power] of spec_x.entries()) {
           waveCanvasCtx.fillStyle = powerToColor(power)
-          waveCanvasCtx.fillRect(x, y, 1, 1)
+          waveCanvasCtx.fillRect(x, bucketToY(bucket_i), 1, bucketYSize(bucket_i))
         }
       }
       waveCanvasCtx.restore()

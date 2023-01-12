@@ -1,4 +1,4 @@
-<div class="content" role="main">
+<div class="content fill-screen" role="main" style="display: flex; flex-flow: column;">
   <div> Cross-Origin Isolated: {{ coi }} </div>
 
   <div>
@@ -21,6 +21,6 @@
   </div>
 
   <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
-  <app-audio-spectrogram [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-spectrogram>
+  <app-audio-spectrogram style="flex: 1; display: flex;" [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-spectrogram>
 
 </div>
