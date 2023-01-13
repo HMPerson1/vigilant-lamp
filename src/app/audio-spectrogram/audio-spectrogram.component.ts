@@ -6,7 +6,7 @@ import { AudioSamples, SpectrogramWork } from '../common';
 
 const colormap = Color.range('#440154', '#fde725', { outputSpace: 'sRGB' })
 const colormapArr = Array.from({ length: 101 }, (_x, i) => colormap(i / 100).toString())
-const powerToColor = (x: number) => colormapArr[Math.min(Math.max(0, Math.round(100 + x)), 100)]
+const powerToColor = (x: number) => colormapArr[Math.min(Math.max(0, Math.round(100 + 20 * Math.log10(x))), 100)]
 
 @Component({
   selector: 'app-audio-spectrogram',
@@ -15,7 +15,7 @@ const powerToColor = (x: number) => colormapArr[Math.min(Math.max(0, Math.round(
 })
 export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
   @ViewChild('spectrogram_canvas') spectrogramCanvas?: ElementRef<HTMLCanvasElement>
-  @Input() timeStep: number = 4000
+  @Input() timeStep: number = 1200
   @Input() fftLgWindowSize: number = 13
   get fftWindowSize(): number { return 2 ** this.fftLgWindowSize }
   /** samples per pixel */
@@ -36,6 +36,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       fftWindowSize: this.fftWindowSize,
       gausWindowSigma: 0.2,
     }
+    console.log('submit work', work);
     return rxjs.firstValueFrom(fromWorker<SpectrogramWork, Float32Array[]>(
       () => new Worker(new URL('./spectrogram.worker', import.meta.url)),
       rxjs.of(work),

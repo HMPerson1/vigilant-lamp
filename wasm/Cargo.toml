@@ -8,10 +8,19 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [features]
-default = ["console_error_panic_hook"]
+default = ["console_error_panic_hook", "wee_alloc"]
 
 [dependencies]
+js-sys = "*"
+web-sys = {version="*",features=["console"]}
+# wasm-bindgen-futures = "*"
 wasm-bindgen = "0.2.63"
+# wasm-mt = "*"
+# serde_closure = "*"
+# serde = "*"
+# wasm-mt-pool = "0.1.2"
+rustfft = "*"
+realfft = "3.2.0"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
