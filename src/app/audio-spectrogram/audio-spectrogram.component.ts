@@ -5,7 +5,7 @@ import * as rxjs from 'rxjs';
 import { AudioSamples, SpectrogramWork } from '../common';
 
 const colormap = Color.range('#440154', '#fde725', { outputSpace: 'sRGB' })
-const colormapArr = Array.from({ length: 101 }, (_x, i) => colormap(i / 100).toString())
+const colormapArr = Array.from({ length: 101 }, (_x, i) => Array.from((colormap(i / 100) as unknown as Color).srgb))
 const powerToColor = (x: number) => colormapArr[Math.min(Math.max(0, Math.round(100 + 20 * Math.log10(x))), 100)]
 
 @Component({
@@ -16,7 +16,7 @@ const powerToColor = (x: number) => colormapArr[Math.min(Math.max(0, Math.round(
 export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
   @ViewChild('spectrogram_canvas') spectrogramCanvas?: ElementRef<HTMLCanvasElement>
   @Input() timeStep: number = 1200
-  @Input() fftLgWindowSize: number = 13
+  @Input() fftLgWindowSize: number = 15
   get fftWindowSize(): number { return 2 ** this.fftLgWindowSize }
   /** samples per pixel */
   @Input() audioVizScale: number = 400; // TODO: change to seconds per pixel
@@ -67,16 +67,27 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       const bucketToY = (bucket: number): number => (Math.log(bucket) + bucket_add) * bucket_mul
       const bucketYSize = (bucket: number): number => (Math.log(bucket + 1) - Math.log(bucket)) * bucket_mul
 
-      waveCanvasCtx.save()
-      waveCanvasCtx.translate(0, waveCanvas.height)
-      waveCanvasCtx.scale(this.timeStep / this.audioVizScale, -1)
-      for (const [x, spec_x] of spectrogram.entries()) {
-        for (const [bucket_i, power] of spec_x.entries()) {
-          waveCanvasCtx.fillStyle = powerToColor(power)
-          waveCanvasCtx.fillRect(x, bucketToY(bucket_i), 1, bucketYSize(bucket_i))
+      const image = new ImageData(waveCanvas.width, waveCanvas.height)
+      const setPixel = (x: number, y: number, color: number[]) => {
+        y = image.height - y
+        const start = y * (image.width * 4) + x * 4
+        image.data[start + 0] = color[0] * 255
+        image.data[start + 1] = color[1] * 255
+        image.data[start + 2] = color[2] * 255
+        image.data[start + 3] = 255
+      }
+
+      for (let x = 0; x < Math.min(image.width, spectrogram.length * this.timeStep / this.audioVizScale); x++) {
+        let spec_x = spectrogram[Math.round((x * this.audioVizScale / this.timeStep))]
+        if (!spec_x) continue
+        for (let y = 0; y < image.height; y++) {
+          const yLogFreq = ((y / image.height) * (logRenderFreqMax - logRenderFreqMin)) + logRenderFreqMin
+          const bucket = Math.exp(yLogFreq) * ((this.fftWindowSize / 2) / specFreqMax)
+          setPixel(x, y, powerToColor(spec_x[Math.round(bucket)]))
         }
       }
-      waveCanvasCtx.restore()
+
+      waveCanvasCtx.putImageData(image, 0, 0)
     }
     const end = performance.now()
     console.log(end - start);
