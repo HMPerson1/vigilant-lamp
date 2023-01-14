@@ -19,6 +19,8 @@ export class AppComponent {
   audioData?: AudioSamples
   /** samples per pixel */
   audioVizScale: number = 400
+  specFreqMin: number = 20
+  specFreqMax: number = 20000
   audioContext?: AudioContext
   audioFile?: ArrayBuffer | AudioBuffer
   audioBufSrcNode?: AudioBufferSourceNode | null

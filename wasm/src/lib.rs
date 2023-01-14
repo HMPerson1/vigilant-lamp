@@ -1,11 +1,13 @@
 mod utils;
 
-use realfft::RealToComplex;
-use wasm_bindgen::prelude::*;
+use std::fmt::format;
+
+use realfft::{num_complex::Complex32, RealToComplex, RealToComplexEven};
+use wasm_bindgen::{prelude::*, Clamped};
 // use wasm_mt_pool::prelude::*;
 
 use js_sys::Float32Array;
-use web_sys::console;
+use web_sys::{console, ImageData};
 // use wasm_mt::utils::{console_ln, sleep};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -117,4 +119,131 @@ fn gen_gaussian_window(n: usize, sigma: f64) -> Box<[f32]> {
             (-1. / 2. * ((i - n / 2.) / (sigma * n / 2.)).powi(2)).exp() as f32
         })
         .collect()
+}
+
+#[wasm_bindgen]
+pub struct SpectrogramRenderer {
+    audio_samples: Box<[f32]>,
+    audio_sample_rate: u32,
+    window: Box<[f32]>,
+    fft_in: Box<[f32]>,
+    fft_scratch: Box<[Complex32]>,
+    fft_out: Box<[Complex32]>,
+    fft: RealToComplexEven<f32>,
+}
+
+#[wasm_bindgen]
+impl SpectrogramRenderer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        audio_samples: &[f32],
+        audio_sample_rate: u32,
+        fft_window_size: usize,
+        gaus_window_sigma: f64,
+    ) -> Self {
+        let fft = realfft::RealToComplexEven::<f32>::new(
+            fft_window_size,
+            &mut rustfft::FftPlanner::new(),
+        );
+        Self {
+            audio_samples: audio_samples.into(),
+            audio_sample_rate,
+            window: gen_gaussian_window(fft_window_size, gaus_window_sigma),
+            fft_in: fft.make_input_vec().into(),
+            fft_scratch: fft.make_scratch_vec().into(),
+            fft_out: fft.make_output_vec().into(),
+            fft,
+        }
+    }
+
+    #[wasm_bindgen]
+    pub fn render(
+        &mut self,
+        canvas_width: u32,
+        canvas_height: u32,
+        freq_min: f64,
+        freq_max: f64,
+        sample_start: usize,
+        sample_end: usize,
+        db_min: f64,
+        db_max: f64,
+    ) -> Result<ImageData, JsValue> {
+        utils::set_panic_hook();
+        assert!(self.window.len() == self.fft_in.len());
+
+        let freq_min_ln = freq_min.ln();
+        let freq_max_ln = freq_max.ln();
+        let y_to_freq_ln_mul = (freq_max_ln - freq_min_ln) / (canvas_height as f64);
+        let y_to_freq_ln_add =
+            freq_min_ln + (self.fft_out.len() as f64 / (self.audio_sample_rate as f64 / 2.)).ln();
+
+        let sample_len = sample_end - sample_start;
+        let x_to_sample = sample_len as f64 / canvas_width as f64;
+
+        let db_range = db_max - db_min;
+
+        let mut pixel_data = PixelBuf::new(canvas_width, canvas_height);
+        for x in 0..canvas_width {
+            let sample = sample_start + (x as f64 * x_to_sample).round() as usize;
+            if sample >= self.audio_samples.len() {
+                break;
+            }
+            self.do_fft_at(sample);
+
+            for y in 0..canvas_height {
+                let bucket = ((y as f64 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
+                let t = if let Some(power) = self.power_at_freq_bucket(bucket.round() as usize) {
+                    (20. * (power as f64).log10() - db_min) / db_range
+                } else {
+                    0.
+                };
+                pixel_data.set_pixel(x, y, colorous::INFERNO.eval_continuous(t).as_array());
+            }
+        }
+
+        ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(&mut pixel_data.into_buf()),
+            canvas_width,
+            canvas_height,
+        )
+    }
+
+    fn do_fft_at(&mut self, sample: usize) {
+        copy_centered_window(sample, &self.audio_samples, &mut self.fft_in);
+
+        for (x, w) in self.fft_in.iter_mut().zip(self.window.iter()) {
+            *x *= w;
+        }
+
+        self.fft
+            .process_with_scratch(&mut self.fft_in, &mut self.fft_out, &mut self.fft_scratch)
+            .unwrap();
+    }
+
+    fn power_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
+        Some(self.fft_out.get(bucket)?.norm() / (self.audio_samples.len() as f32).sqrt())
+    }
+}
+
+struct PixelBuf {
+    buf: Box<[u8]>,
+    width: u32,
+}
+
+impl PixelBuf {
+    fn new(width: u32, height: u32) -> Self {
+        Self {
+            buf: vec![255_u8; (width * height * 4) as usize].into(),
+            width,
+        }
+    }
+    fn into_buf(self) -> Box<[u8]> {
+        self.buf
+    }
+    fn set_pixel(&mut self, x: u32, y: u32, color: [u8; 3]) {
+        let start = ((y * self.width + x) * 4) as usize;
+        self.buf[start + 0] = color[0];
+        self.buf[start + 1] = color[1];
+        self.buf[start + 2] = color[2];
+    }
 }

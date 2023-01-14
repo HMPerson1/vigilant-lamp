@@ -20,10 +20,16 @@
     <mat-slider min="2" max="1000" style="width: 50%;">
       <input matSliderThumb [(value)]="audioVizScale">
     </mat-slider>
+    <mat-slider min="10" max="22000" style="width: 50%;">
+      <input matSliderThumb [(value)]="specFreqMin">
+    </mat-slider>
+    <mat-slider min="10" max="22000" style="width: 50%;">
+      <input matSliderThumb [(value)]="specFreqMax">
+    </mat-slider>
   </div>
 
   <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
-  <app-audio-spectrogram style="flex: 1; display: flex;" [audioVizScale]="audioVizScale"
-    [audioData]="audioData"></app-audio-spectrogram>
+  <app-audio-spectrogram style="flex: 1; display: flex;" [audioVizScale]="audioVizScale" [audioData]="audioData"
+    [freqMin]="specFreqMin" [freqMax]="specFreqMax"></app-audio-spectrogram>
 
 </div>
