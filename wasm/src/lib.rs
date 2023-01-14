@@ -1,6 +1,6 @@
 mod utils;
 
-use realfft::{RealToComplex};
+use realfft::RealToComplex;
 use wasm_bindgen::prelude::*;
 // use wasm_mt_pool::prelude::*;
 
@@ -46,8 +46,10 @@ pub fn compute_spectrogram_sync(
     utils::set_panic_hook();
     assert!(lg_fft_window_size > 1);
 
-    let fft_size = 1 << lg_fft_window_size;
-    let fft = realfft::RealToComplexEven::<f32>::new(fft_size, &mut rustfft::FftPlanner::new());
+    let fft = realfft::RealToComplexEven::<f32>::new(
+        1 << lg_fft_window_size,
+        &mut rustfft::FftPlanner::new(),
+    );
     let mut in_scratch = fft.make_input_vec();
     let mut fft_scratch = fft.make_scratch_vec();
     let mut out_scratch = fft.make_output_vec();
@@ -55,25 +57,52 @@ pub fn compute_spectrogram_sync(
     let window = gen_gaussian_window(in_scratch.len(), gaus_window_sigma);
     (0..ceil_div(audio_samples.len(), time_step))
         .map(|i| {
-            let start = i * time_step;
-            let end = start + fft_size;
-            if end >= audio_samples.len() {
-                let in_end = audio_samples.len() - start;
-                in_scratch[0..in_end].copy_from_slice(&audio_samples[start..]);
-                in_scratch[in_end..].fill(0_f32);
-            } else {
-                in_scratch.copy_from_slice(&audio_samples[start..end]);
-            }
+            copy_centered_window(i * time_step, audio_samples, &mut in_scratch);
             for (x, w) in in_scratch.iter_mut().zip(window.iter()) {
                 *x *= w;
             }
-            fft.process_with_scratch(&mut in_scratch, &mut out_scratch, &mut fft_scratch).unwrap();
+
+            fft.process_with_scratch(&mut in_scratch, &mut out_scratch, &mut fft_scratch)
+                .unwrap();
             for (spec, out) in spec_scratch.iter_mut().zip(out_scratch.iter()) {
                 *spec = out.norm() / (audio_samples.len() as f32).sqrt()
             }
             Float32Array::from(&*spec_scratch)
         })
         .collect()
+}
+
+fn copy_centered_window(center: usize, data: &[f32], window_out: &mut [f32]) {
+    let wndw_size = window_out.len();
+    let data_len = data.len();
+    assert!(center < data_len);
+    let end = center + wndw_size / 2;
+    match (center.checked_sub(wndw_size / 2), end <= data_len) {
+        (Some(start), true) => {
+            // window fully contained by data
+            window_out.copy_from_slice(&data[start..end]);
+        }
+        (Some(start), false) => {
+            // window end past data end
+            let in_end = data_len - start;
+            window_out[0..in_end].copy_from_slice(&data[start..]);
+            window_out[in_end..].fill(0_f32);
+        }
+        (None, true) => {
+            // window start before data start
+            let in_start = wndw_size / 2 - center;
+            window_out[0..in_start].fill(0_f32);
+            window_out[in_start..].copy_from_slice(&data[0..(wndw_size - in_start)]);
+        }
+        (None, false) => {
+            // window surrounds data
+            let in_start = wndw_size / 2 - center;
+            let in_end = in_start + data_len;
+            window_out[0..in_start].fill(0_f32);
+            window_out[in_start..in_end].copy_from_slice(data);
+            window_out[in_end..].fill(0_f32);
+        }
+    }
 }
 
 fn ceil_div(a: usize, b: usize) -> usize {
