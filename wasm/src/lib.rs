@@ -161,18 +161,18 @@ impl SpectrogramRenderer {
         &mut self,
         canvas_width: u32,
         canvas_height: u32,
-        freq_min: f64,
-        freq_max: f64,
-        sample_start: usize,
-        sample_end: usize,
+        pitch_min: f64,
+        pitch_max: f64,
+        sample_start: isize,
+        sample_end: isize,
         db_min: f64,
         db_max: f64,
     ) -> Result<ImageData, JsValue> {
         utils::set_panic_hook();
         assert!(self.window.len() == self.fft_in.len());
 
-        let freq_min_ln = freq_min.ln();
-        let freq_max_ln = freq_max.ln();
+        let freq_min_ln = pitch2freq(pitch_min).ln();
+        let freq_max_ln = pitch2freq(pitch_max).ln();
         let y_to_freq_ln_mul = (freq_max_ln - freq_min_ln) / (canvas_height as f64);
         let y_to_freq_ln_add =
             freq_min_ln + (self.fft_out.len() as f64 / (self.audio_sample_rate as f64 / 2.)).ln();
@@ -184,7 +184,11 @@ impl SpectrogramRenderer {
 
         let mut pixel_data = PixelBuf::new(canvas_width, canvas_height);
         for x in 0..canvas_width {
-            let sample = sample_start + (x as f64 * x_to_sample).round() as usize;
+            let sample = sample_start + (x as f64 * x_to_sample).round() as isize;
+            if sample < 0 {
+                continue;
+            }
+            let sample = sample as usize;
             if sample >= self.audio_samples.len() {
                 break;
             }
@@ -246,4 +250,12 @@ impl PixelBuf {
         self.buf[start + 1] = color[1];
         self.buf[start + 2] = color[2];
     }
+}
+
+fn pitch2freq(pitch: f64) -> f64 {
+    2_f64.powf((pitch - 69.) / 12.) * 440.
+}
+
+fn freq2pitch(freq: f64) -> f64 {
+    (freq / 440.).log2() * 12. + 69.
 }

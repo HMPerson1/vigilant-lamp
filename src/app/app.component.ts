@@ -1,6 +1,5 @@
-import { Component, ElementRef, NgZone, ViewChild } from '@angular/core';
+import { Component, NgZone } from '@angular/core';
 import * as lodash from 'lodash';
-import { ChangeDetectorRef } from '@angular/core';
 // @ts-ignore
 import * as wav from 'wav-decoder';
 import { AudioSamples } from './common';
@@ -19,8 +18,13 @@ export class AppComponent {
   audioData?: AudioSamples
   /** samples per pixel */
   audioVizScale: number = 400
-  specFreqMin: number = 20
-  specFreqMax: number = 20000
+  specPitchMin: number = 16
+  specPitchMax: number = 136
+  specDbMin: number = -80
+  specDbMax: number = -20
+  specLgWindowSize: number = 12
+  specTimeStepInput: number = 8
+  get specTimeStep(): number { return 16 - this.specTimeStepInput }
   audioContext?: AudioContext
   audioFile?: ArrayBuffer | AudioBuffer
   audioBufSrcNode?: AudioBufferSourceNode | null

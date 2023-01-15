@@ -1,35 +1,47 @@
-<div class="content fill-screen" role="main" style="display: flex; flex-flow: column;">
-  <div> Cross-Origin Isolated: {{ coi }} </div>
-  <div>
-    <button mat-raised-button color="primary">TEST BUTTON</button>
+<div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
+  <div style="flex: 4; display: flex; flex-direction: column;">
+    <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
+    <app-audio-spectrogram style="flex: 1; display: flex;" [audioVizScale]="audioVizScale" [audioData]="audioData"
+      [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
+      [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"></app-audio-spectrogram>
   </div>
-  <div>
-    <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
-    <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/wav">
-  </div>
-  <div>
-    <button mat-icon-button aria-label="Play" (click)="startPlayback()" [disabled]="!audioFile">
-      <mat-icon>play_arrow</mat-icon>
-    </button>
-    <button mat-icon-button aria-label="Stop" (click)="stopPlayback()" [disabled]="!audioBufSrcNode">
-      <mat-icon>stop</mat-icon>
-    </button>
-  </div>
-
-  <div>
-    <mat-slider min="2" max="1000" style="width: 50%;">
+  <div style="flex: 1; border-style: groove; padding: 4px 8px; display: flex; flex-direction: column;">
+    <div style="display: flex; align-items: center;">
+      <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
+      <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/wav">
+      <div style="flex: 1; display: flex; justify-content: space-evenly;">
+        <button mat-icon-button aria-label="Play" (click)="startPlayback()" [disabled]="!audioFile">
+          <mat-icon>play_arrow</mat-icon>
+        </button>
+        <button mat-icon-button aria-label="Stop" (click)="stopPlayback()" [disabled]="!audioBufSrcNode">
+          <mat-icon>stop</mat-icon>
+        </button>
+      </div>
+    </div>
+    <h2>TEMPORARY VIEW ADJUSTMENT</h2>
+    <mat-slider min="2" max="1000" style="width: auto;">
       <input matSliderThumb [(value)]="audioVizScale">
     </mat-slider>
-    <mat-slider min="10" max="22000" style="width: 50%;">
-      <input matSliderThumb [(value)]="specFreqMin">
+    <mat-slider min="16" max="136" step="0.1" style="width: auto;">
+      <input matSliderThumb [(value)]="specPitchMin">
     </mat-slider>
-    <mat-slider min="10" max="22000" style="width: 50%;">
-      <input matSliderThumb [(value)]="specFreqMax">
+    <mat-slider min="16" max="136" step="0.1" style="width: auto;">
+      <input matSliderThumb [(value)]="specPitchMax">
     </mat-slider>
+    <h2>Spectral Power Scale</h2>
+    <mat-slider min="-100" max="0" step="0.1" style="width: auto;">
+      <input matSliderThumb [(value)]="specDbMin">
+    </mat-slider>
+    <mat-slider min="-100" max="0" step="0.1" style="width: auto;">
+      <input matSliderThumb [(value)]="specDbMax">
+    </mat-slider>
+    <h2>((fft params))</h2>
+    <mat-slider min="10" max="16" step="1" style="width: auto;">
+      <input matSliderThumb [(value)]="specLgWindowSize">
+    </mat-slider>
+    <mat-slider min="0" max="15" step="1" style="width: auto;">
+      <input matSliderThumb [(value)]="specTimeStepInput">
+    </mat-slider>
+    <div> Cross-Origin Isolated: {{ coi }} </div>
   </div>
-
-  <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
-  <app-audio-spectrogram style="flex: 1; display: flex;" [audioVizScale]="audioVizScale" [audioData]="audioData"
-    [freqMin]="specFreqMin" [freqMax]="specFreqMax"></app-audio-spectrogram>
-
 </div>
