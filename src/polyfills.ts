@@ -17,6 +17,8 @@
 /***************************************************************************************************
  * BROWSER POLYFILLS
  */
+// hack for wav-decoder
+(window as any).global = window; 
 
 /**
  * By default, zone.js will patch all possible macroTask and DomEvents
