@@ -1,5 +1,5 @@
 import { Component, NgZone } from '@angular/core';
-import * as lodash from 'lodash';
+import * as lodash from 'lodash-es';
 // @ts-ignore
 import * as wav from 'wav-decoder';
 import { AudioSamples } from './common';
@@ -16,10 +16,10 @@ export class AppComponent {
   coi = window.crossOriginIsolated
 
   audioData?: AudioSamples
-  /** samples per pixel */
-  audioVizScale: number = 400
   specPitchMin: number = 16
   specPitchMax: number = 136
+  vizTimeMin: number = 0
+  vizTimeMax: number = 30
   specDbMin: number = -80
   specDbMax: number = -20
   specLgWindowSize: number = 12
@@ -41,6 +41,8 @@ export class AppComponent {
           // TODO: allow picking one channel
           resolve({ sampleRate: audioWavData.sampleRate, samples: Float32Array.from(samples) })
         })
+        this.vizTimeMin = 0
+        this.vizTimeMax = this.audioData.samples.length / this.audioData.sampleRate
       }
       reader.readAsArrayBuffer(fileInput.files[0])
     }

@@ -1,6 +1,6 @@
-import { AfterViewInit, Component, ElementRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
-import * as lodash from 'lodash';
-import { AudioSamples } from '../common';
+import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import * as lodash from 'lodash-es';
+import { AudioSamples, doScrollZoom } from '../common';
 
 @Component({
   selector: 'app-audio-waveform',
@@ -9,10 +9,35 @@ import { AudioSamples } from '../common';
 })
 export class AudioWaveformComponent implements OnChanges, AfterViewInit {
   @ViewChild('waveform_canvas') waveformCanvas?: ElementRef<HTMLCanvasElement>
-  /** samples per pixel */
-  @Input() audioVizScale: number = 400; // TODO: change to seconds per pixel
+  @Input() timeMin: number = 0;
+  @Input() timeMax: number = 30;
+  @Output() timeMinChange = new EventEmitter<number>()
+  @Output() timeMaxChange = new EventEmitter<number>()
   @Input() audioData?: AudioSamples
 
+  onWheel(event: WheelEvent) {
+    if (!this.waveformCanvas) {
+      console.log("scroll event before view rendered???");
+      return
+    }
+    const waveCanvas = this.waveformCanvas.nativeElement;
+    event.preventDefault()
+    // TODO: scroll pixel/line/page ???
+
+    const zoomRate = 1 / 400
+    const timeScrollRate = zoomRate / 4;
+    const delta = event.deltaX + event.deltaY
+    const timeClampMax = this.audioData ? this.audioData.samples.length / this.audioData.sampleRate : 30
+
+    if (delta) {
+      doScrollZoom(
+        this, 'timeMin', 'timeMax',
+        0, timeClampMax, 1 / 4, zoomRate, timeScrollRate,
+        delta, event.ctrlKey, event.offsetX / waveCanvas.width)
+      this.timeMinChange.emit(this.timeMin)
+      this.timeMaxChange.emit(this.timeMax)
+    }
+  }
   drawAudioViz(): void {
     // FIXME: 1 sample / pixel doesn't render correctly
     if (this.audioData && this.waveformCanvas) {
@@ -21,22 +46,24 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
       const waveCanvasCtx = waveCanvas.getContext('2d')!
       const samples = this.audioData.samples
 
-      const tmp = new Float32Array(this.audioVizScale)
+      const timeRange = this.timeMax - this.timeMin
+      const samplesPerPixel = timeRange * this.audioData.sampleRate / waveCanvas.width
+
       waveCanvasCtx.save()
       waveCanvasCtx.lineWidth = 1
       waveCanvasCtx.translate(0.5, waveCanvas.height / 2 + 0.5)
       waveCanvasCtx.beginPath()
       waveCanvasCtx.moveTo(0, 0)
-      waveCanvasCtx.lineTo(samples.length / this.audioVizScale, 0) // TODO: hack
+      waveCanvasCtx.lineTo(samples.length / samplesPerPixel, 0) // TODO: hack
       waveCanvasCtx.stroke()
       waveCanvasCtx.scale(1, -waveCanvas.height / 2.2)
       waveCanvasCtx.beginPath()
-      for (let x = 0; x < Math.ceil(samples.length / this.audioVizScale); x++) {
-        const chunkSampleStart = x * this.audioVizScale
-        tmp.set(samples.subarray(chunkSampleStart, chunkSampleStart + this.audioVizScale))
+      for (let x = 0; x < waveCanvas.width; x++) {
+        const chunkSampleStart = x * samplesPerPixel + this.timeMin * this.audioData.sampleRate
+        const chunk = samples.subarray(Math.round(chunkSampleStart), Math.round(chunkSampleStart + samplesPerPixel))
 
-        const low = lodash.min(tmp)!
-        const high = lodash.max(tmp)!
+        const low = lodash.min(chunk)!
+        const high = lodash.max(chunk)!
         waveCanvasCtx.moveTo(x, low)
         waveCanvasCtx.lineTo(x, high)
       }

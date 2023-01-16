@@ -1,7 +1,6 @@
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
-import { AudioSamples } from '../common';
+import { AudioSamples, doScrollZoom } from '../common';
 import * as wasm_module from '../../../wasm/pkg';
-import { clamp } from 'lodash';
 
 @Component({
   selector: 'app-audio-spectrogram',
@@ -10,16 +9,20 @@ import { clamp } from 'lodash';
 })
 export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
   @ViewChild('spectrogram_canvas') spectrogramCanvas?: ElementRef<HTMLCanvasElement>
-  get fftWindowSize(): number { return 2 ** this.fftLgWindowSize }
-  /** samples per pixel */
-  @Input() audioVizScale: number = 400; // TODO: change to seconds per pixel
-  @Input() timeStep: number = 2;
+
+  @Input() timeMin: number = 0;
+  @Input() timeMax: number = 30;
+  @Output() timeMinChange = new EventEmitter<number>()
+  @Output() timeMaxChange = new EventEmitter<number>()
   @Input() pitchMin: number = 16;
   @Input() pitchMax: number = 136;
   @Output() pitchMinChange = new EventEmitter<number>()
   @Output() pitchMaxChange = new EventEmitter<number>()
   @Input() specDbMin: number = -80
   @Input() specDbMax: number = -20
+
+  get fftWindowSize(): number { return 2 ** this.fftLgWindowSize }
+  @Input() timeStep: number = 2;
   #audioData?: AudioSamples
   #spectrogram?: wasm_module.SpectrogramRenderer
   get audioData(): AudioSamples | undefined { return this.#audioData }
@@ -46,41 +49,37 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       console.log("scroll event before view rendered???");
       return
     }
+    const specCanvas = this.spectrogramCanvas.nativeElement;
     event.preventDefault()
     // TODO: scroll pixel/line/page ???
 
+    const zoomRate = 1 / 400
+    const timeScrollRate = zoomRate / 4;
     const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY]
     if (deltaY) {
-      let pitchRange = this.pitchMax - this.pitchMin
-      let pitchMin = this.pitchMin
-      if (event.ctrlKey) {
-        let newPitchRange = pitchRange * (2 ** (deltaY / 200));
-        newPitchRange = clamp(newPitchRange, 12, 120)
-        const deltaPitchRange = newPitchRange - pitchRange;
-        pitchRange = newPitchRange
-        pitchMin -= (1 - (event.offsetY / this.spectrogramCanvas.nativeElement.height)) * deltaPitchRange
-      } else {
-        pitchMin += pitchRange * (deltaY / 800)
-      }
-
-      pitchMin = clamp(pitchMin, 16, 136 - pitchRange)
-      this.pitchMin = pitchMin
-      this.pitchMax = pitchMin + pitchRange
+      doScrollZoom(
+        this, 'pitchMin', 'pitchMax',
+        16, 136, 12, zoomRate, -timeScrollRate * (specCanvas.width / specCanvas.height),
+        deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.height)
       this.pitchMinChange.emit(this.pitchMin)
       this.pitchMaxChange.emit(this.pitchMax)
     }
     if (deltaX) {
-      // TODO
-      // this.audioVizScale += deltaX / 2
+      const timeClampMax = this.audioData ? this.audioData.samples.length / this.audioData.sampleRate : 30
 
-      // this.audioVizScale = clamp(this.audioVizScale, 2, 1000)
+      doScrollZoom(
+        this, 'timeMin', 'timeMax',
+        0, timeClampMax, 1 / 4, zoomRate, timeScrollRate,
+        deltaX, event.ctrlKey, event.offsetX / specCanvas.width)
+      this.timeMinChange.emit(this.timeMin)
+      this.timeMaxChange.emit(this.timeMax)
     }
   }
 
 
   async drawAudioViz() {
     const start = performance.now()
-    if (this.spectrogram && this.spectrogramCanvas) {
+    if (this.spectrogram && this.audioData && this.spectrogramCanvas) {
       const waveCanvas = this.spectrogramCanvas.nativeElement;
       waveCanvas.width = Math.floor(waveCanvas.parentElement!.clientWidth)
       waveCanvas.height = Math.floor(waveCanvas.parentElement!.clientHeight)
@@ -89,7 +88,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       const rendered = this.spectrogram.render(
         waveCanvas.width / this.timeStep, waveCanvas.height,
         this.pitchMin, this.pitchMax,
-        0, waveCanvas.width * this.audioVizScale,
+        this.timeMin * this.audioData.sampleRate, this.timeMax * this.audioData.sampleRate,
         this.specDbMin, this.specDbMax,
       )
 

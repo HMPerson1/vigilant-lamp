@@ -1,9 +1,9 @@
 <div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
   <div style="flex: 4; display: flex; flex-direction: column;">
-    <app-audio-waveform [audioVizScale]="audioVizScale" [audioData]="audioData"></app-audio-waveform>
-    <app-audio-spectrogram style="flex: 1; display: flex;" [audioVizScale]="audioVizScale" [audioData]="audioData"
-      [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
-      [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"></app-audio-spectrogram>
+    <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"></app-audio-waveform>
+    <app-audio-spectrogram style="flex: 1; display: flex;" [audioData]="audioData" [(timeMin)]="vizTimeMin"
+      [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin"
+      [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"></app-audio-spectrogram>
   </div>
   <div style="flex: 1; border-style: groove; padding: 4px 8px; display: flex; flex-direction: column;">
     <div style="display: flex; align-items: center;">
@@ -18,16 +18,6 @@
         </button>
       </div>
     </div>
-    <h2>TEMPORARY VIEW ADJUSTMENT</h2>
-    <mat-slider min="2" max="1000" style="width: auto;">
-      <input matSliderThumb [(value)]="audioVizScale">
-    </mat-slider>
-    <mat-slider min="16" max="136" step="0.1" style="width: auto;">
-      <input matSliderThumb [(value)]="specPitchMin">
-    </mat-slider>
-    <mat-slider min="16" max="136" step="0.1" style="width: auto;">
-      <input matSliderThumb [(value)]="specPitchMax">
-    </mat-slider>
     <h2>Spectral Power Scale</h2>
     <mat-slider min="-100" max="0" step="0.1" style="width: auto;">
       <input matSliderThumb [(value)]="specDbMin">
