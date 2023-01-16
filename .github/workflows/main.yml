@@ -17,6 +17,7 @@ jobs:
   deploy:
     environment:
       name: Netlify Production
+      url: ${{ steps.netlify-deploy.outputs.deploy_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -46,7 +47,10 @@ jobs:
           echo '  Cross-Origin-Opener-Policy: same-origin' >> ./dist/_headers
           echo '  Cross-Origin-Embedder-Policy: require-corp' >> ./dist/_headers
       - name: Deploy to Netlify
-        run: npx netlify-cli@12.7.2 deploy --dir=./dist
+        id: netlify-deploy
+        run: |
+          npx netlify-cli@12.7.2 deploy --dir=./dist --json | tee out.json
+          node -e 'console.log("deploy_url="+require("./out.json").deploy_url)' >> $GITHUB_OUTPUT 
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID : ${{ secrets.NETLIFY_SITE_ID }}
