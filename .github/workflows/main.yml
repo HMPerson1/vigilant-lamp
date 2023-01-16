@@ -35,7 +35,7 @@ jobs:
       - name: Build WASM
         run: npx wasm-pack build ./wasm
       - name: Build with Angular
-        run: npx --no-install ng build --verbose
+        run: npx --no-install ng build --verbose --output-path dist
       - name: Deploy to Netlify
         run: npx netlify-cli@12.7.2 deploy --dir=./dist
         env:
