@@ -36,6 +36,11 @@ jobs:
         run: npx wasm-pack build ./wasm
       - name: Build with Angular
         run: npx --no-install ng build --verbose --output-path dist
+      - name: Configure Netlify HTTP Headers
+        run: |
+          echo '/*' >> ./dist/_headers
+          echo '  Cross-Origin-Opener-Policy: same-origin' >> ./dist/_headers
+          echo '  Cross-Origin-Embedder-Policy: require-corp' >> ./dist/_headers
       - name: Deploy to Netlify
         run: npx netlify-cli@12.7.2 deploy --dir=./dist
         env:
