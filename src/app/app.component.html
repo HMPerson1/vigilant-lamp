@@ -1,5 +1,5 @@
 <div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
-  <div style="flex: 4; display: flex; flex-direction: column;">
+  <div style="flex: 4; display: flex; flex-direction: column;" (wheel)="$event.preventDefault()">
     <app-audio-waveform class="groove-border" [audioData]="audioData" [(timeMin)]="vizTimeMin"
       [(timeMax)]="vizTimeMax"></app-audio-waveform>
     <app-audio-spectrogram class="groove-border" style="flex: 1; display: flex;" [audioData]="audioData"
