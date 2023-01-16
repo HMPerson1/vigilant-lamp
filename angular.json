@@ -26,9 +26,7 @@
               "@angular/material/prebuilt-themes/deeppurple-amber.css",
               "src/styles.css"
             ],
-            "scripts": [
-              "node_modules/coi-serviceworker/coi-serviceworker.js"
-            ],
+            "scripts": [],
             "webWorkerTsConfig": "tsconfig.worker.json"
           },
           "configurations": {
@@ -67,6 +65,12 @@
         },
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
+          "options": {
+            "headers": {
+              "Cross-Origin-Embedder-Policy": "require-corp",
+              "Cross-Origin-Opener-Policy": "same-origin"
+            }
+          },
           "configurations": {
             "production": {
               "browserTarget": "vigilant-lamp:build:production"
