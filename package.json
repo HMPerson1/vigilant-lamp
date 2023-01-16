@@ -4,7 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "npx wasm-pack --version && ng build",
+    "build": "npx wasm-pack build ./wasm && ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test"
   },
