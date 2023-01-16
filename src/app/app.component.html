@@ -1,15 +1,17 @@
 <div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
   <div style="flex: 4; display: flex; flex-direction: column;">
-    <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"></app-audio-waveform>
-    <app-audio-spectrogram style="flex: 1; display: flex;" [audioData]="audioData" [(timeMin)]="vizTimeMin"
-      [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin"
-      [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"></app-audio-spectrogram>
+    <app-audio-waveform class="groove-border" [audioData]="audioData" [(timeMin)]="vizTimeMin"
+      [(timeMax)]="vizTimeMax"></app-audio-waveform>
+    <app-audio-spectrogram class="groove-border" style="flex: 1; display: flex;" [audioData]="audioData"
+      [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax"
+      [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
+      [timeStep]="specTimeStep"></app-audio-spectrogram>
   </div>
-  <div style="flex: 1; border-style: groove; padding: 4px 8px; display: flex; flex-direction: column;">
+  <div class="groove-border settings-panel" style="flex: 1; padding: 4px 8px; display: flex; flex-direction: column;">
     <div style="display: flex; align-items: center;">
       <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
       <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/wav">
-      <div style="flex: 1; display: flex; justify-content: space-evenly;">
+      <div style="flex: 1; padding: 0 16px; display: flex;">
         <button mat-icon-button aria-label="Play" (click)="startPlayback()" [disabled]="!audioFile">
           <mat-icon>play_arrow</mat-icon>
         </button>
@@ -18,20 +20,21 @@
         </button>
       </div>
     </div>
-    <h2>Spectral Power Scale</h2>
-    <mat-slider min="-100" max="0" step="0.1" style="width: auto;">
-      <input matSliderThumb [(value)]="specDbMin">
-    </mat-slider>
-    <mat-slider min="-100" max="0" step="0.1" style="width: auto;">
-      <input matSliderThumb [(value)]="specDbMax">
-    </mat-slider>
-    <h2>((fft params))</h2>
-    <mat-slider min="10" max="16" step="1" style="width: auto;">
-      <input matSliderThumb [(value)]="specLgWindowSize">
-    </mat-slider>
-    <mat-slider min="0" max="15" step="1" style="width: auto;">
-      <input matSliderThumb [(value)]="specTimeStepInput">
-    </mat-slider>
+    <div style="padding: 16px 0; display: flex; flex-direction: column;">
+      <label>Spectral Power Scale</label>
+      <mat-slider min="-100" max="0" step="1" style="width: auto;">
+        <input matSliderStartThumb [(value)]="specDbMin">
+        <input matSliderEndThumb [(value)]="specDbMax">
+      </mat-slider>
+      <label>FFT Window Size</label>
+      <mat-slider min="10" max="16" step="1" style="width: auto;">
+        <input matSliderThumb [(value)]="specLgWindowSize">
+      </mat-slider>
+      <label>Time Resolution</label>
+      <mat-slider min="0" max="15" step="1" style="width: auto;">
+        <input matSliderThumb [(value)]="specTimeStepInput">
+      </mat-slider>
+    </div>
     <div> Cross-Origin Isolated: {{ coi }} </div>
   </div>
 </div>

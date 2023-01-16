@@ -1,0 +1,8 @@
+.groove-border {
+  border: 4px;
+  border-style: groove;
+}
+
+.settings-panel label {
+  font-size: medium;
+}

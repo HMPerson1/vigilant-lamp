@@ -20,7 +20,7 @@ export class AppComponent {
   specPitchMax: number = 136
   vizTimeMin: number = 0
   vizTimeMax: number = 30
-  specDbMin: number = -80
+  specDbMin: number = -60
   specDbMax: number = -20
   specLgWindowSize: number = 12
   specTimeStepInput: number = 8

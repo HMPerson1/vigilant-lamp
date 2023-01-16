@@ -85,6 +85,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       waveCanvas.height = Math.floor(waveCanvas.parentElement!.clientHeight)
       const waveCanvasCtx = waveCanvas.getContext('2d')!
 
+      // TODO: db range changes shouldn't need recomputing ffts
       const rendered = this.spectrogram.render(
         waveCanvas.width / this.timeStep, waveCanvas.height,
         this.pitchMin, this.pitchMax,
