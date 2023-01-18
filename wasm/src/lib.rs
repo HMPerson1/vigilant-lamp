@@ -184,7 +184,7 @@ impl SpectrogramRenderer {
 
         let mut pixel_data = PixelBuf::new(canvas_width, canvas_height);
         for x in 0..canvas_width {
-            let sample = sample_start + (x as f64 * x_to_sample).round() as isize;
+            let sample = sample_start + ((x as f64 + 0.5) * x_to_sample).round() as isize;
             if sample < 0 {
                 continue;
             }
@@ -195,7 +195,7 @@ impl SpectrogramRenderer {
             self.do_fft_at(sample);
 
             for y in 0..canvas_height {
-                let bucket = ((y as f64 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
+                let bucket = (((y as f64 + 0.5) * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
                 let t = if let Some(power) = self.power_at_freq_bucket(bucket.round() as usize) {
                     (20. * (power as f64).log10() - db_min) / db_range
                 } else {

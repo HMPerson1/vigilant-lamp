@@ -43,6 +43,7 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
     if (this.audioData && this.waveformCanvas) {
       const waveCanvas = this.waveformCanvas.nativeElement;
       waveCanvas.width = waveCanvas.parentElement!.clientWidth
+      waveCanvas.height = waveCanvas.parentElement!.clientHeight
       const waveCanvasCtx = waveCanvas.getContext('2d')!
       const samples = this.audioData.samples
 

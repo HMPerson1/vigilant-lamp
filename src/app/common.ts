@@ -3,12 +3,17 @@ import { clamp } from "lodash-es"
 export type AudioSamples = { sampleRate: number, samples: Float32Array }
 
 export type SpectrogramWork = {
-  /// in samples
-  timeStep: number,
-  /// in samples
-  fftWindowSize: number,
-  gausWindowSigma: number,
-  audioSamples: Float32Array,
+  audioData: AudioSamples;
+  timeMin: number;
+  timeMax: number;
+  pitchMin: number;
+  pitchMax: number;
+  specDbMin: number;
+  specDbMax: number;
+  timeStep: number;
+  fftLgWindowSize: number;
+  canvasWidth: number;
+  canvasHeight: number;
 }
 
 export function genGaussianWindow(N: number, sigma: number): Float32Array {
@@ -50,3 +55,5 @@ export function doScrollZoom<PropMin extends string, PropMax extends string>(
   obj[propMin] = valMin
   obj[propMax] = valMin + valRange
 }
+
+export function isNotUndefined<T>(x?: T): x is T { return x !== undefined }

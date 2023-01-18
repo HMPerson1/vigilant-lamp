@@ -9,6 +9,18 @@ html {
   box-sizing: inherit;
 }
 
+.canvas-box {
+  position: relative;
+  overflow: clip;
+}
+.canvas-box canvas {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+}
+
 html,
 body,
 .fill-screen {

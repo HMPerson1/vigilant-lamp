@@ -13,18 +13,18 @@ export class Spectrogram implements DoWork<SpectrogramWork, Float32Array[]> {
     const eventBuf: ReplaySubject<SpectrogramWork> = new ReplaySubject()
     input$.subscribe(eventBuf)
     return new Observable((subscriber) => {
-      this.wasm_module.then((wasm_module) => {
-        eventBuf.pipe(
-          map(({ timeStep, fftWindowSize, gausWindowSigma, audioSamples }) => {
-            console.log(audioSamples.length);
-            const t_start = performance.now()
-            const ret = wasm_module.compute_spectrogram_sync(timeStep, Math.floor(Math.log2(fftWindowSize)), gausWindowSigma, audioSamples)
-            const t_end = performance.now()
-            console.log(t_end-t_start)
-            return ret
-          })
-        ).subscribe(subscriber)
-      })
+      // this.wasm_module.then((wasm_module) => {
+      //   eventBuf.pipe(
+      //     map(({ timeStep, fftWindowSize, gausWindowSigma, audioSamples }) => {
+      //       console.log(audioSamples.length);
+      //       const t_start = performance.now()
+      //       const ret = wasm_module.compute_spectrogram_sync(timeStep, Math.floor(Math.log2(fftWindowSize)), gausWindowSigma, audioSamples)
+      //       const t_end = performance.now()
+      //       console.log(t_end-t_start)
+      //       return ret
+      //     })
+      //   ).subscribe(subscriber)
+      // })
     })
   }
   selectTransferables(output: Float32Array[]): Transferable[] {
