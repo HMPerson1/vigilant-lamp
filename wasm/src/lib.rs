@@ -163,8 +163,8 @@ impl SpectrogramRenderer {
         canvas_height: u32,
         pitch_min: f64,
         pitch_max: f64,
-        sample_start: isize,
-        sample_end: isize,
+        time_start: f64,
+        time_end: f64,
         db_min: f64,
         db_max: f64,
     ) -> Result<ImageData, JsValue> {
@@ -177,14 +177,14 @@ impl SpectrogramRenderer {
         let y_to_freq_ln_add =
             freq_min_ln + (self.fft_out.len() as f64 / (self.audio_sample_rate as f64 / 2.)).ln();
 
-        let sample_len = sample_end - sample_start;
-        let x_to_sample = sample_len as f64 / canvas_width as f64;
+        let time_len = time_end - time_start;
+        let x_to_time = time_len / canvas_width as f64;
 
         let db_range = db_max - db_min;
 
         let mut pixel_data = PixelBuf::new(canvas_width, canvas_height);
         for x in 0..canvas_width {
-            let sample = sample_start + ((x as f64 + 0.5) * x_to_sample).round() as isize;
+            let sample = ((time_start + x as f64 * x_to_time) * self.audio_sample_rate as f64).round() as isize;
             if sample < 0 {
                 continue;
             }
@@ -195,7 +195,7 @@ impl SpectrogramRenderer {
             self.do_fft_at(sample);
 
             for y in 0..canvas_height {
-                let bucket = (((y as f64 + 0.5) * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
+                let bucket = ((y as f64 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
                 let t = if let Some(power) = self.power_at_freq_bucket(bucket.round() as usize) {
                     (20. * (power as f64).log10() - db_min) / db_range
                 } else {
@@ -237,7 +237,7 @@ struct PixelBuf {
 impl PixelBuf {
     fn new(width: u32, height: u32) -> Self {
         Self {
-            buf: vec![255_u8; (width * height * 4) as usize].into(),
+            buf: vec![255_u8; width as usize * height as usize * 4].into(),
             width,
         }
     }
@@ -245,7 +245,7 @@ impl PixelBuf {
         self.buf
     }
     fn set_pixel(&mut self, x: u32, y: u32, color: [u8; 3]) {
-        let start = ((y * self.width + x) * 4) as usize;
+        let start = (y as usize * self.width as usize + x as usize) * 4;
         self.buf[start + 0] = color[0];
         self.buf[start + 1] = color[1];
         self.buf[start + 2] = color[2];

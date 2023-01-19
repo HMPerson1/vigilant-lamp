@@ -55,7 +55,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
 
     const specCanvas$ = this.spectrogramCanvas$.pipe(filter(isNotUndefined))
-    const specCanvasSize$ = specCanvas$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement.parentElement!, {box: 'device-pixel-content-box'})))
+    const specCanvasSize$ = specCanvas$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement.parentElement!, { box: 'device-pixel-content-box' })))
     const specWork$: Observable<SpectrogramWork> = combineLatest({
       audioData: this.audioData$.pipe(filter(isNotUndefined)),
       timeMin: this.timeMin$,
@@ -74,21 +74,29 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
     specWork$.subscribe((work) => window.requestAnimationFrame(async () => {
       if (!this.spectrogramCanvas) return
       const sampleRate = work.audioData.sampleRate;
+      const timePerPixel = (work.timeMax - work.timeMin) / work.canvasWidth;
+      const timePerStep = timePerPixel * this.timeStep;
+      const timeFirstPixel = work.timeMin + timePerPixel / 2;
+      const stepCount = Math.ceil((work.canvasWidth - .5) / work.timeStep + .5)
+
       const renderer = new wasm_module.SpectrogramRenderer(work.audioData.samples, sampleRate, 2 ** work.fftLgWindowSize, 0.2)
-      // TODO: descreasing time step or changing db shouldn't require
+      // TODO: descreasing time step or changing db shouldn't require recomputing ffts
       const image = renderer.render(
-        work.canvasWidth / work.timeStep, work.canvasHeight,
+        stepCount, work.canvasHeight,
         work.pitchMin, work.pitchMax,
-        work.timeMin * sampleRate, work.timeMax * sampleRate,
+        timeFirstPixel, timeFirstPixel + stepCount * timePerStep,
         work.specDbMin, work.specDbMax)
       renderer.free()
+      
 
       const specCanvas = this.spectrogramCanvas.nativeElement;
       specCanvas.width = work.canvasWidth
       specCanvas.height = work.canvasHeight
       const specCanvasCtx = specCanvas.getContext('2d')!
       specCanvasCtx.imageSmoothingEnabled = false
-      specCanvasCtx.drawImage(await createImageBitmap(image, { imageOrientation: 'flipY' }), 0, 0, specCanvas.width, specCanvas.height)
+
+      const bitmap = await createImageBitmap(image, { imageOrientation: 'flipY' });
+      specCanvasCtx.drawImage(bitmap, .5 - work.timeStep / 2, 0, image.width * work.timeStep, specCanvas.height)
     }))
   }
 
@@ -155,3 +163,15 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
     window.requestAnimationFrame(() => this.drawAudioViz())
   }
 }
+
+// NB: design decision to NOT store FFT results since the memory consumption would be too high
+
+// perf timings on my machine: (2 sig figs)
+// fft + rasterize (2^16 window; 1502 * 908) 1470     ms
+// fft + rasterize (2^13 window; 1502 * 908)  295     ms
+// fft + rasterize (2^10 window; 1502 * 908)  175     ms
+// fft + rasterize (2^16 window;   48 * 908)   50     ms
+// fft + rasterize (2^13 window;   48 * 908)   10.5   ms
+// fft + rasterize (2^10 window;   48 * 908)    6.7   ms
+// await createImageBitmap (1502 * 908)         2.2   ms 
+// specCanvasCtx.drawImage                      0.020 ms
