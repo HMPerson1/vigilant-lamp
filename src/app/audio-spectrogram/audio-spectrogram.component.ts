@@ -81,15 +81,15 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
 
       const renderer = new wasm_module.SpectrogramRenderer(work.audioData.samples, sampleRate, 2 ** work.fftLgWindowSize, 0.2)
       // TODO: descreasing time step or changing db shouldn't require recomputing ffts
-      const image = renderer.render(
+      const tile = renderer.render(
         stepCount, work.canvasHeight,
         work.pitchMin, work.pitchMax,
-        timeFirstPixel, timeFirstPixel + stepCount * timePerStep,
-        work.specDbMin, work.specDbMax)
+        timeFirstPixel, timeFirstPixel + stepCount * timePerStep)
       renderer.free()
-      
+      const image = tile.render(work.specDbMin, this.specDbMax)
+      tile.free()
 
-      const specCanvas = this.spectrogramCanvas.nativeElement;
+      const specCanvas = this.spectrogramCanvas.nativeElement
       specCanvas.width = work.canvasWidth
       specCanvas.height = work.canvasHeight
       const specCanvasCtx = specCanvas.getContext('2d')!

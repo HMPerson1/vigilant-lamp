@@ -2,7 +2,7 @@ mod utils;
 
 use std::fmt::format;
 
-use realfft::{num_complex::Complex32, RealToComplex, RealToComplexEven};
+use realfft::{num_complex::Complex32, num_traits::ToPrimitive, RealToComplex, RealToComplexEven};
 use wasm_bindgen::{prelude::*, Clamped};
 // use wasm_mt_pool::prelude::*;
 
@@ -141,6 +141,7 @@ impl SpectrogramRenderer {
         fft_window_size: usize,
         gaus_window_sigma: f64,
     ) -> Self {
+        utils::set_panic_hook();
         let fft = realfft::RealToComplexEven::<f32>::new(
             fft_window_size,
             &mut rustfft::FftPlanner::new(),
@@ -165,26 +166,29 @@ impl SpectrogramRenderer {
         pitch_max: f64,
         time_start: f64,
         time_end: f64,
-        db_min: f64,
-        db_max: f64,
-    ) -> Result<ImageData, JsValue> {
-        utils::set_panic_hook();
+    ) -> SpectrogramTile {
         assert!(self.window.len() == self.fft_in.len());
+        let audio_sample_rate = self.audio_sample_rate as f64;
 
         let freq_min_ln = pitch2freq(pitch_min).ln();
         let freq_max_ln = pitch2freq(pitch_max).ln();
         let y_to_freq_ln_mul = (freq_max_ln - freq_min_ln) / (canvas_height as f64);
         let y_to_freq_ln_add =
-            freq_min_ln + (self.fft_out.len() as f64 / (self.audio_sample_rate as f64 / 2.)).ln();
+            freq_min_ln + (self.fft_out.len() as f64 / (audio_sample_rate / 2.)).ln();
 
         let time_len = time_end - time_start;
         let x_to_time = time_len / canvas_width as f64;
 
-        let db_range = db_max - db_min;
-
-        let mut pixel_data = PixelBuf::new(canvas_width, canvas_height);
+        let mut tile = SpectrogramTile::new(
+            pitch_min,
+            pitch_max,
+            time_start,
+            time_end,
+            canvas_width,
+            canvas_height,
+        );
         for x in 0..canvas_width {
-            let sample = ((time_start + x as f64 * x_to_time) * self.audio_sample_rate as f64).round() as isize;
+            let sample = ((time_start + x as f64 * x_to_time) * audio_sample_rate).round() as isize;
             if sample < 0 {
                 continue;
             }
@@ -196,20 +200,13 @@ impl SpectrogramRenderer {
 
             for y in 0..canvas_height {
                 let bucket = ((y as f64 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
-                let t = if let Some(power) = self.power_at_freq_bucket(bucket.round() as usize) {
-                    (20. * (power as f64).log10() - db_min) / db_range
-                } else {
-                    0.
-                };
-                pixel_data.set_pixel(x, y, colorous::INFERNO.eval_continuous(t).as_array());
+                if let Some(db) = self.db_at_freq_bucket(bucket.round() as usize) {
+                    tile.set_pixel(x, y, db as f32);
+                }
             }
         }
 
-        ImageData::new_with_u8_clamped_array_and_sh(
-            Clamped(&mut pixel_data.into_buf()),
-            canvas_width,
-            canvas_height,
-        )
+        tile
     }
 
     fn do_fft_at(&mut self, sample: usize) {
@@ -224,8 +221,66 @@ impl SpectrogramRenderer {
             .unwrap();
     }
 
-    fn power_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
-        Some(self.fft_out.get(bucket)?.norm() / (self.audio_samples.len() as f32).sqrt())
+    fn db_at_freq_bucket(&self, bucket: usize) -> Option<f64> {
+        let power =
+            self.fft_out.get(bucket)?.norm() as f64 / (self.audio_samples.len() as f64).sqrt();
+        Some(power.log10() * 20.)
+    }
+}
+
+#[wasm_bindgen]
+pub struct SpectrogramTile {
+    pitch_min: f64,
+    pitch_max: f64,
+    time_start: f64,
+    time_end: f64,
+    width: u32,
+    height: u32,
+    pixels: Box<[f32]>,
+}
+
+#[wasm_bindgen]
+impl SpectrogramTile {
+    fn new(
+        pitch_min: f64,
+        pitch_max: f64,
+        time_start: f64,
+        time_end: f64,
+        width: u32,
+        height: u32,
+    ) -> Self {
+        Self {
+            pitch_min,
+            pitch_max,
+            time_start,
+            time_end,
+            width,
+            height,
+            pixels: vec![f32::NAN; width as usize * height as usize].into(),
+        }
+    }
+    fn set_pixel(&mut self, x: u32, y: u32, val: f32) {
+        let i = y as usize * self.width as usize + x as usize;
+        self.pixels[i] = val;
+    }
+    fn get_pixel(&self, x: u32, y: u32) -> f32 {
+        let i = y as usize * self.width as usize + x as usize;
+        self.pixels[i]
+    }
+    pub fn render(&self, db_min: f64, db_max: f64) -> Result<ImageData, JsValue> {
+        let db_range = db_max - db_min;
+        let mut pixel_data = PixelBuf::new(self.width, self.height);
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let t = (self.get_pixel(x, y) as f64 - db_min) / db_range;
+                pixel_data.set_pixel(x, y, colorous::INFERNO.eval_continuous(t).into_array());
+            }
+        }
+        ImageData::new_with_u8_clamped_array_and_sh(
+            Clamped(&pixel_data.into_buf()),
+            self.width,
+            self.height,
+        )
     }
 }
 
@@ -237,7 +292,7 @@ struct PixelBuf {
 impl PixelBuf {
     fn new(width: u32, height: u32) -> Self {
         Self {
-            buf: vec![255_u8; width as usize * height as usize * 4].into(),
+            buf: vec![0_u8; width as usize * height as usize * 4].into(),
             width,
         }
     }
@@ -249,6 +304,7 @@ impl PixelBuf {
         self.buf[start + 0] = color[0];
         self.buf[start + 1] = color[1];
         self.buf[start + 2] = color[2];
+        self.buf[start + 3] = 255;
     }
 }
 
