@@ -1,79 +1,10 @@
 mod colormap;
 mod utils;
 
-use std::fmt::format;
-
-use realfft::{num_complex::Complex32, num_traits::ToPrimitive, RealToComplex, RealToComplexEven};
+use realfft::{num_complex::Complex32, RealToComplex, RealToComplexEven};
 use wasm_bindgen::{prelude::*, Clamped};
-// use wasm_mt_pool::prelude::*;
 
-use js_sys::Float32Array;
-use web_sys::{console, ImageData};
-// use wasm_mt::utils::{console_ln, sleep};
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-#[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
-}
-
-#[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, wasm!");
-}
-
-// #[wasm_bindgen]
-// pub async fn mt_test() {
-//     let pool = ThreadPool::new(8, "./pkg/wasm.js")
-//         .and_init()
-//         .await
-//         .unwrap();
-//     let what = pool_exec!(pool, move || {
-//         console_ln!("");
-//         Ok(JsValue::UNDEFINED)
-//     });
-// }
-
-#[wasm_bindgen]
-pub fn compute_spectrogram_sync(
-    time_step: usize,
-    lg_fft_window_size: usize,
-    gaus_window_sigma: f64,
-    audio_samples: &[f32],
-) -> Vec<Float32Array> {
-    utils::set_panic_hook();
-    assert!(lg_fft_window_size > 1);
-
-    let fft = realfft::RealToComplexEven::<f32>::new(
-        1 << lg_fft_window_size,
-        &mut rustfft::FftPlanner::new(),
-    );
-    let mut in_scratch = fft.make_input_vec();
-    let mut fft_scratch = fft.make_scratch_vec();
-    let mut out_scratch = fft.make_output_vec();
-    let mut spec_scratch = vec![0_f32; out_scratch.len()];
-    let window = gen_gaussian_window(in_scratch.len(), gaus_window_sigma);
-    (0..ceil_div(audio_samples.len(), time_step))
-        .map(|i| {
-            copy_centered_window(i * time_step, audio_samples, &mut in_scratch);
-            for (x, w) in in_scratch.iter_mut().zip(window.iter()) {
-                *x *= w;
-            }
-
-            fft.process_with_scratch(&mut in_scratch, &mut out_scratch, &mut fft_scratch)
-                .unwrap();
-            for (spec, out) in spec_scratch.iter_mut().zip(out_scratch.iter()) {
-                *spec = out.norm() / (audio_samples.len() as f32).sqrt()
-            }
-            Float32Array::from(&*spec_scratch)
-        })
-        .collect()
-}
+use web_sys::ImageData;
 
 fn copy_centered_window(center: usize, data: &[f32], window_out: &mut [f32]) {
     let wndw_size = window_out.len();
@@ -180,14 +111,7 @@ impl SpectrogramRenderer {
         let time_len = time_end - time_start;
         let x_to_time = time_len / canvas_width as f64;
 
-        let mut tile = SpectrogramTile::new(
-            pitch_min,
-            pitch_max,
-            time_start,
-            time_end,
-            canvas_width,
-            canvas_height,
-        );
+        let mut tile = SpectrogramTile::new(canvas_width, canvas_height);
         for x in 0..canvas_width {
             let sample = ((time_start + x as f64 * x_to_time) * audio_sample_rate).round() as isize;
             if sample < 0 {
@@ -200,6 +124,7 @@ impl SpectrogramRenderer {
             self.do_fft_at(sample);
 
             for y in 0..canvas_height {
+                // TODO: anti-alias?
                 let bucket = ((y as f32 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
                 if let Some(db) = self.db_at_freq_bucket(bucket.round() as usize) {
                     tile.set_pixel(x, y, db as f32);
@@ -231,38 +156,24 @@ impl SpectrogramRenderer {
 
 #[wasm_bindgen]
 pub struct SpectrogramTile {
-    pitch_min: f64,
-    pitch_max: f64,
-    time_start: f64,
-    time_end: f64,
-    width: u32,
-    height: u32,
+    #[wasm_bindgen(readonly)]
+    pub width: u32,
     pixels: Box<[f32]>,
 }
 
 #[wasm_bindgen]
 impl SpectrogramTile {
-    fn new(
-        pitch_min: f64,
-        pitch_max: f64,
-        time_start: f64,
-        time_end: f64,
-        width: u32,
-        height: u32,
-    ) -> Self {
+    fn new(width: u32, height: u32) -> Self {
         Self {
-            pitch_min,
-            pitch_max,
-            time_start,
-            time_end,
             width,
-            height,
             pixels: vec![f32::NAN; width as usize * height as usize].into(),
         }
     }
-    fn set_pixel(&mut self, x: u32, y: u32, val: f32) {
-        let i = y as usize * self.width as usize + x as usize;
-        self.pixels[i] = val;
+    pub fn into_inner(self) -> Box<[f32]> {
+        self.pixels
+    }
+    pub fn from_inner(width: u32, pixels: Box<[f32]>) -> Self {
+        Self { width, pixels }
     }
     pub fn render(&self, db_min: f32, db_max: f32) -> Result<ImageData, JsValue> {
         let db_range = db_max - db_min;
@@ -271,11 +182,11 @@ impl SpectrogramTile {
             .iter()
             .map(|db| colormap::eval((db - db_min) / db_range))
             .collect();
-        ImageData::new_with_u8_clamped_array_and_sh(
-            Clamped(bytemuck::cast_slice(&pixel_data)),
-            self.width,
-            self.height,
-        )
+        ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), self.width)
+    }
+    fn set_pixel(&mut self, x: u32, y: u32, val: f32) {
+        let i = y as usize * self.width as usize + x as usize;
+        self.pixels[i] = val;
     }
 }
 

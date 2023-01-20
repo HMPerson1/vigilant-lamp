@@ -8,12 +8,19 @@ export type SpectrogramWork = {
   timeMax: number;
   pitchMin: number;
   pitchMax: number;
-  specDbMin: number;
-  specDbMax: number;
   timeStep: number;
   fftLgWindowSize: number;
   canvasWidth: number;
   canvasHeight: number;
+}
+
+export type SpectrogramTileJs = {
+  timeMin: number;
+  timeMax: number;
+  pitchMin: number;
+  pitchMax: number;
+  width: number;
+  pixels: Float32Array;
 }
 
 export function genGaussianWindow(N: number, sigma: number): Float32Array {

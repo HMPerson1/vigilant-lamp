@@ -1,8 +1,9 @@
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
 import { fromInput } from 'observable-from-input';
+import { fromWorker } from 'observable-webworker';
 import { combineLatest, debounceTime, filter, map, Observable, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, doScrollZoom, isNotUndefined, SpectrogramWork } from '../common';
+import { AudioSamples, doScrollZoom, isNotUndefined, SpectrogramTileJs, SpectrogramWork } from '../common';
 import { resizeObservable } from '../ui-utils';
 
 
@@ -55,47 +56,63 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
 
     const specCanvas$ = this.spectrogramCanvas$.pipe(filter(isNotUndefined))
     const specCanvasSize$ = specCanvas$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement.parentElement!, { box: 'device-pixel-content-box' })))
+    const canvasWidth$ = specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize));
+    const canvasHeight$ = specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize));
     const specWork$: Observable<SpectrogramWork> = combineLatest({
       audioData: this.audioData$.pipe(filter(isNotUndefined)),
       timeMin: this.timeMin$,
       timeMax: this.timeMax$,
       pitchMin: this.pitchMin$,
       pitchMax: this.pitchMax$,
-      specDbMin: this.specDbMin$,
-      specDbMax: this.specDbMax$,
       timeStep: this.timeStep$,
       fftLgWindowSize: this.fftLgWindowSize$,
-      canvasWidth: specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize)),
-      canvasHeight: specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize)),
+      canvasWidth: canvasWidth$,
+      canvasHeight: canvasHeight$,
     }).pipe(debounceTime(0))
 
     // TODO: cancellation??
-    specWork$.subscribe((work) => window.requestAnimationFrame(async () => {
-      if (!this.spectrogramCanvas) return
-      const sampleRate = work.audioData.sampleRate;
-      const timePerPixel = (work.timeMax - work.timeMin) / work.canvasWidth;
-      const timePerStep = timePerPixel * this.timeStep;
-      const timeFirstPixel = work.timeMin + timePerPixel / 2;
-      const stepCount = Math.ceil((work.canvasWidth - .5) / work.timeStep + .5)
+    const hiresTile$ = fromWorker<SpectrogramWork, SpectrogramTileJs>(
+      () => new Worker(new URL('./spectrogram.worker', import.meta.url)),
+      specWork$,
+    )
 
-      const renderer = new wasm_module.SpectrogramRenderer(work.audioData.samples, sampleRate, 2 ** work.fftLgWindowSize, 0.2)
-      // TODO: descreasing time step or changing db shouldn't require recomputing ffts
-      const tile = renderer.render(
-        stepCount, work.canvasHeight,
-        work.pitchMin, work.pitchMax,
-        timeFirstPixel, timeFirstPixel + stepCount * timePerStep)
-      renderer.free()
-      const image = tile.render(work.specDbMin, this.specDbMax)
+    combineLatest({
+      timeMin: this.timeMin$,
+      timeMax: this.timeMax$,
+      pitchMin: this.pitchMin$,
+      pitchMax: this.pitchMax$,
+      jsTile: hiresTile$,
+      specDbMin: this.specDbMin$,
+      specDbMax: this.specDbMax$,
+      canvasWidth: canvasWidth$,
+      canvasHeight: canvasHeight$,
+    }).pipe(debounceTime(0)).subscribe((render) => window.requestAnimationFrame(async () => {
+      if (!this.spectrogramCanvas) return
+
+      // TODO(perf): could probably do this copy into wasm just once
+      const tile = wasm_module.SpectrogramTile.from_inner(render.jsTile.width, render.jsTile.pixels)
+      const image = tile.render(render.specDbMin, render.specDbMax)
       tile.free()
 
+      const timePerRealPixel = (render.timeMax - render.timeMin) / render.canvasWidth;
+      const timePerTilePixel = (render.jsTile.timeMax - render.jsTile.timeMin) / render.jsTile.width;
+      const xScale = timePerTilePixel / timePerRealPixel;
+      const xOffset = (render.timeMin - render.jsTile.timeMin + timePerTilePixel / 2) / timePerRealPixel
+
+      const pitchRangeReal = render.pitchMax - render.pitchMin;
+      const pitchRangeTile = render.jsTile.pitchMax - render.jsTile.pitchMin;
+      const yScale = pitchRangeTile / pitchRangeReal
+      const pitchToPixel = pitchRangeReal / render.canvasHeight
+      const yOffset = (render.pitchMax - render.jsTile.pitchMax) / pitchToPixel
+
       const specCanvas = this.spectrogramCanvas.nativeElement
-      specCanvas.width = work.canvasWidth
-      specCanvas.height = work.canvasHeight
+      specCanvas.width = render.canvasWidth
+      specCanvas.height = render.canvasHeight
       const specCanvasCtx = specCanvas.getContext('2d')!
       specCanvasCtx.imageSmoothingEnabled = false
 
       const bitmap = await createImageBitmap(image, { imageOrientation: 'flipY' });
-      specCanvasCtx.drawImage(bitmap, .5 - work.timeStep / 2, 0, image.width * work.timeStep, specCanvas.height)
+      specCanvasCtx.drawImage(bitmap, -xOffset, yOffset, bitmap.width * xScale, bitmap.height * yScale)
     }))
   }
 
@@ -114,7 +131,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
     if (deltaY) {
       doScrollZoom(
         this, 'pitchMin', 'pitchMax',
-        16, 136, 12, zoomRate, -timeScrollRate * (specCanvas.width / specCanvas.height),
+        16, 136, 6, zoomRate, -timeScrollRate * (specCanvas.width / specCanvas.height),
         deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.height)
       this.pitchMinChange.emit(this.pitchMin)
       this.pitchMaxChange.emit(this.pitchMax)
@@ -124,7 +141,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
 
       doScrollZoom(
         this, 'timeMin', 'timeMax',
-        0, timeClampMax, 1 / 4, zoomRate, timeScrollRate,
+        0, timeClampMax, .25, zoomRate, timeScrollRate,
         deltaX, event.ctrlKey, event.offsetX / specCanvas.width)
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
