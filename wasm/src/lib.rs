@@ -1,3 +1,4 @@
+mod colormap;
 mod utils;
 
 use std::fmt::format;
@@ -172,9 +173,9 @@ impl SpectrogramRenderer {
 
         let freq_min_ln = pitch2freq(pitch_min).ln();
         let freq_max_ln = pitch2freq(pitch_max).ln();
-        let y_to_freq_ln_mul = (freq_max_ln - freq_min_ln) / (canvas_height as f64);
+        let y_to_freq_ln_mul = ((freq_max_ln - freq_min_ln) / (canvas_height as f64)) as f32;
         let y_to_freq_ln_add =
-            freq_min_ln + (self.fft_out.len() as f64 / (audio_sample_rate / 2.)).ln();
+            (freq_min_ln + (self.fft_out.len() as f64 / (audio_sample_rate / 2.)).ln()) as f32;
 
         let time_len = time_end - time_start;
         let x_to_time = time_len / canvas_width as f64;
@@ -199,7 +200,7 @@ impl SpectrogramRenderer {
             self.do_fft_at(sample);
 
             for y in 0..canvas_height {
-                let bucket = ((y as f64 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
+                let bucket = ((y as f32 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
                 if let Some(db) = self.db_at_freq_bucket(bucket.round() as usize) {
                     tile.set_pixel(x, y, db as f32);
                 }
@@ -221,9 +222,9 @@ impl SpectrogramRenderer {
             .unwrap();
     }
 
-    fn db_at_freq_bucket(&self, bucket: usize) -> Option<f64> {
+    fn db_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
         let power =
-            self.fft_out.get(bucket)?.norm() as f64 / (self.audio_samples.len() as f64).sqrt();
+            self.fft_out.get(bucket)?.norm() as f32 / (self.audio_samples.len() as f32).sqrt();
         Some(power.log10() * 20.)
     }
 }
@@ -263,48 +264,18 @@ impl SpectrogramTile {
         let i = y as usize * self.width as usize + x as usize;
         self.pixels[i] = val;
     }
-    fn get_pixel(&self, x: u32, y: u32) -> f32 {
-        let i = y as usize * self.width as usize + x as usize;
-        self.pixels[i]
-    }
-    pub fn render(&self, db_min: f64, db_max: f64) -> Result<ImageData, JsValue> {
+    pub fn render(&self, db_min: f32, db_max: f32) -> Result<ImageData, JsValue> {
         let db_range = db_max - db_min;
-        let mut pixel_data = PixelBuf::new(self.width, self.height);
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let t = (self.get_pixel(x, y) as f64 - db_min) / db_range;
-                pixel_data.set_pixel(x, y, colorous::INFERNO.eval_continuous(t).into_array());
-            }
-        }
+        let pixel_data: Vec<u32> = self
+            .pixels
+            .iter()
+            .map(|db| colormap::eval((db - db_min) / db_range))
+            .collect();
         ImageData::new_with_u8_clamped_array_and_sh(
-            Clamped(&pixel_data.into_buf()),
+            Clamped(bytemuck::cast_slice(&pixel_data)),
             self.width,
             self.height,
         )
-    }
-}
-
-struct PixelBuf {
-    buf: Box<[u8]>,
-    width: u32,
-}
-
-impl PixelBuf {
-    fn new(width: u32, height: u32) -> Self {
-        Self {
-            buf: vec![0_u8; width as usize * height as usize * 4].into(),
-            width,
-        }
-    }
-    fn into_buf(self) -> Box<[u8]> {
-        self.buf
-    }
-    fn set_pixel(&mut self, x: u32, y: u32, color: [u8; 3]) {
-        let start = (y as usize * self.width as usize + x as usize) * 4;
-        self.buf[start + 0] = color[0];
-        self.buf[start + 1] = color[1];
-        self.buf[start + 2] = color[2];
-        self.buf[start + 3] = 255;
     }
 }
 

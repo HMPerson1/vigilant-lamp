@@ -21,7 +21,8 @@ wasm-bindgen = "0.2.63"
 # wasm-mt-pool = "0.1.2"
 rustfft = "*"
 realfft = "3.2.0"
-colorous = "1.0.9"
+# colorous = "1.0.9"
+bytemuck = "1.12.3"
 
 # The `console_error_panic_hook` crate provides better debugging of panics by
 # logging them with `console.error`. This is great for development, but requires
@@ -39,7 +40,8 @@ wasm-bindgen-test = "0.3.13"
 
 [profile.release]
 opt-level = 3
+lto = true
 
-[package.metadata.wasm-pack.profile.profiling]
+[package.metadata.wasm-pack.profile.release]
 # previously had just ['-O4']
 wasm-opt = ['-O4', '-g']

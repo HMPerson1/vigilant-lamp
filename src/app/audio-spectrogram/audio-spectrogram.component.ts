@@ -1,9 +1,8 @@
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
-import { AudioSamples, doScrollZoom, isNotUndefined, SpectrogramWork } from '../common';
-import * as wasm_module from '../../../wasm/pkg';
-import { combineLatest, filter, map, Observable, switchMap } from 'rxjs';
 import { fromInput } from 'observable-from-input';
-import { isObject, isUndefined } from 'lodash-es';
+import { combineLatest, debounceTime, filter, map, Observable, switchMap } from 'rxjs';
+import * as wasm_module from '../../../wasm/pkg';
+import { AudioSamples, doScrollZoom, isNotUndefined, SpectrogramWork } from '../common';
 import { resizeObservable } from '../ui-utils';
 
 
@@ -68,7 +67,7 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       fftLgWindowSize: this.fftLgWindowSize$,
       canvasWidth: specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize)),
       canvasHeight: specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize)),
-    })
+    }).pipe(debounceTime(0))
 
     // TODO: cancellation??
     specWork$.subscribe((work) => window.requestAnimationFrame(async () => {
