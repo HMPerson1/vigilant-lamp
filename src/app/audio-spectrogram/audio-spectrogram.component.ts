@@ -1,18 +1,32 @@
-import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
-import { combineLatest, debounceTime, filter, map, Observable, switchMap } from 'rxjs';
+import { animationFrameScheduler, combineLatest, debounceTime, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, doScrollZoom, isNotUndefined, SpectrogramTileJs, SpectrogramWork } from '../common';
+import { AudioSamples, doScrollZoom, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
 import { resizeObservable } from '../ui-utils';
 
+const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
+
+type RenderParams = RenderWindowParams & {
+  specDbMin: number;
+  specDbMax: number;
+}
+
+type SpecTileWasm = SpecTileWindow & {
+  tile: wasm_module.SpectrogramTile;
+}
+
+type SpecTileBitmap = SpecTileWindow & {
+  bitmap: ImageBitmap;
+}
 
 @Component({
   selector: 'app-audio-spectrogram',
   templateUrl: './audio-spectrogram.component.html',
   styleUrls: ['./audio-spectrogram.component.css']
 })
-export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
+export class AudioSpectrogramComponent {
   @ViewChild('spectrogram_canvas') spectrogramCanvas?: ElementRef<HTMLCanvasElement>;
   spectrogramCanvas$: Observable<ElementRef<HTMLCanvasElement> | undefined>;
 
@@ -54,66 +68,113 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
     this.timeStep$ = toObs('timeStep')
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
 
+    const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
+
     const specCanvas$ = this.spectrogramCanvas$.pipe(filter(isNotUndefined))
     const specCanvasSize$ = specCanvas$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement.parentElement!, { box: 'device-pixel-content-box' })))
     const canvasWidth$ = specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize));
     const canvasHeight$ = specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize));
-    const specWork$: Observable<SpectrogramWork> = combineLatest({
-      audioData: this.audioData$.pipe(filter(isNotUndefined)),
+
+    const renderWinParam$s: { [K in keyof RenderWindowParams]: Observable<RenderWindowParams[K]> } = {
       timeMin: this.timeMin$,
       timeMax: this.timeMax$,
       pitchMin: this.pitchMin$,
       pitchMax: this.pitchMax$,
-      timeStep: this.timeStep$,
-      fftLgWindowSize: this.fftLgWindowSize$,
       canvasWidth: canvasWidth$,
       canvasHeight: canvasHeight$,
-    }).pipe(debounceTime(0))
+    }
 
+    const hiresTileWork$: Observable<SpectrogramWork> = combineLatest({
+      timeStep: this.timeStep$,
+      ...renderWinParam$s
+    })
+    // TODO: inefficient; can request just the dirty rect
+    const loresTileWork$: Observable<SpectrogramWork> = combineLatest({
+      timeStep: of(32),
+      ...renderWinParam$s
+    })
+
+    const toWasm = scan<SpectrogramTileJs, SpecTileWasm, undefined>((prev, tileJs) => {
+      prev?.tile.free();
+      return {
+        timeMin: tileJs.timeMin,
+        timeMax: tileJs.timeMax,
+        pitchMin: tileJs.pitchMin,
+        pitchMax: tileJs.pitchMax,
+        tile: wasm_module.SpectrogramTile.from_inner(tileJs.width, tileJs.pixels)
+      };
+    }, undefined);
     // TODO: cancellation??
-    const hiresTile$ = fromWorker<SpectrogramWork, SpectrogramTileJs>(
-      () => new Worker(new URL('./spectrogram.worker', import.meta.url)),
-      specWork$,
-    )
+    const hiresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
+      mkSpectrogramWorker,
+      merge(
+        audioDataDef$.pipe(map(tag("audioData"))),
+        this.fftLgWindowSize$.pipe(map(tag("fftLgWindowSize"))),
+        hiresTileWork$.pipe(debounceTime(0), map(tag("work"))),
+      ),
+    ).pipe(toWasm)
+    const loresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
+      mkSpectrogramWorker,
+      merge(
+        audioDataDef$.pipe(map(tag("audioData"))),
+        this.fftLgWindowSize$.pipe(map(tag("fftLgWindowSize"))),
+        loresTileWork$.pipe(map(tag("work"))),
+      ),
+    ).pipe(toWasm)
 
-    combineLatest({
-      timeMin: this.timeMin$,
-      timeMax: this.timeMax$,
-      pitchMin: this.pitchMin$,
-      pitchMax: this.pitchMax$,
-      jsTile: hiresTile$,
+    const tileWasmToBmp = mergeMap(({ tile, specDbMin, specDbMax }) => from((async () => {
+      return {
+        timeMin: tile.timeMin,
+        timeMax: tile.timeMax,
+        pitchMin: tile.pitchMin,
+        pitchMax: tile.pitchMax,
+        bitmap: await createImageBitmap(tile.tile.render(specDbMin, specDbMax), { imageOrientation: 'flipY' }),
+      };
+    })()));
+    const hiresTileBmp$: Observable<SpecTileBitmap> = combineLatest({
+      tile: hiresTile$,
       specDbMin: this.specDbMin$,
       specDbMax: this.specDbMax$,
-      canvasWidth: canvasWidth$,
-      canvasHeight: canvasHeight$,
-    }).pipe(debounceTime(0)).subscribe((render) => window.requestAnimationFrame(async () => {
+    }).pipe(tileWasmToBmp)
+    const loresTileBmp$: Observable<SpecTileBitmap> = combineLatest({
+      tile: loresTile$,
+      specDbMin: this.specDbMin$,
+      specDbMax: this.specDbMax$,
+    }).pipe(tileWasmToBmp)
+
+    combineLatest({
+      hiresTileBmp: hiresTileBmp$,
+      loresTileBmp: loresTileBmp$,
+      ...renderWinParam$s
+    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(render => {
       if (!this.spectrogramCanvas) return
-
-      // TODO(perf): could probably do this copy into wasm just once
-      const tile = wasm_module.SpectrogramTile.from_inner(render.jsTile.width, render.jsTile.pixels)
-      const image = tile.render(render.specDbMin, render.specDbMax)
-      tile.free()
-
-      const timePerRealPixel = (render.timeMax - render.timeMin) / render.canvasWidth;
-      const timePerTilePixel = (render.jsTile.timeMax - render.jsTile.timeMin) / render.jsTile.width;
-      const xScale = timePerTilePixel / timePerRealPixel;
-      const xOffset = (render.timeMin - render.jsTile.timeMin + timePerTilePixel / 2) / timePerRealPixel
-
-      const pitchRangeReal = render.pitchMax - render.pitchMin;
-      const pitchRangeTile = render.jsTile.pitchMax - render.jsTile.pitchMin;
-      const yScale = pitchRangeTile / pitchRangeReal
-      const pitchToPixel = pitchRangeReal / render.canvasHeight
-      const yOffset = (render.pitchMax - render.jsTile.pitchMax) / pitchToPixel
 
       const specCanvas = this.spectrogramCanvas.nativeElement
       specCanvas.width = render.canvasWidth
       specCanvas.height = render.canvasHeight
       const specCanvasCtx = specCanvas.getContext('2d')!
       specCanvasCtx.imageSmoothingEnabled = false
+      specCanvasCtx.fillStyle = 'gray'
+      specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
 
-      const bitmap = await createImageBitmap(image, { imageOrientation: 'flipY' });
-      specCanvasCtx.drawImage(bitmap, -xOffset, yOffset, bitmap.width * xScale, bitmap.height * yScale)
-    }))
+      this.renderTile(render, render.loresTileBmp, specCanvasCtx);
+      this.renderTile(render, render.hiresTileBmp, specCanvasCtx);
+    })
+  }
+
+  private renderTile(render: RenderWindowParams, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {
+    const timePerRealPixel = (render.timeMax - render.timeMin) / render.canvasWidth;
+    const timePerTilePixel = (tile.timeMax - tile.timeMin) / tile.bitmap.width;
+    const xScale = timePerTilePixel / timePerRealPixel;
+    const xOffset = (render.timeMin - tile.timeMin + timePerTilePixel / 2) / timePerRealPixel;
+
+    const pitchRangeReal = render.pitchMax - render.pitchMin;
+    const pitchRangeTile = tile.pitchMax - tile.pitchMin;
+    const yScale = pitchRangeTile / pitchRangeReal;
+    const pitchToPixel = pitchRangeReal / render.canvasHeight;
+    const yOffset = (render.pitchMax - tile.pitchMax) / pitchToPixel;
+
+    specCanvasCtx.drawImage(tile.bitmap, -xOffset, yOffset, tile.bitmap.width * xScale, tile.bitmap.height * yScale);
   }
 
   onWheel(event: WheelEvent) {
@@ -146,37 +207,6 @@ export class AudioSpectrogramComponent implements OnChanges, AfterViewInit {
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
-  }
-
-
-  async drawAudioViz() {
-    // const start = performance.now()
-    // if (this.spectrogram && this.audioData && this.spectrogramCanvas) {
-    //   const waveCanvas = this.spectrogramCanvas.nativeElement;
-    //   waveCanvas.width = Math.floor(waveCanvas.parentElement!.clientWidth)
-    //   waveCanvas.height = Math.floor(waveCanvas.parentElement!.clientHeight)
-    //   const waveCanvasCtx = waveCanvas.getContext('2d')!
-
-    //   // TODO: db range changes shouldn't need recomputing ffts
-    //   const rendered = this.spectrogram.render(
-    //     waveCanvas.width / this.timeStep, waveCanvas.height,
-    //     this.pitchMin, this.pitchMax,
-    //     this.timeMin * this.audioData.sampleRate, this.timeMax * this.audioData.sampleRate,
-    //     this.specDbMin, this.specDbMax,
-    //   )
-
-    //   waveCanvasCtx.imageSmoothingEnabled = false
-    //   waveCanvasCtx.drawImage(await createImageBitmap(rendered, { imageOrientation: 'flipY' }), 0, 0, waveCanvas.width, waveCanvas.height)
-    // }
-    // const end = performance.now()
-    // console.log(end - start);
-  }
-
-  ngOnChanges(changes: SimpleChanges): void {
-    window.requestAnimationFrame(() => this.drawAudioViz())
-  }
-  ngAfterViewInit(): void {
-    window.requestAnimationFrame(() => this.drawAudioViz())
   }
 }
 

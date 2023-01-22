@@ -1,36 +1,47 @@
 /// <reference lib="webworker" />
-console.log('worker init 1')
-// @ts-ignore
 import { DoWork, runWorker } from 'observable-webworker';
-import { Observable, ReplaySubject, withLatestFrom } from 'rxjs';
-import { debounceTime, map } from 'rxjs/operators';
-import { SpectrogramTileJs, SpectrogramWork } from '../common';
+import { combineLatest, Observable, ObservedValueOf, ReplaySubject } from 'rxjs';
+import { debounceTime, map, scan } from 'rxjs/operators';
+import { AudioSamples, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg } from '../common';
 
-export class Spectrogram implements DoWork<SpectrogramWork, SpectrogramTileJs> {
+export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
   wasm_module = import('../../../wasm/pkg')
-  public work(input$: Observable<SpectrogramWork>): Observable<SpectrogramTileJs> {
-    const eventBuf: ReplaySubject<SpectrogramWork> = new ReplaySubject()
-    input$.subscribe(eventBuf)
+  public work(input$: Observable<SpecWorkerMsg>): Observable<SpectrogramTileJs> {
+    const audioData$ = new ReplaySubject<AudioSamples>(1)
+    const fftLgWindowSize$ = new ReplaySubject<number>(1)
+    const work$ = new ReplaySubject<SpectrogramWork>(1)
+    input$.subscribe(msg => {
+      switch (msg.type) {
+        case 'audioData': audioData$.next(msg.val); break;
+        case 'fftLgWindowSize': fftLgWindowSize$.next(msg.val); break;
+        case 'work': work$.next(msg.val); break;
+        default: const _n: never = msg;
+      }
+    })
     return new Observable((subscriber) => {
       this.wasm_module.then((wasm_module) => {
-        eventBuf.pipe(
+        const rendererParams$ = combineLatest({ audioData: audioData$, fftLgWindowSize: fftLgWindowSize$ });
+        const renderer$ = rendererParams$.pipe(scan<ObservedValueOf<typeof rendererParams$>, InstanceType<typeof wasm_module.SpectrogramRenderer>, undefined>(
+          (last, { audioData, fftLgWindowSize }) => {
+            last?.free();
+            return new wasm_module.SpectrogramRenderer(audioData.samples, audioData.sampleRate, 2 ** fftLgWindowSize, 0.2);
+          }, undefined))
+        combineLatest({ renderer: renderer$, work: work$ }).pipe(
           debounceTime(0),
-          map((work) => {
-            // TODO: round time min to time per step
+          map(({ renderer, work }) => {
             const timePerPixel = (work.timeMax - work.timeMin) / work.canvasWidth;
             const timePerStep = timePerPixel * work.timeStep;
-            const stepCount = Math.ceil((work.canvasWidth - .5) / work.timeStep + .5)
-            const renderTimeMin = work.timeMin + timePerPixel / 2;
-            const renderTimeMax = renderTimeMin + stepCount * timePerStep;
+            const stepMin = Math.floor(work.timeMin / timePerStep + .5)
+            const stepMax = Math.ceil(work.timeMax / timePerStep + .5)
+            const renderTimeMin = stepMin * timePerStep;
+            const renderTimeMax = stepMax * timePerStep;
 
-            // TODO(perf): in theory this can be re-used
-            const renderer = new wasm_module.SpectrogramRenderer(work.audioData.samples, work.audioData.sampleRate, 2 ** work.fftLgWindowSize, 0.2)
             // TODO: decreasing time step could be more efficient
             const tile = renderer.render(
-              stepCount, work.canvasHeight,
+              stepMax - stepMin, work.canvasHeight,
               work.pitchMin, work.pitchMax,
               renderTimeMin, renderTimeMax)
-            renderer.free()
+
             return {
               timeMin: renderTimeMin,
               timeMax: renderTimeMax,
