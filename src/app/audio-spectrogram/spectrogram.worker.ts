@@ -24,6 +24,7 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
         const renderer$ = rendererParams$.pipe(scan<ObservedValueOf<typeof rendererParams$>, InstanceType<typeof wasm_module.SpectrogramRenderer>, undefined>(
           (last, { audioData, fftParams }) => {
             last?.free();
+            // TODO(perf): copy audio into wasm once
             return new wasm_module.SpectrogramRenderer(
               audioData.samples,
               audioData.sampleRate,

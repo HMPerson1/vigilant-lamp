@@ -38,8 +38,8 @@ export class AudioSpectrogramComponent {
   @Output() timeMaxChange = new EventEmitter<number>();
   timeMin$: Observable<number>;
   timeMax$: Observable<number>;
-  @Input() pitchMin: number = 16;
-  @Input() pitchMax: number = 136;
+  @Input() pitchMin: number = 12;
+  @Input() pitchMax: number = 108;
   @Output() pitchMinChange = new EventEmitter<number>();
   @Output() pitchMaxChange = new EventEmitter<number>();
   pitchMin$: Observable<number>;
@@ -203,7 +203,7 @@ export class AudioSpectrogramComponent {
     if (deltaY) {
       doScrollZoom(
         this, 'pitchMin', 'pitchMax',
-        16, 136, 6, zoomRate, -timeScrollRate * (specCanvas.width / specCanvas.height),
+        0, 136, 6, zoomRate, -timeScrollRate * (specCanvas.width / specCanvas.height),
         deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.height)
       this.pitchMinChange.emit(this.pitchMin)
       this.pitchMaxChange.emit(this.pitchMax)

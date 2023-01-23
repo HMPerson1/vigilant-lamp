@@ -39,6 +39,7 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
     }
   }
   drawAudioViz(): void {
+    // TODO(perf): rewrite in rust
     // FIXME: 1 sample / pixel doesn't render correctly
     if (this.audioData && this.waveformCanvas) {
       const waveCanvas = this.waveformCanvas.nativeElement;

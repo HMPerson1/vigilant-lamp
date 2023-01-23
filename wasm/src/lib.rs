@@ -150,6 +150,7 @@ impl SpectrogramRenderer {
     fn db_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
         let power =
             self.fft_out.get(bucket)?.norm() as f32 / (self.audio_samples.len() as f32).sqrt();
+        // TODO(perf): faster approximation of log10
         Some(power.log10() * 20.)
     }
 }
