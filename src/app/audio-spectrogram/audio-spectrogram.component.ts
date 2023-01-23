@@ -1,7 +1,7 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
-import { animationFrameScheduler, combineLatest, debounceTime, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
+import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, doScrollZoom, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
 import { resizeObservable } from '../ui-utils';
@@ -53,7 +53,8 @@ export class AudioSpectrogramComponent {
   timeStep$: Observable<number>;
   @Input() fftLgWindowSize: number = 14;
   fftLgWindowSize$: Observable<number>;
-  get fftWindowSize(): number { return 2 ** this.fftLgWindowSize }
+  @Input() fftLgExtraPad: number = 0;
+  fftLgExtraPad$: Observable<number>;
 
   constructor() {
     const toObs = fromInput(this);
@@ -67,6 +68,7 @@ export class AudioSpectrogramComponent {
     this.specDbMax$ = toObs('specDbMax')
     this.timeStep$ = toObs('timeStep')
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
+    this.fftLgExtraPad$ = toObs('fftLgExtraPad')
 
     const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
 
@@ -83,6 +85,15 @@ export class AudioSpectrogramComponent {
       canvasWidth: canvasWidth$,
       canvasHeight: canvasHeight$,
     }
+
+    const hiresFftParams$ = combineLatest({
+      lgWindowSize: this.fftLgWindowSize$,
+      lgExtraPad: this.fftLgExtraPad$
+    })
+    const loresFftParams$ = combineLatest({
+      lgWindowSize: this.fftLgWindowSize$,
+      lgExtraPad: this.fftLgExtraPad$.pipe(map(x => Math.max(x, 0)), distinctUntilChanged())
+    })
 
     const hiresTileWork$: Observable<SpectrogramWork> = combineLatest({
       timeStep: this.timeStep$,
@@ -109,7 +120,7 @@ export class AudioSpectrogramComponent {
       mkSpectrogramWorker,
       merge(
         audioDataDef$.pipe(map(tag("audioData"))),
-        this.fftLgWindowSize$.pipe(map(tag("fftLgWindowSize"))),
+        hiresFftParams$.pipe(map(tag("fftParams"))),
         hiresTileWork$.pipe(debounceTime(0), map(tag("work"))),
       ),
     ).pipe(toWasm)
@@ -117,7 +128,7 @@ export class AudioSpectrogramComponent {
       mkSpectrogramWorker,
       merge(
         audioDataDef$.pipe(map(tag("audioData"))),
-        this.fftLgWindowSize$.pipe(map(tag("fftLgWindowSize"))),
+        loresFftParams$.pipe(map(tag("fftParams"))),
         loresTileWork$.pipe(map(tag("work"))),
       ),
     ).pipe(toWasm)

@@ -4,9 +4,11 @@ export type Tagged<K extends string, T> = { type: K, val: T }
 
 export type AudioSamples = { sampleRate: number, samples: Float32Array }
 
+export type SpecFftParams = { lgWindowSize: number, lgExtraPad: number }
+
 export type SpecWorkerMsg =
   Tagged<"audioData", AudioSamples> |
-  Tagged<"fftLgWindowSize", number> |
+  Tagged<"fftParams", SpecFftParams> |
   Tagged<"work", SpectrogramWork>
 
 export type SpecTileWindow = {
