@@ -223,12 +223,16 @@ export class AudioSpectrogramComponent {
 
 // NB: design decision to NOT store FFT results since the memory consumption would be too high
 
-// perf timings on my machine: (2 sig figs)
-// fft + rasterize (2^16 window; 1502 * 908) 1470     ms
-// fft + rasterize (2^13 window; 1502 * 908)  295     ms
-// fft + rasterize (2^10 window; 1502 * 908)  175     ms
-// fft + rasterize (2^16 window;   48 * 908)   50     ms
-// fft + rasterize (2^13 window;   48 * 908)   10.5   ms
-// fft + rasterize (2^10 window;   48 * 908)    6.7   ms
-// await createImageBitmap (1502 * 908)         2.2   ms 
+// perf timings on my machine: (event to paint latency) (2 sig figs)
+// fft + rasterize (2^16 window; 1502 * 908) 1620     ms
+// fft + rasterize (2^13 window; 1502 * 908)  257     ms
+// fft + rasterize (2^10 window; 1502 * 908)  106     ms
+// fft + rasterize (2^16 window;   48 * 908)   61     ms
+// fft + rasterize (2^13 window;   48 * 908)   17     ms
+// fft + rasterize (2^10 window;   48 * 908)    8     ms
+// change db scale              (1502 * 908)    4.5   ms
+// scroll view horizontal                       4.0   ms
+// scroll view vertical                         1.7   ms
+// await createImageBitmap (1502 * 908)         2.1   ms 
+// await createImageBitmap (  48 * 908)         0.11  ms 
 // specCanvasCtx.drawImage                      0.020 ms
