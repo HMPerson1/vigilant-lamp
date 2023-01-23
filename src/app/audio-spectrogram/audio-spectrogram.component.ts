@@ -213,7 +213,7 @@ export class AudioSpectrogramComponent {
 
       doScrollZoom(
         this, 'timeMin', 'timeMax',
-        0, timeClampMax, .25, zoomRate, timeScrollRate,
+        0, timeClampMax, 1 / 1000, zoomRate, timeScrollRate,
         deltaX, event.ctrlKey, event.offsetX / specCanvas.width)
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)

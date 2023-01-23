@@ -24,8 +24,8 @@ export class AppComponent {
   specDbMax: number = -20
   specLgWindowSize: number = 12
   specTimeStepInput: number = 3
-  specLgExtraPad: number = 0
   get specTimeStep(): number { return 2 ** (5 - this.specTimeStepInput) }
+  specLgExtraPad: number = 0
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   audioBufSrcNode?: AudioBufferSourceNode | null

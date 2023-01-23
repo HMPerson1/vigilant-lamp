@@ -1,6 +1,3 @@
-// @ts-ignore
-import * as wav from 'wav-decoder';
-import * as lodash from "lodash"
 import { AudioSamples } from './common';
 
 export function loadAudio(file: Blob, sampleRate: number): Promise<{ audioBuffer: AudioBuffer, audioData: AudioSamples }> {
