@@ -1,77 +1,64 @@
+mod colormap;
 mod utils;
 
-use std::fmt::format;
+use std::rc::Rc;
 
 use realfft::{num_complex::Complex32, RealToComplex, RealToComplexEven};
 use wasm_bindgen::{prelude::*, Clamped};
-// use wasm_mt_pool::prelude::*;
 
-use js_sys::Float32Array;
-use web_sys::{console, ImageData};
-// use wasm_mt::utils::{console_ln, sleep};
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+use itertools::Itertools;
+use web_sys::ImageData;
 
 #[wasm_bindgen]
-extern "C" {
-    fn alert(s: &str);
+pub struct AudioBuffer {
+    samples: Rc<[f32]>,
+    sample_rate: u32,
 }
 
 #[wasm_bindgen]
-pub fn greet() {
-    alert("Hello, wasm!");
+impl AudioBuffer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(samples: Box<[f32]>, sample_rate: u32) -> Self {
+        utils::set_panic_hook();
+        Self {
+            samples: samples.into(),
+            sample_rate,
+        }
+    }
 }
 
-// #[wasm_bindgen]
-// pub async fn mt_test() {
-//     let pool = ThreadPool::new(8, "./pkg/wasm.js")
-//         .and_init()
-//         .await
-//         .unwrap();
-//     let what = pool_exec!(pool, move || {
-//         console_ln!("");
-//         Ok(JsValue::UNDEFINED)
-//     });
-// }
-
 #[wasm_bindgen]
-pub fn compute_spectrogram_sync(
-    time_step: usize,
-    lg_fft_window_size: usize,
-    gaus_window_sigma: f64,
-    audio_samples: &[f32],
-) -> Vec<Float32Array> {
-    utils::set_panic_hook();
-    assert!(lg_fft_window_size > 1);
-
-    let fft = realfft::RealToComplexEven::<f32>::new(
-        1 << lg_fft_window_size,
-        &mut rustfft::FftPlanner::new(),
-    );
-    let mut in_scratch = fft.make_input_vec();
-    let mut fft_scratch = fft.make_scratch_vec();
-    let mut out_scratch = fft.make_output_vec();
-    let mut spec_scratch = vec![0_f32; out_scratch.len()];
-    let window = gen_gaussian_window(in_scratch.len(), gaus_window_sigma);
-    (0..ceil_div(audio_samples.len(), time_step))
-        .map(|i| {
-            copy_centered_window(i * time_step, audio_samples, &mut in_scratch);
-            for (x, w) in in_scratch.iter_mut().zip(window.iter()) {
-                *x *= w;
+pub fn render_waveform(
+    audio: &AudioBuffer,
+    time_start: f32,
+    time_end: f32,
+    width: u32,
+    height: u32,
+) -> Result<ImageData, JsValue> {
+    let audio_samples = &*audio.samples;
+    assert!(audio_samples.len() > 1);
+    assert!(height > 1);
+    let mut pixel_data = vec![0xff000000_u32; width as usize * height as usize];
+    let sample_start = time_start * audio.sample_rate as f32;
+    let x_to_sample = (time_end - time_start) / width as f32 * audio.sample_rate as f32;
+    let hheightf = height as f32 / 2.;
+    for x in 0..width {
+        let chunk_start = (x as f32 * x_to_sample + sample_start) as usize;
+        let chunk_start = chunk_start.clamp(0, audio_samples.len() - 1);
+        let chunk_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
+        let chunk_end = chunk_end.clamp(chunk_start, audio_samples.len());
+        let chunk = &audio_samples[chunk_start..chunk_end];
+        if let Some((min, max)) = chunk.iter().copied().minmax().into_option() {
+            let y0 = (min * hheightf + hheightf) as u32;
+            let y0 = y0.clamp(0, height as u32 - 1);
+            let y1 = (max * hheightf + hheightf) as u32;
+            let y1 = y1.clamp(y0, height as u32 - 1);
+            for y in y0..=y1 {
+                pixel_data[(y * width + x) as usize] = 0xffffffff;
             }
-
-            fft.process_with_scratch(&mut in_scratch, &mut out_scratch, &mut fft_scratch)
-                .unwrap();
-            for (spec, out) in spec_scratch.iter_mut().zip(out_scratch.iter()) {
-                *spec = out.norm() / (audio_samples.len() as f32).sqrt()
-            }
-            Float32Array::from(&*spec_scratch)
-        })
-        .collect()
+        }
+    }
+    ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), width)
 }
 
 fn copy_centered_window(center: usize, data: &[f32], window_out: &mut [f32]) {
@@ -107,10 +94,6 @@ fn copy_centered_window(center: usize, data: &[f32], window_out: &mut [f32]) {
     }
 }
 
-fn ceil_div(a: usize, b: usize) -> usize {
-    (a - 1) / b + 1
-}
-
 fn gen_gaussian_window(n: usize, sigma: f64) -> Box<[f32]> {
     (0..n)
         .map(|i| {
@@ -123,7 +106,7 @@ fn gen_gaussian_window(n: usize, sigma: f64) -> Box<[f32]> {
 
 #[wasm_bindgen]
 pub struct SpectrogramRenderer {
-    audio_samples: Box<[f32]>,
+    audio_samples: Rc<[f32]>,
     audio_sample_rate: u32,
     window: Box<[f32]>,
     fft_in: Box<[f32]>,
@@ -135,19 +118,14 @@ pub struct SpectrogramRenderer {
 #[wasm_bindgen]
 impl SpectrogramRenderer {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        audio_samples: &[f32],
-        audio_sample_rate: u32,
-        fft_window_size: usize,
-        gaus_window_sigma: f64,
-    ) -> Self {
+    pub fn new(audio_buffer: &AudioBuffer, fft_window_size: usize, gaus_window_sigma: f64) -> Self {
         let fft = realfft::RealToComplexEven::<f32>::new(
             fft_window_size,
             &mut rustfft::FftPlanner::new(),
         );
         Self {
-            audio_samples: audio_samples.into(),
-            audio_sample_rate,
+            audio_samples: audio_buffer.samples.clone(),
+            audio_sample_rate: audio_buffer.sample_rate,
             window: gen_gaussian_window(fft_window_size, gaus_window_sigma),
             fft_in: fft.make_input_vec().into(),
             fft_scratch: fft.make_scratch_vec().into(),
@@ -163,28 +141,24 @@ impl SpectrogramRenderer {
         canvas_height: u32,
         pitch_min: f64,
         pitch_max: f64,
-        sample_start: isize,
-        sample_end: isize,
-        db_min: f64,
-        db_max: f64,
-    ) -> Result<ImageData, JsValue> {
-        utils::set_panic_hook();
+        time_start: f64,
+        time_end: f64,
+    ) -> SpectrogramTile {
         assert!(self.window.len() == self.fft_in.len());
+        let audio_sample_rate = self.audio_sample_rate as f64;
 
         let freq_min_ln = pitch2freq(pitch_min).ln();
         let freq_max_ln = pitch2freq(pitch_max).ln();
-        let y_to_freq_ln_mul = (freq_max_ln - freq_min_ln) / (canvas_height as f64);
+        let y_to_freq_ln_mul = ((freq_max_ln - freq_min_ln) / (canvas_height as f64)) as f32;
         let y_to_freq_ln_add =
-            freq_min_ln + (self.fft_out.len() as f64 / (self.audio_sample_rate as f64 / 2.)).ln();
+            (freq_min_ln + (self.fft_out.len() as f64 / (audio_sample_rate / 2.)).ln()) as f32;
 
-        let sample_len = sample_end - sample_start;
-        let x_to_sample = sample_len as f64 / canvas_width as f64;
+        let time_len = time_end - time_start;
+        let x_to_time = time_len / canvas_width as f64;
 
-        let db_range = db_max - db_min;
-
-        let mut pixel_data = PixelBuf::new(canvas_width, canvas_height);
+        let mut tile = SpectrogramTile::new(canvas_width, canvas_height);
         for x in 0..canvas_width {
-            let sample = sample_start + (x as f64 * x_to_sample).round() as isize;
+            let sample = ((time_start + x as f64 * x_to_time) * audio_sample_rate).round() as isize;
             if sample < 0 {
                 continue;
             }
@@ -195,21 +169,15 @@ impl SpectrogramRenderer {
             self.do_fft_at(sample);
 
             for y in 0..canvas_height {
-                let bucket = ((y as f64 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
-                let t = if let Some(power) = self.power_at_freq_bucket(bucket.round() as usize) {
-                    (20. * (power as f64).log10() - db_min) / db_range
-                } else {
-                    0.
-                };
-                pixel_data.set_pixel(x, y, colorous::INFERNO.eval_continuous(t).as_array());
+                // TODO: anti-alias?
+                let bucket = ((y as f32 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
+                if let Some(db) = self.db_at_freq_bucket(bucket.round() as usize) {
+                    tile.set_pixel(x, y, db as f32);
+                }
             }
         }
 
-        ImageData::new_with_u8_clamped_array_and_sh(
-            Clamped(&mut pixel_data.into_buf()),
-            canvas_width,
-            canvas_height,
-        )
+        tile
     }
 
     fn do_fft_at(&mut self, sample: usize) {
@@ -224,31 +192,47 @@ impl SpectrogramRenderer {
             .unwrap();
     }
 
-    fn power_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
-        Some(self.fft_out.get(bucket)?.norm() / (self.audio_samples.len() as f32).sqrt())
+    fn db_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
+        let power =
+            self.fft_out.get(bucket)?.norm() as f32 / (self.audio_samples.len() as f32).sqrt();
+        // TODO(perf): faster approximation of log10
+        Some(power.log10() * 20.)
     }
 }
 
-struct PixelBuf {
-    buf: Box<[u8]>,
-    width: u32,
+#[wasm_bindgen]
+pub struct SpectrogramTile {
+    #[wasm_bindgen(readonly)]
+    pub width: u32,
+    pixels: Box<[f32]>,
 }
 
-impl PixelBuf {
+#[wasm_bindgen]
+impl SpectrogramTile {
     fn new(width: u32, height: u32) -> Self {
         Self {
-            buf: vec![255_u8; (width * height * 4) as usize].into(),
             width,
+            pixels: vec![f32::NAN; width as usize * height as usize].into(),
         }
     }
-    fn into_buf(self) -> Box<[u8]> {
-        self.buf
+    pub fn into_inner(self) -> Box<[f32]> {
+        self.pixels
     }
-    fn set_pixel(&mut self, x: u32, y: u32, color: [u8; 3]) {
-        let start = ((y * self.width + x) * 4) as usize;
-        self.buf[start + 0] = color[0];
-        self.buf[start + 1] = color[1];
-        self.buf[start + 2] = color[2];
+    pub fn from_inner(width: u32, pixels: Box<[f32]>) -> Self {
+        Self { width, pixels }
+    }
+    pub fn render(&self, db_min: f32, db_max: f32) -> Result<ImageData, JsValue> {
+        let db_range = db_max - db_min;
+        let pixel_data: Vec<u32> = self
+            .pixels
+            .iter()
+            .map(|db| colormap::eval((db - db_min) / db_range))
+            .collect();
+        ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), self.width)
+    }
+    fn set_pixel(&mut self, x: u32, y: u32, val: f32) {
+        let i = y as usize * self.width as usize + x as usize;
+        self.pixels[i] = val;
     }
 }
 

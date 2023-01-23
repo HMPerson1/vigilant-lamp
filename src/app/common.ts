@@ -1,15 +1,38 @@
-import { clamp } from "lodash-es"
+import { clamp } from "lodash-es";
+
+export type Tagged<K extends string, T> = { type: K, val: T }
 
 export type AudioSamples = { sampleRate: number, samples: Float32Array }
 
-export type SpectrogramWork = {
-  /// in samples
-  timeStep: number,
-  /// in samples
-  fftWindowSize: number,
-  gausWindowSigma: number,
-  audioSamples: Float32Array,
+export type SpecFftParams = { lgWindowSize: number, lgExtraPad: number }
+
+export type SpecWorkerMsg =
+  Tagged<"audioData", AudioSamples> |
+  Tagged<"fftParams", SpecFftParams> |
+  Tagged<"work", SpectrogramWork>
+
+export type SpecTileWindow = {
+  timeMin: number;
+  timeMax: number;
+  pitchMin: number;
+  pitchMax: number;
 }
+
+export type RenderWindowParams = SpecTileWindow & {
+  canvasWidth: number;
+  canvasHeight: number;
+};
+
+export type SpectrogramWork = RenderWindowParams & {
+  timeStep: number;
+}
+
+export type SpectrogramTileJs = SpecTileWindow & {
+  width: number;
+  pixels: Float32Array;
+}
+
+export function tag<K extends string, T>(k: K): (v: T) => Tagged<K, T> { return v => { return { type: k, val: v } } }
 
 export function genGaussianWindow(N: number, sigma: number): Float32Array {
   const ret = new Float32Array(N)
@@ -50,3 +73,5 @@ export function doScrollZoom<PropMin extends string, PropMax extends string>(
   obj[propMin] = valMin
   obj[propMax] = valMin + valRange
 }
+
+export function isNotUndefined<T>(x?: T): x is T { return x !== undefined }

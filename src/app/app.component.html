@@ -2,15 +2,15 @@
   <div style="flex: 4; display: flex; flex-direction: column;" (wheel)="$event.preventDefault()">
     <app-audio-waveform class="groove-border" [audioData]="audioData" [(timeMin)]="vizTimeMin"
       [(timeMax)]="vizTimeMax"></app-audio-waveform>
-    <app-audio-spectrogram class="groove-border" style="flex: 1; display: flex;" [audioData]="audioData"
-      [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax"
-      [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
-      [timeStep]="specTimeStep"></app-audio-spectrogram>
+    <app-audio-spectrogram class="groove-border" style="flex: 1;" [audioData]="audioData" [(timeMin)]="vizTimeMin"
+      [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin"
+      [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"
+      [fftLgExtraPad]="specLgExtraPad"></app-audio-spectrogram>
   </div>
   <div class="groove-border settings-panel" style="flex: 1; padding: 4px 8px; display: flex; flex-direction: column;">
     <div style="display: flex; align-items: center;">
       <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
-      <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/wav">
+      <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/*">
       <div style="flex: 1; padding: 0 16px; display: flex;">
         <button mat-icon-button aria-label="Play" (click)="startPlayback()" [disabled]="!audioFile">
           <mat-icon>play_arrow</mat-icon>
@@ -22,19 +22,28 @@
     </div>
     <div style="padding: 16px 0; display: flex; flex-direction: column;">
       <label>Spectral Power Scale</label>
-      <mat-slider min="-100" max="0" step="1" style="width: auto;">
+      <mat-slider min="-100" max="10" step="1" style="width: auto;">
         <input matSliderStartThumb [(value)]="specDbMin">
         <input matSliderEndThumb [(value)]="specDbMax">
       </mat-slider>
-      <label>FFT Window Size</label>
+      <label>Time vs. Frequency Resolution</label>
       <mat-slider min="10" max="16" step="1" style="width: auto;">
         <input matSliderThumb [(value)]="specLgWindowSize">
       </mat-slider>
-      <label>Time Resolution</label>
-      <mat-slider min="0" max="15" step="1" style="width: auto;">
+      <label>Time Sampling</label>
+      <mat-slider min="0" max="5" step="1" style="width: auto;">
         <input matSliderThumb [(value)]="specTimeStepInput">
       </mat-slider>
+      <label>Freqency Sampling</label>
+      <mat-slider min="-1" max="3" step="1" style="width: auto;">
+        <input matSliderThumb [(value)]="specLgExtraPad">
+      </mat-slider>
     </div>
-    <div> Cross-Origin Isolated: {{ coi }} </div>
+    <div style="margin-top: auto;">
+      <div> Secure context: {{ secCtx }} </div>
+      <div> Cross-origin isolated: {{ coi }} </div>
+      <div> AudioContext sample rate: {{ audioContext.sampleRate }} </div>
+      <div> Hardware concurrency: {{ hwCcur }} </div>
+    </div>
   </div>
 </div>
