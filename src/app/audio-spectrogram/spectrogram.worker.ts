@@ -25,12 +25,14 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
           (last, { audioData, fftParams }) => {
             last?.free();
             // TODO(perf): copy audio into wasm once
-            return new wasm_module.SpectrogramRenderer(
-              audioData.samples,
-              audioData.sampleRate,
+            const wasmAudioBuffer = new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+            const ret = new wasm_module.SpectrogramRenderer(
+              wasmAudioBuffer,
               2 ** (fftParams.lgWindowSize + fftParams.lgExtraPad),
               0.2 / (2 ** fftParams.lgExtraPad),
             );
+            wasmAudioBuffer.free()
+            return ret;
           }, undefined))
         combineLatest({ renderer: renderer$, work: work$ }).pipe(
           debounceTime(0),

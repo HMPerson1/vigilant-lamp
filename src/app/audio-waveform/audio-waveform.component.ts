@@ -1,5 +1,5 @@
 import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
-import * as lodash from 'lodash-es';
+import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, doScrollZoom } from '../common';
 
 @Component({
@@ -32,45 +32,24 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
     if (delta) {
       doScrollZoom(
         this, 'timeMin', 'timeMax',
-        0, timeClampMax, 1 / 4, zoomRate, timeScrollRate,
+        0, timeClampMax, 1 / 1000, zoomRate, timeScrollRate,
         delta, event.ctrlKey, event.offsetX / waveCanvas.width)
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
   }
   drawAudioViz(): void {
-    // TODO(perf): rewrite in rust
-    // FIXME: 1 sample / pixel doesn't render correctly
     if (this.audioData && this.waveformCanvas) {
       const waveCanvas = this.waveformCanvas.nativeElement;
       waveCanvas.width = waveCanvas.parentElement!.clientWidth
       waveCanvas.height = waveCanvas.parentElement!.clientHeight
       const waveCanvasCtx = waveCanvas.getContext('2d')!
-      const samples = this.audioData.samples
 
-      const timeRange = this.timeMax - this.timeMin
-      const samplesPerPixel = timeRange * this.audioData.sampleRate / waveCanvas.width
-
-      waveCanvasCtx.save()
-      waveCanvasCtx.lineWidth = 1
-      waveCanvasCtx.translate(0.5, waveCanvas.height / 2 + 0.5)
-      waveCanvasCtx.beginPath()
-      waveCanvasCtx.moveTo(0, 0)
-      waveCanvasCtx.lineTo(samples.length / samplesPerPixel, 0) // TODO: hack
-      waveCanvasCtx.stroke()
-      waveCanvasCtx.scale(1, -waveCanvas.height / 2.2)
-      waveCanvasCtx.beginPath()
-      for (let x = 0; x < waveCanvas.width; x++) {
-        const chunkSampleStart = x * samplesPerPixel + this.timeMin * this.audioData.sampleRate
-        const chunk = samples.subarray(Math.round(chunkSampleStart), Math.round(chunkSampleStart + samplesPerPixel))
-
-        const low = lodash.min(chunk)!
-        const high = lodash.max(chunk)!
-        waveCanvasCtx.moveTo(x, low)
-        waveCanvasCtx.lineTo(x, high)
-      }
-      waveCanvasCtx.restore()
-      waveCanvasCtx.stroke()
+      // TODO(perf): copy audio into wasm once
+      const wasmAudioBuffer = new wasm_module.AudioBuffer(this.audioData.samples, this.audioData.sampleRate);
+      const imageData = wasm_module.render_waveform(wasmAudioBuffer, this.timeMin, this.timeMax, waveCanvas.width, waveCanvas.height);
+      wasmAudioBuffer.free()
+      waveCanvasCtx.putImageData(imageData, 0, 0);
     }
   }
 

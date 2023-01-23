@@ -1,10 +1,65 @@
 mod colormap;
 mod utils;
 
+use std::rc::Rc;
+
 use realfft::{num_complex::Complex32, RealToComplex, RealToComplexEven};
 use wasm_bindgen::{prelude::*, Clamped};
 
+use itertools::Itertools;
 use web_sys::ImageData;
+
+#[wasm_bindgen]
+pub struct AudioBuffer {
+    samples: Rc<[f32]>,
+    sample_rate: u32,
+}
+
+#[wasm_bindgen]
+impl AudioBuffer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(samples: Box<[f32]>, sample_rate: u32) -> Self {
+        utils::set_panic_hook();
+        Self {
+            samples: samples.into(),
+            sample_rate,
+        }
+    }
+}
+
+#[wasm_bindgen]
+pub fn render_waveform(
+    audio: &AudioBuffer,
+    time_start: f32,
+    time_end: f32,
+    width: u32,
+    height: u32,
+) -> Result<ImageData, JsValue> {
+    let audio_samples = &*audio.samples;
+    assert!(audio_samples.len() > 1);
+    assert!(height > 1);
+    let mut pixel_data = vec![0xff000000_u32; width as usize * height as usize];
+    let sample_start = time_start * audio.sample_rate as f32;
+    let x_to_sample = (time_end - time_start) / width as f32 * audio.sample_rate as f32;
+    let hheightf = height as f32 / 2.;
+    for x in 0..width {
+        let chunk_start = (x as f32 * x_to_sample + sample_start) as usize;
+        let chunk_start = chunk_start.clamp(0, audio_samples.len() - 1);
+        let chunk_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
+        let chunk_end = chunk_end.clamp(chunk_start, audio_samples.len());
+        let chunk = &audio_samples[chunk_start..chunk_end];
+        if let Some((min, max)) = chunk.iter().copied().minmax().into_option() {
+            let y0 = (min * hheightf + hheightf) as u32;
+            let y0 = y0.clamp(0, height as u32 - 1);
+            let y1 = (max * hheightf + hheightf) as u32;
+            let y1 = y1.clamp(y0, height as u32 - 1);
+            for y in y0..=y1 {
+                pixel_data[(y * width + x) as usize] = 0xffffffff;
+            }
+        }
+    }
+    ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), width)
+}
 
 fn copy_centered_window(center: usize, data: &[f32], window_out: &mut [f32]) {
     let wndw_size = window_out.len();
@@ -39,10 +94,6 @@ fn copy_centered_window(center: usize, data: &[f32], window_out: &mut [f32]) {
     }
 }
 
-fn ceil_div(a: usize, b: usize) -> usize {
-    (a - 1) / b + 1
-}
-
 fn gen_gaussian_window(n: usize, sigma: f64) -> Box<[f32]> {
     (0..n)
         .map(|i| {
@@ -55,7 +106,7 @@ fn gen_gaussian_window(n: usize, sigma: f64) -> Box<[f32]> {
 
 #[wasm_bindgen]
 pub struct SpectrogramRenderer {
-    audio_samples: Box<[f32]>,
+    audio_samples: Rc<[f32]>,
     audio_sample_rate: u32,
     window: Box<[f32]>,
     fft_in: Box<[f32]>,
@@ -67,20 +118,14 @@ pub struct SpectrogramRenderer {
 #[wasm_bindgen]
 impl SpectrogramRenderer {
     #[wasm_bindgen(constructor)]
-    pub fn new(
-        audio_samples: &[f32],
-        audio_sample_rate: u32,
-        fft_window_size: usize,
-        gaus_window_sigma: f64,
-    ) -> Self {
-        utils::set_panic_hook();
+    pub fn new(audio_buffer: &AudioBuffer, fft_window_size: usize, gaus_window_sigma: f64) -> Self {
         let fft = realfft::RealToComplexEven::<f32>::new(
             fft_window_size,
             &mut rustfft::FftPlanner::new(),
         );
         Self {
-            audio_samples: audio_samples.into(),
-            audio_sample_rate,
+            audio_samples: audio_buffer.samples.clone(),
+            audio_sample_rate: audio_buffer.sample_rate,
             window: gen_gaussian_window(fft_window_size, gaus_window_sigma),
             fft_in: fft.make_input_vec().into(),
             fft_scratch: fft.make_scratch_vec().into(),
