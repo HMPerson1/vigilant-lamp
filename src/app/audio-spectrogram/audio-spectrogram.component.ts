@@ -92,7 +92,7 @@ export class AudioSpectrogramComponent {
     })
     const loresFftParams$ = combineLatest({
       lgWindowSize: this.fftLgWindowSize$,
-      lgExtraPad: this.fftLgExtraPad$.pipe(map(x => Math.max(x, 0)), distinctUntilChanged())
+      lgExtraPad: this.fftLgExtraPad$.pipe(map(x => Math.min(x, 0)), distinctUntilChanged())
     })
 
     const hiresTileWork$: Observable<SpectrogramWork> = combineLatest({
