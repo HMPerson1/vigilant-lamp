@@ -26,10 +26,11 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
             last?.free();
             // TODO(perf): copy audio into wasm once
             const wasmAudioBuffer = new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+            const usedLgWindowSize = Math.ceil(fftParams.lgWindowSize + fftParams.lgExtraPad)
             const ret = new wasm_module.SpectrogramRenderer(
               wasmAudioBuffer,
-              2 ** (fftParams.lgWindowSize + fftParams.lgExtraPad),
-              0.2 / (2 ** fftParams.lgExtraPad),
+              2 ** usedLgWindowSize,
+              0.2 / (2 ** (usedLgWindowSize - fftParams.lgWindowSize)),
             );
             wasmAudioBuffer.free()
             return ret;
