@@ -1,4 +1,5 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
 import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
@@ -7,11 +8,6 @@ import { AudioSamples, doScrollZoom, isNotUndefined, RenderWindowParams, SpecTil
 import { resizeObservable } from '../ui-utils';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
-
-type RenderParams = RenderWindowParams & {
-  specDbMin: number;
-  specDbMax: number;
-}
 
 type SpecTileWasm = SpecTileWindow & {
   tile: wasm_module.SpectrogramTile;
@@ -56,6 +52,9 @@ export class AudioSpectrogramComponent {
   @Input() fftLgExtraPad: number = 0;
   fftLgExtraPad$: Observable<number>;
 
+  @Input() showPitchScale: boolean = true;
+  showPitchScale$: Observable<boolean>;
+
   constructor() {
     const toObs = fromInput(this);
     this.spectrogramCanvas$ = toObs('spectrogramCanvas')
@@ -69,6 +68,7 @@ export class AudioSpectrogramComponent {
     this.timeStep$ = toObs('timeStep')
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
     this.fftLgExtraPad$ = toObs('fftLgExtraPad')
+    this.showPitchScale$ = toObs('showPitchScale')
 
     const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
 
@@ -156,6 +156,7 @@ export class AudioSpectrogramComponent {
     combineLatest({
       hiresTileBmp: hiresTileBmp$,
       loresTileBmp: loresTileBmp$,
+      showPitchScale: this.showPitchScale$,
       ...renderWinParam$s
     }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(render => {
       if (!this.spectrogramCanvas) return
@@ -170,7 +171,62 @@ export class AudioSpectrogramComponent {
 
       this.renderTile(render, render.loresTileBmp, specCanvasCtx);
       this.renderTile(render, render.hiresTileBmp, specCanvasCtx);
+      if (render.showPitchScale) {
+        this.renderPitchScale(render, specCanvasCtx);
+      }
     })
+  }
+
+  private renderPitchScale(render: RenderWindowParams, specCanvasCtx: CanvasRenderingContext2D) {
+    const pitchToPixel = render.canvasHeight / (render.pitchMax - render.pitchMin);
+    const forEachPitch = (f: (pitch: number, y: number) => void) => {
+      for (let pitch = Math.floor(render.pitchMin); pitch <= Math.ceil(render.pitchMax); pitch++) {
+        let y = render.canvasHeight - (pitch - render.pitchMin) * pitchToPixel
+        f(pitch, y)
+      }
+    }
+
+    specCanvasCtx.save();
+    specCanvasCtx.translate(0, 0.5);
+    specCanvasCtx.scale(1, 1);
+
+    specCanvasCtx.beginPath();
+    specCanvasCtx.lineWidth = 1;
+    specCanvasCtx.strokeStyle = 'green'
+    forEachPitch((pitch, y) => {
+      specCanvasCtx.moveTo(0, Math.round(y + pitchToPixel / 2));
+      specCanvasCtx.lineTo(render.canvasWidth, Math.round(y + pitchToPixel / 2));
+    })
+    specCanvasCtx.stroke();
+
+    if (pitchToPixel > 30) {
+      specCanvasCtx.strokeStyle = 'gray'
+      specCanvasCtx.setLineDash([8, 8])
+      specCanvasCtx.beginPath()
+      forEachPitch((_pitch, y) => {
+        specCanvasCtx.moveTo(0, Math.round(y));
+        specCanvasCtx.lineTo(render.canvasWidth, Math.round(y));
+      })
+      specCanvasCtx.stroke()
+      specCanvasCtx.setLineDash([])
+    }
+
+    specCanvasCtx.strokeStyle = 'black';
+    specCanvasCtx.fillStyle = 'white';
+    specCanvasCtx.lineWidth = 3;
+    specCanvasCtx.textBaseline = 'alphabetic';
+    const what = `${lodash.clamp(Math.round(pitchToPixel * .9), 12, 20)}px sans-serif`
+    specCanvasCtx.font = what
+    forEachPitch((pitch, y) => {
+      const pitchStr = `${pitch}`;
+      const textMetrics = specCanvasCtx.measureText(pitchStr);
+      const textHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+      const textBaseline = y + textMetrics.actualBoundingBoxAscent - textHeight / 2;
+      specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
+      specCanvasCtx.fillText(pitchStr, 1, textBaseline);
+    })
+
+    specCanvasCtx.restore();
   }
 
   private renderTile(render: RenderWindowParams, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {
@@ -179,11 +235,10 @@ export class AudioSpectrogramComponent {
     const xScale = timePerTilePixel / timePerRealPixel;
     const xOffset = (render.timeMin - tile.timeMin + timePerTilePixel / 2) / timePerRealPixel;
 
-    const pitchRangeReal = render.pitchMax - render.pitchMin;
-    const pitchRangeTile = tile.pitchMax - tile.pitchMin;
-    const yScale = pitchRangeTile / pitchRangeReal;
-    const pitchToPixel = pitchRangeReal / render.canvasHeight;
-    const yOffset = (render.pitchMax - tile.pitchMax) / pitchToPixel;
+    const pitchPerRealPixel = (render.pitchMax - render.pitchMin) / render.canvasHeight;
+    const pitchPerTilePixel = (tile.pitchMax - tile.pitchMin) / tile.bitmap.height;
+    const yScale = pitchPerTilePixel / pitchPerRealPixel;
+    const yOffset = (render.pitchMax - tile.pitchMax) / pitchPerRealPixel;
 
     specCanvasCtx.drawImage(tile.bitmap, -xOffset, yOffset, tile.bitmap.width * xScale, tile.bitmap.height * yScale);
   }

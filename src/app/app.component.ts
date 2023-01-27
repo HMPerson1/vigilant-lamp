@@ -26,6 +26,7 @@ export class AppComponent {
   specTimeStepInput: number = 3
   get specTimeStep(): number { return 2 ** (5 - this.specTimeStepInput) }
   specLgExtraPad: number = 0
+  showPitchScale: boolean = true;
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   audioBufSrcNode?: AudioBufferSourceNode | null

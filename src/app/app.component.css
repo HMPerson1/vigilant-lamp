@@ -6,3 +6,7 @@
 .settings-panel label {
   font-size: medium;
 }
+
+.settings-panel mat-slider {
+  display: block;
+}
