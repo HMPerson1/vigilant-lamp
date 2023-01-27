@@ -187,8 +187,8 @@ export class AudioSpectrogramComponent {
     const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY]
     if (deltaY) {
       doScrollZoomPitch(
-        this, 'pitchMin', 'pitchMax', specCanvas.width / specCanvas.height,
-        deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.height
+        this, 'pitchMin', 'pitchMax', specCanvas.clientWidth / specCanvas.clientHeight,
+        deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.clientHeight
       )
       this.pitchMinChange.emit(this.pitchMin)
       this.pitchMaxChange.emit(this.pitchMax)
@@ -196,7 +196,7 @@ export class AudioSpectrogramComponent {
     if (deltaX) {
       doScrollZoomTime(
         this, 'timeMin', 'timeMax', this.audioData?.timeLen,
-        deltaX, event.ctrlKey, event.offsetX / specCanvas.width
+        deltaX, event.ctrlKey, event.offsetX / specCanvas.clientWidth
       )
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)

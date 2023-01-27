@@ -72,7 +72,7 @@ export class AudioWaveformComponent {
     if (delta) {
       doScrollZoomTime(
         this, 'timeMin', 'timeMax', this.audioData?.timeLen,
-        delta, event.ctrlKey, event.offsetX / waveCanvas.width
+        delta, event.ctrlKey, event.offsetX / waveCanvas.clientWidth
       )
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
