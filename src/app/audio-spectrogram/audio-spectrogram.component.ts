@@ -4,8 +4,8 @@ import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
 import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, doScrollZoom, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
-import { resizeObservable } from '../ui-utils';
+import { AudioSamples, GenSpecTile, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
+import { doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -13,9 +13,8 @@ type SpecTileWasm = SpecTileWindow & {
   tile: wasm_module.SpectrogramTile;
 }
 
-type SpecTileBitmap = SpecTileWindow & {
-  bitmap: ImageBitmap;
-}
+type SpecTileBitmap = GenSpecTile<ImageBitmap>
+type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
 
 @Component({
   selector: 'app-audio-spectrogram',
@@ -134,13 +133,7 @@ export class AudioSpectrogramComponent {
     ).pipe(toWasm)
 
     const tileWasmToBmp = mergeMap(({ tile, specDbMin, specDbMax }) => from((async () => {
-      return {
-        timeMin: tile.timeMin,
-        timeMax: tile.timeMax,
-        pitchMin: tile.pitchMin,
-        pitchMax: tile.pitchMax,
-        bitmap: await createImageBitmap(tile.tile.render(specDbMin, specDbMax), { imageOrientation: 'flipY' }),
-      };
+      return new GenSpecTile(tile, await createImageBitmap(tile.tile.render(specDbMin, specDbMax), { imageOrientation: 'flipY' }));
     })()));
     const hiresTileBmp$: Observable<SpecTileBitmap> = combineLatest({
       tile: hiresTile$,
@@ -169,111 +162,107 @@ export class AudioSpectrogramComponent {
       specCanvasCtx.fillStyle = 'gray'
       specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
 
-      this.renderTile(render, render.loresTileBmp, specCanvasCtx);
-      this.renderTile(render, render.hiresTileBmp, specCanvasCtx);
+      const canvasTile = new GenSpecTile(render, specCanvas);
+      renderTile(canvasTile, render.loresTileBmp, specCanvasCtx);
+      renderTile(canvasTile, render.hiresTileBmp, specCanvasCtx);
       if (render.showPitchScale) {
-        this.renderPitchScale(render, specCanvasCtx);
+        renderPitchScale(canvasTile, specCanvasCtx);
       }
     })
   }
 
-  private renderPitchScale(render: RenderWindowParams, specCanvasCtx: CanvasRenderingContext2D) {
-    const pitchToPixel = render.canvasHeight / (render.pitchMax - render.pitchMin);
-    const forEachPitch = (f: (pitch: number, y: number) => void) => {
-      for (let pitch = Math.floor(render.pitchMin); pitch <= Math.ceil(render.pitchMax); pitch++) {
-        let y = render.canvasHeight - (pitch - render.pitchMin) * pitchToPixel
-        f(pitch, y)
-      }
-    }
-
-    specCanvasCtx.save();
-    specCanvasCtx.translate(0, 0.5);
-    specCanvasCtx.scale(1, 1);
-
-    specCanvasCtx.beginPath();
-    specCanvasCtx.lineWidth = 1;
-    specCanvasCtx.strokeStyle = 'green'
-    forEachPitch((pitch, y) => {
-      specCanvasCtx.moveTo(0, Math.round(y + pitchToPixel / 2));
-      specCanvasCtx.lineTo(render.canvasWidth, Math.round(y + pitchToPixel / 2));
-    })
-    specCanvasCtx.stroke();
-
-    if (pitchToPixel > 30) {
-      specCanvasCtx.strokeStyle = 'gray'
-      specCanvasCtx.setLineDash([8, 8])
-      specCanvasCtx.beginPath()
-      forEachPitch((_pitch, y) => {
-        specCanvasCtx.moveTo(0, Math.round(y));
-        specCanvasCtx.lineTo(render.canvasWidth, Math.round(y));
-      })
-      specCanvasCtx.stroke()
-      specCanvasCtx.setLineDash([])
-    }
-
-    specCanvasCtx.strokeStyle = 'black';
-    specCanvasCtx.fillStyle = 'white';
-    specCanvasCtx.lineWidth = 3;
-    specCanvasCtx.textBaseline = 'alphabetic';
-    const what = `${lodash.clamp(Math.round(pitchToPixel * .9), 12, 20)}px sans-serif`
-    specCanvasCtx.font = what
-    forEachPitch((pitch, y) => {
-      const pitchStr = `${pitch}`;
-      const textMetrics = specCanvasCtx.measureText(pitchStr);
-      const textHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-      const textBaseline = y + textMetrics.actualBoundingBoxAscent - textHeight / 2;
-      specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
-      specCanvasCtx.fillText(pitchStr, 1, textBaseline);
-    })
-
-    specCanvasCtx.restore();
-  }
-
-  private renderTile(render: RenderWindowParams, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {
-    const timePerRealPixel = (render.timeMax - render.timeMin) / render.canvasWidth;
-    const timePerTilePixel = (tile.timeMax - tile.timeMin) / tile.bitmap.width;
-    const xScale = timePerTilePixel / timePerRealPixel;
-    const xOffset = (render.timeMin - tile.timeMin + timePerTilePixel / 2) / timePerRealPixel;
-
-    const pitchPerRealPixel = (render.pitchMax - render.pitchMin) / render.canvasHeight;
-    const pitchPerTilePixel = (tile.pitchMax - tile.pitchMin) / tile.bitmap.height;
-    const yScale = pitchPerTilePixel / pitchPerRealPixel;
-    const yOffset = (render.pitchMax - tile.pitchMax) / pitchPerRealPixel;
-
-    specCanvasCtx.drawImage(tile.bitmap, -xOffset, yOffset, tile.bitmap.width * xScale, tile.bitmap.height * yScale);
-  }
 
   onWheel(event: WheelEvent) {
     if (!this.spectrogramCanvas) {
-      console.log("scroll event before view rendered???");
+      console.error("scroll event before view rendered???");
       return
     }
     const specCanvas = this.spectrogramCanvas.nativeElement;
     event.preventDefault()
     // TODO: scroll pixel/line/page ???
 
-    const zoomRate = 1 / 400
-    const timeScrollRate = zoomRate / 4;
     const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY]
     if (deltaY) {
-      doScrollZoom(
-        this, 'pitchMin', 'pitchMax',
-        0, 136, 6, zoomRate, -timeScrollRate * (specCanvas.width / specCanvas.height),
-        deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.height)
+      doScrollZoomPitch(
+        this, 'pitchMin', 'pitchMax', specCanvas.width / specCanvas.height,
+        deltaY, event.ctrlKey, 1 - event.offsetY / specCanvas.height
+      )
       this.pitchMinChange.emit(this.pitchMin)
       this.pitchMaxChange.emit(this.pitchMax)
     }
     if (deltaX) {
-      const timeClampMax = this.audioData ? this.audioData.samples.length / this.audioData.sampleRate : 30
-
-      doScrollZoom(
-        this, 'timeMin', 'timeMax',
-        0, timeClampMax, 1 / 1000, zoomRate, timeScrollRate,
-        deltaX, event.ctrlKey, event.offsetX / specCanvas.width)
+      doScrollZoomTime(
+        this, 'timeMin', 'timeMax', this.audioData?.timeLen,
+        deltaX, event.ctrlKey, event.offsetX / specCanvas.width
+      )
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
   }
+}
+
+function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {
+  const xScale = tile.timePerPixel / render.timePerPixel;
+  const xOffset = render.time2x(tile.timeMin - tile.timePerPixel / 2);
+  const yScale = tile.pitchPerPixel / render.pitchPerPixel;
+  const yOffset = render.pitch2y(tile.pitchMax);
+  specCanvasCtx.drawImage(tile.inner, xOffset, yOffset, tile.width * xScale, tile.height * yScale);
+}
+
+function renderPitchScale(render: SpecTileCanvas, specCanvasCtx: CanvasRenderingContext2D) {
+  const forEachPitch = (f: (pitch: number) => void) => {
+    for (let pitch = Math.floor(render.pitchMin); pitch <= Math.ceil(render.pitchMax); pitch++) {
+      f(pitch)
+    }
+  }
+
+  specCanvasCtx.save();
+  specCanvasCtx.translate(0, 0.5);
+
+  specCanvasCtx.save();
+  specCanvasCtx.lineWidth = 1;
+  specCanvasCtx.strokeStyle = 'green'
+  specCanvasCtx.beginPath();
+  forEachPitch((_pitch) => {
+    const y = Math.round(render.pitch2y(_pitch - .5));
+    specCanvasCtx.moveTo(0, y);
+    specCanvasCtx.lineTo(render.width, y);
+  })
+  specCanvasCtx.stroke();
+  specCanvasCtx.restore();
+
+  if (1 / render.pitchPerPixel > 30) {
+    specCanvasCtx.save();
+    specCanvasCtx.strokeStyle = 'gray'
+    specCanvasCtx.setLineDash([8, 8])
+    specCanvasCtx.beginPath()
+    forEachPitch((pitch) => {
+      const y = Math.round(render.pitch2y(pitch));
+      specCanvasCtx.moveTo(0, y);
+      specCanvasCtx.lineTo(render.width, y);
+    })
+    specCanvasCtx.stroke()
+    specCanvasCtx.restore();
+  }
+
+  specCanvasCtx.save();
+  specCanvasCtx.strokeStyle = 'black';
+  specCanvasCtx.fillStyle = 'white';
+  specCanvasCtx.lineWidth = 3;
+  specCanvasCtx.textBaseline = 'alphabetic';
+  const what = `${lodash.clamp(Math.round(.9 / render.pitchPerPixel), 12, 20)}px sans-serif`
+  specCanvasCtx.font = what
+  forEachPitch((pitch) => {
+    const pitchStr = `${pitch}`;
+    const textMetrics = specCanvasCtx.measureText(pitchStr);
+    const textHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
+    const textBaseline = render.pitch2y(pitch) + textMetrics.actualBoundingBoxAscent - textHeight / 2;
+    specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
+    specCanvasCtx.fillText(pitchStr, 1, textBaseline);
+  })
+  specCanvasCtx.restore();
+
+  specCanvasCtx.restore();
 }
 
 // NB: design decision to NOT store FFT results since the memory consumption would be too high

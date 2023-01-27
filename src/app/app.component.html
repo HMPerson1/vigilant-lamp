@@ -36,7 +36,7 @@
       </label>
       <label>
         Time Sampling
-        <mat-slider min="0" max="5" step="1">
+        <mat-slider min="0" [max]="TIME_STEP_INPUT_MAX" step="1">
           <input matSliderThumb [(value)]="specTimeStepInput">
         </mat-slider>
       </label>
