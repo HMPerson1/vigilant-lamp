@@ -1,3 +1,5 @@
-<div class="canvas-box" style="width: 100%; height: 100%;" (wheel)="onWheel($event)">
+<div class="canvas-box" style="width: 100%; height: 100%;" (wheel)="onWheel($event)" (mousemove)="onMouse($event)">
   <canvas #spectrogram_canvas></canvas>
+  <div style="width: 1px; background-color: red;" [style.left.px]="cursorX"></div>
+  <div style="height: 1px; background-color: red;" [style.top.px]="cursorY"></div>
 </div>

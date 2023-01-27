@@ -202,6 +202,17 @@ export class AudioSpectrogramComponent {
       this.timeMaxChange.emit(this.timeMax)
     }
   }
+
+  @Input() cursorX: number = 0;
+  @Input() cursorY: number = 0;
+  @Output() cursorXChange: EventEmitter<number> = new EventEmitter();
+  @Output() cursorYChange: EventEmitter<number> = new EventEmitter();
+  onMouse(event: MouseEvent) {
+    this.cursorX = event.offsetX;
+    this.cursorY = event.offsetY;
+    this.cursorXChange.emit(this.cursorX);
+    this.cursorYChange.emit(this.cursorY);
+  }
 }
 
 function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {

@@ -78,4 +78,11 @@ export class AudioWaveformComponent {
       this.timeMaxChange.emit(this.timeMax)
     }
   }
+
+  @Input() cursorX: number = 0;
+  @Output() cursorXChange: EventEmitter<number> = new EventEmitter();
+  onMouse(event: MouseEvent) {
+    this.cursorX = event.offsetX;
+    this.cursorXChange.emit(this.cursorX);
+  }
 }
