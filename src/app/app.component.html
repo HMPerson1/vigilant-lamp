@@ -5,7 +5,8 @@
     <app-audio-spectrogram class="groove-border" style="flex: 1;" [audioData]="audioData" [(timeMin)]="vizTimeMin"
       [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin"
       [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"
-      [fftLgExtraPad]="specLgExtraPad" [showPitchScale]="showPitchScale"></app-audio-spectrogram>
+      [fftLgExtraPad]="specLgExtraPad" [showPitchGrid]="showPitchGrid"
+      [pitchLabelType]="pitchLabelType"></app-audio-spectrogram>
   </div>
   <div class="groove-border settings-panel" style="flex: 1; padding: 4px 8px; display: flex; flex-direction: column;">
     <div style="display: flex; align-items: center;">
@@ -46,9 +47,18 @@
           <input matSliderThumb [(value)]="specLgExtraPad">
         </mat-slider>
       </label>
-      <label style="display: flex;">
-        Show Pitch Scale
-        <mat-slide-toggle style="margin-left: auto;" [(ngModel)]="showPitchScale"></mat-slide-toggle>
+      <label style="display: flex; align-items: center; height: 48px;">
+        Pitch Grid
+        <mat-slide-toggle style="margin-left: auto;" [(ngModel)]="showPitchGrid"></mat-slide-toggle>
+      </label>
+      <label style="display: flex; align-items: center;">
+        Pitch Labels
+        <mat-button-toggle-group style="margin-left: auto;" [(ngModel)]="pitchLabelType">
+          <mat-button-toggle value="none">None</mat-button-toggle>
+          <mat-button-toggle value="midi">MIDI</mat-button-toggle>
+          <mat-button-toggle value="sharp">&sharp;</mat-button-toggle>
+          <mat-button-toggle value="flat">&flat;</mat-button-toggle>
+        </mat-button-toggle-group>
       </label>
     </div>
     <div style="margin-top: auto;">

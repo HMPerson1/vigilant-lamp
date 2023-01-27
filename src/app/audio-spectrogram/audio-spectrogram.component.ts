@@ -1,11 +1,12 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
 import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
-import { doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
+import { doScrollZoomPitch, doScrollZoomTime, PitchLabelType, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -51,8 +52,10 @@ export class AudioSpectrogramComponent {
   @Input() fftLgExtraPad: number = 0;
   fftLgExtraPad$: Observable<number>;
 
-  @Input() showPitchScale: boolean = true;
-  showPitchScale$: Observable<boolean>;
+  @Input() showPitchGrid: boolean = true;
+  showPitchGrid$: Observable<boolean>;
+  @Input() pitchLabelType: PitchLabelType = 'none';
+  pitchLabelType$: Observable<PitchLabelType>;
 
   constructor() {
     const toObs = fromInput(this);
@@ -67,12 +70,13 @@ export class AudioSpectrogramComponent {
     this.timeStep$ = toObs('timeStep')
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
     this.fftLgExtraPad$ = toObs('fftLgExtraPad')
-    this.showPitchScale$ = toObs('showPitchScale')
+    this.showPitchGrid$ = toObs('showPitchGrid')
+    this.pitchLabelType$ = toObs('pitchLabelType')
 
     const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
 
-    const specCanvas$ = this.spectrogramCanvas$.pipe(filter(isNotUndefined))
-    const specCanvasSize$ = specCanvas$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement.parentElement!, { box: 'device-pixel-content-box' })))
+    const specCanvasDef$ = this.spectrogramCanvas$.pipe(filter(isNotUndefined))
+    const specCanvasSize$ = specCanvasDef$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement, { box: 'device-pixel-content-box' })))
     const canvasWidth$ = specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize));
     const canvasHeight$ = specCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize));
 
@@ -149,7 +153,8 @@ export class AudioSpectrogramComponent {
     combineLatest({
       hiresTileBmp: hiresTileBmp$,
       loresTileBmp: loresTileBmp$,
-      showPitchScale: this.showPitchScale$,
+      showPitchScale: this.showPitchGrid$,
+      pitchLabelType: this.pitchLabelType$,
       ...renderWinParam$s
     }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(render => {
       if (!this.spectrogramCanvas) return
@@ -165,9 +170,7 @@ export class AudioSpectrogramComponent {
       const canvasTile = new GenSpecTile(render, specCanvas);
       renderTile(canvasTile, render.loresTileBmp, specCanvasCtx);
       renderTile(canvasTile, render.hiresTileBmp, specCanvasCtx);
-      if (render.showPitchScale) {
-        renderPitchScale(canvasTile, specCanvasCtx);
-      }
+      renderPitchScale(canvasTile, specCanvasCtx, render.showPitchScale, render.pitchLabelType);
     })
   }
 
@@ -209,7 +212,7 @@ function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx:
   specCanvasCtx.drawImage(tile.inner, xOffset, yOffset, tile.width * xScale, tile.height * yScale);
 }
 
-function renderPitchScale(render: SpecTileCanvas, specCanvasCtx: CanvasRenderingContext2D) {
+function renderPitchScale(render: SpecTileCanvas, specCanvasCtx: CanvasRenderingContext2D, grid: boolean, label: PitchLabelType) {
   const forEachPitch = (f: (pitch: number) => void) => {
     for (let pitch = Math.floor(render.pitchMin); pitch <= Math.ceil(render.pitchMax); pitch++) {
       f(pitch)
@@ -219,50 +222,59 @@ function renderPitchScale(render: SpecTileCanvas, specCanvasCtx: CanvasRendering
   specCanvasCtx.save();
   specCanvasCtx.translate(0, 0.5);
 
-  specCanvasCtx.save();
-  specCanvasCtx.lineWidth = 1;
-  specCanvasCtx.strokeStyle = 'green'
-  specCanvasCtx.beginPath();
-  forEachPitch((_pitch) => {
-    const y = Math.round(render.pitch2y(_pitch - .5));
-    specCanvasCtx.moveTo(0, y);
-    specCanvasCtx.lineTo(render.width, y);
-  })
-  specCanvasCtx.stroke();
-  specCanvasCtx.restore();
-
-  if (1 / render.pitchPerPixel > 30) {
+  if (grid) {
     specCanvasCtx.save();
-    specCanvasCtx.strokeStyle = 'gray'
-    specCanvasCtx.setLineDash([8, 8])
-    specCanvasCtx.beginPath()
-    forEachPitch((pitch) => {
-      const y = Math.round(render.pitch2y(pitch));
+    specCanvasCtx.lineWidth = 1;
+    specCanvasCtx.strokeStyle = 'green'
+    specCanvasCtx.beginPath();
+    forEachPitch((_pitch) => {
+      const y = Math.round(render.pitch2y(_pitch - .5));
       specCanvasCtx.moveTo(0, y);
       specCanvasCtx.lineTo(render.width, y);
     })
-    specCanvasCtx.stroke()
+    specCanvasCtx.stroke();
+    specCanvasCtx.restore();
+
+    if (1 / render.pitchPerPixel > 30) {
+      specCanvasCtx.save();
+      specCanvasCtx.strokeStyle = 'gray'
+      specCanvasCtx.setLineDash([8, 8])
+      specCanvasCtx.beginPath()
+      forEachPitch((pitch) => {
+        const y = Math.round(render.pitch2y(pitch));
+        specCanvasCtx.moveTo(0, y);
+        specCanvasCtx.lineTo(render.width, y);
+      })
+      specCanvasCtx.stroke()
+      specCanvasCtx.restore();
+    }
+  }
+
+  if (label != 'none') {
+    specCanvasCtx.save();
+    specCanvasCtx.strokeStyle = 'black';
+    specCanvasCtx.fillStyle = 'white';
+    specCanvasCtx.lineWidth = 3;
+    specCanvasCtx.textBaseline = 'alphabetic';
+    const fontSize = lodash.clamp(Math.round(.8 / render.pitchPerPixel), 12, 20);
+    specCanvasCtx.font = `${fontSize}px sans-serif`
+    forEachPitch((pitch) => {
+      const pitchStr = pitchLabel(label, pitch);
+      const textMetrics = specCanvasCtx.measureText(pitchStr);
+      const textHeight = textMetrics.fontBoundingBoxAscent + textMetrics.fontBoundingBoxDescent;
+      const textBaseline = render.pitch2y(pitch) + textMetrics.fontBoundingBoxAscent - textHeight / 2;
+      specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
+      specCanvasCtx.fillText(pitchStr, 1, textBaseline);
+    })
     specCanvasCtx.restore();
   }
 
-  specCanvasCtx.save();
-  specCanvasCtx.strokeStyle = 'black';
-  specCanvasCtx.fillStyle = 'white';
-  specCanvasCtx.lineWidth = 3;
-  specCanvasCtx.textBaseline = 'alphabetic';
-  const what = `${lodash.clamp(Math.round(.9 / render.pitchPerPixel), 12, 20)}px sans-serif`
-  specCanvasCtx.font = what
-  forEachPitch((pitch) => {
-    const pitchStr = `${pitch}`;
-    const textMetrics = specCanvasCtx.measureText(pitchStr);
-    const textHeight = textMetrics.actualBoundingBoxAscent + textMetrics.actualBoundingBoxDescent;
-    const textBaseline = render.pitch2y(pitch) + textMetrics.actualBoundingBoxAscent - textHeight / 2;
-    specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
-    specCanvasCtx.fillText(pitchStr, 1, textBaseline);
-  })
   specCanvasCtx.restore();
+}
 
-  specCanvasCtx.restore();
+function pitchLabel(label: PitchLabelType, pitch: number): string {
+  if (label === 'midi') return `${pitch}`;
+  return midiToNoteName(pitch, { sharps: label === 'sharp' }).replace('#', '♯').replace('b', '♭');
 }
 
 // NB: design decision to NOT store FFT results since the memory consumption would be too high

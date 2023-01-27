@@ -1,6 +1,8 @@
 import { clamp } from "lodash-es";
 import { Observable } from "rxjs";
 
+export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
+
 // https://stackoverflow.com/a/65789933
 export function resizeObservable(elem: Element, options?: ResizeObserverOptions): Observable<ResizeObserverEntry> {
   return new Observable(subscriber => {

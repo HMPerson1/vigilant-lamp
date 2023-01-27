@@ -1,32 +1,63 @@
-import { AfterViewInit, Component, ElementRef, EventEmitter, Input, OnChanges, Output, SimpleChanges, ViewChild } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { fromInput } from 'observable-from-input';
+import { animationFrameScheduler, combineLatest, debounceTime, filter, map, Observable, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples } from '../common';
-import { doScrollZoomTime } from '../ui-common';
+import { AudioSamples, isNotUndefined } from '../common';
+import { doScrollZoomTime, resizeObservable } from '../ui-common';
 
 @Component({
   selector: 'app-audio-waveform',
   templateUrl: './audio-waveform.component.html',
   styleUrls: ['./audio-waveform.component.css']
 })
-export class AudioWaveformComponent implements OnChanges, AfterViewInit {
+export class AudioWaveformComponent {
   @ViewChild('waveform_canvas') waveformCanvas?: ElementRef<HTMLCanvasElement>
+  waveformCanvas$: Observable<ElementRef<HTMLCanvasElement> | undefined>;
+  @Input() audioData?: AudioSamples;
+  audioData$: Observable<AudioSamples | undefined>;
   @Input() timeMin: number = 0;
   @Input() timeMax: number = 30;
-  @Output() timeMinChange = new EventEmitter<number>()
-  @Output() timeMaxChange = new EventEmitter<number>()
-  #audioData?: AudioSamples;
-  #wasmAudioBuffer?: wasm_module.AudioBuffer;
-  get audioData(): AudioSamples | undefined { return this.#audioData; }
-  @Input() set audioData(v: AudioSamples | undefined) {
-    this.#audioData = v;
-    if (v) {
-      this.#wasmAudioBuffer?.free();
-      this.#wasmAudioBuffer = new wasm_module.AudioBuffer(v.samples, v.sampleRate);
-    } else {
-      this.#wasmAudioBuffer = undefined;
-    }
-  }
+  @Output() timeMinChange = new EventEmitter<number>();
+  @Output() timeMaxChange = new EventEmitter<number>();
+  timeMin$: Observable<number>;
+  timeMax$: Observable<number>;
 
+  constructor() {
+    const toObs = fromInput(this);
+    this.waveformCanvas$ = toObs('waveformCanvas')
+    this.audioData$ = toObs('audioData')
+    this.timeMin$ = toObs('timeMin')
+    this.timeMax$ = toObs('timeMax')
+
+    const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
+    const wasmAudioBuffer$ = audioDataDef$.pipe(scan<AudioSamples, wasm_module.AudioBuffer, undefined>(
+      (last, audioData) => {
+        last?.free();
+        return new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+      }, undefined));
+
+    const waveCanvasDef$ = this.waveformCanvas$.pipe(filter(isNotUndefined))
+    const waveCanvasSize$ = waveCanvasDef$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement, { box: 'device-pixel-content-box' })))
+    const canvasWidth$ = waveCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize));
+    const canvasHeight$ = waveCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize));
+
+    combineLatest({
+      wasmAudioBuffer: wasmAudioBuffer$,
+      timeMin: this.timeMin$,
+      timeMax: this.timeMax$,
+      canvasWidth: canvasWidth$,
+      canvasHeight: canvasHeight$,
+    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(({ wasmAudioBuffer, timeMin, timeMax, canvasWidth, canvasHeight }) => {
+      if (!this.waveformCanvas) return;
+      const waveCanvas = this.waveformCanvas.nativeElement;
+      waveCanvas.width = canvasWidth
+      waveCanvas.height = canvasHeight
+      const waveCanvasCtx = waveCanvas.getContext('2d')!
+
+      const imageData = wasm_module.render_waveform(wasmAudioBuffer, timeMin, timeMax, waveCanvas.width, waveCanvas.height);
+      waveCanvasCtx.putImageData(imageData, 0, 0);
+    })
+  }
 
   onWheel(event: WheelEvent) {
     if (!this.waveformCanvas) {
@@ -46,23 +77,5 @@ export class AudioWaveformComponent implements OnChanges, AfterViewInit {
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
-  }
-  drawAudioViz(): void {
-    if (this.#wasmAudioBuffer && this.waveformCanvas) {
-      const waveCanvas = this.waveformCanvas.nativeElement;
-      waveCanvas.width = waveCanvas.parentElement!.clientWidth
-      waveCanvas.height = waveCanvas.parentElement!.clientHeight
-      const waveCanvasCtx = waveCanvas.getContext('2d')!
-
-      const imageData = wasm_module.render_waveform(this.#wasmAudioBuffer, this.timeMin, this.timeMax, waveCanvas.width, waveCanvas.height);
-      waveCanvasCtx.putImageData(imageData, 0, 0);
-    }
-  }
-
-  ngOnChanges(changes: SimpleChanges): void {
-    window.requestAnimationFrame(() => this.drawAudioViz())
-  }
-  ngAfterViewInit(): void {
-    window.requestAnimationFrame(() => this.drawAudioViz())
   }
 }

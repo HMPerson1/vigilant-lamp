@@ -1,6 +1,7 @@
 import { Component, NgZone } from '@angular/core';
 import { AudioSamples } from './common';
 import { loadAudio } from './load-audio';
+import { PitchLabelType } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -27,7 +28,8 @@ export class AppComponent {
   specTimeStepInput: number = 3
   get specTimeStep(): number { return 2 ** (this.TIME_STEP_INPUT_MAX - this.specTimeStepInput) }
   specLgExtraPad: number = 0
-  showPitchScale: boolean = true;
+  showPitchGrid: boolean = true;
+  pitchLabelType: PitchLabelType = 'none';
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   audioBufSrcNode?: AudioBufferSourceNode | null
