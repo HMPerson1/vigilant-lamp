@@ -2,6 +2,7 @@ import { NgModule } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
@@ -19,6 +20,7 @@ import { AudioWaveformComponent } from './audio-waveform/audio-waveform.componen
   ],
   imports: [
     FormsModule,
+    MatDividerModule,
     MatButtonToggleModule,
     MatSlideToggleModule,
     MatIconModule,

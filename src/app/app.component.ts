@@ -30,10 +30,11 @@ export class AppComponent {
   specLgExtraPad: number = 0
   showPitchGrid: boolean = true;
   pitchLabelType: PitchLabelType = 'none';
-  visCursorX: number = 0;
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   audioBufSrcNode?: AudioBufferSourceNode | null
+
+  visCursorX?: number;
 
   async onFileSelected(event: Event) {
     const fileInput = event.target as HTMLInputElement

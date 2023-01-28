@@ -22,6 +22,8 @@ export class AudioWaveformComponent {
   timeMin$: Observable<number>;
   timeMax$: Observable<number>;
 
+  @Input() cursorX?: number;
+
   constructor() {
     const toObs = fromInput(this);
     this.waveformCanvas$ = toObs('waveformCanvas')
@@ -77,12 +79,5 @@ export class AudioWaveformComponent {
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
-  }
-
-  @Input() cursorX: number = 0;
-  @Output() cursorXChange: EventEmitter<number> = new EventEmitter();
-  onMouse(event: MouseEvent) {
-    this.cursorX = event.offsetX;
-    this.cursorXChange.emit(this.cursorX);
   }
 }
