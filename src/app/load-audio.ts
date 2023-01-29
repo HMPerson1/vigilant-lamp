@@ -13,7 +13,7 @@ export function loadAudio(file: Blob, sampleRate: number): Promise<{ audioBuffer
       srcNode.connect(mixOffAudioCtx.destination)
       srcNode.start()
       const monoAudioBuffer = await mixOffAudioCtx.startRendering()
-      resolve({ audioBuffer, audioData: { sampleRate: monoAudioBuffer.sampleRate, samples: monoAudioBuffer.getChannelData(0) } })
+      resolve({ audioBuffer, audioData: new AudioSamples(monoAudioBuffer.sampleRate, monoAudioBuffer.getChannelData(0)) })
     }
     reader.readAsArrayBuffer(file)
   })

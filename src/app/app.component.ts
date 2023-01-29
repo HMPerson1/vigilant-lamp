@@ -1,6 +1,7 @@
 import { Component, NgZone } from '@angular/core';
 import { AudioSamples } from './common';
 import { loadAudio } from './load-audio';
+import { PitchLabelType } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -10,6 +11,7 @@ import { loadAudio } from './load-audio';
 export class AppComponent {
   constructor(private ngZone: NgZone) { }
   audioContext: AudioContext = new AudioContext()
+  readonly TIME_STEP_INPUT_MAX = 5
 
   title = 'vigilant-lamp'
   secCtx = window.isSecureContext
@@ -24,11 +26,17 @@ export class AppComponent {
   specDbMax: number = -20
   specLgWindowSize: number = 12
   specTimeStepInput: number = 3
-  get specTimeStep(): number { return 2 ** (5 - this.specTimeStepInput) }
+  get specTimeStep(): number { return 2 ** (this.TIME_STEP_INPUT_MAX - this.specTimeStepInput) }
   specLgExtraPad: number = 0
+  showPitchGrid: boolean = false;
+  pitchLabelType: PitchLabelType = 'sharp';
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   audioBufSrcNode?: AudioBufferSourceNode | null
+
+  visCursorX?: number;
+  showCrosshair: boolean = true;
+  showOvertones: boolean = false;
 
   async onFileSelected(event: Event) {
     const fileInput = event.target as HTMLInputElement

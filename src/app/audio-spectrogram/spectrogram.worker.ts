@@ -20,19 +20,21 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
     })
     return new Observable((subscriber) => {
       this.wasm_module.then((wasm_module) => {
-        const rendererParams$ = combineLatest({ audioData: audioData$, fftParams: fftParams$ });
-        const renderer$ = rendererParams$.pipe(scan<ObservedValueOf<typeof rendererParams$>, InstanceType<typeof wasm_module.SpectrogramRenderer>, undefined>(
-          (last, { audioData, fftParams }) => {
+        const wasmAudioBuffer$ = audioData$.pipe(scan<AudioSamples, InstanceType<typeof wasm_module.AudioBuffer>, undefined>(
+          (last, audioData) => {
             last?.free();
-            // TODO(perf): copy audio into wasm once
-            const wasmAudioBuffer = new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
-            const ret = new wasm_module.SpectrogramRenderer(
+            return new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+          }, undefined))
+        const rendererParams$ = combineLatest({ wasmAudioBuffer: wasmAudioBuffer$, fftParams: fftParams$ });
+        const renderer$ = rendererParams$.pipe(scan<ObservedValueOf<typeof rendererParams$>, InstanceType<typeof wasm_module.SpectrogramRenderer>, undefined>(
+          (last, { wasmAudioBuffer, fftParams }) => {
+            last?.free();
+            const usedLgWindowSize = Math.ceil(fftParams.lgWindowSize + fftParams.lgExtraPad)
+            return new wasm_module.SpectrogramRenderer(
               wasmAudioBuffer,
-              2 ** (fftParams.lgWindowSize + fftParams.lgExtraPad),
-              0.2 / (2 ** fftParams.lgExtraPad),
+              2 ** usedLgWindowSize,
+              0.2 / (2 ** (usedLgWindowSize - fftParams.lgWindowSize)),
             );
-            wasmAudioBuffer.free()
-            return ret;
           }, undefined))
         combineLatest({ renderer: renderer$, work: work$ }).pipe(
           debounceTime(0),

@@ -1,13 +1,16 @@
 import { NgModule } from '@angular/core';
-import { BrowserModule } from '@angular/platform-browser';
+import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSliderModule } from '@angular/material/slider';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
-
-import { AppComponent } from './app.component';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSliderModule } from '@angular/material/slider';
+import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
-import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
+import { AppComponent } from './app.component';
 import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
+import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
 
 @NgModule({
   declarations: [
@@ -16,6 +19,10 @@ import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram
     AudioSpectrogramComponent
   ],
   imports: [
+    FormsModule,
+    MatDividerModule,
+    MatButtonToggleModule,
+    MatSlideToggleModule,
     MatIconModule,
     MatSliderModule,
     MatButtonModule,
