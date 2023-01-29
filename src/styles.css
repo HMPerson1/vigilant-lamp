@@ -14,7 +14,7 @@ html {
   overflow: clip;
 }
 
-.canvas-box * {
+.canvas-box canvas {
   position: absolute;
   width: 100%;
   height: 100%;
