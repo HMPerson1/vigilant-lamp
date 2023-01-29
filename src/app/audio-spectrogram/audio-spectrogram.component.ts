@@ -52,12 +52,14 @@ export class AudioSpectrogramComponent {
   @Input() fftLgExtraPad: number = 0;
   fftLgExtraPad$: Observable<number>;
 
-  @Input() showPitchGrid: boolean = true;
+  @Input() showPitchGrid: boolean = false;
   showPitchGrid$: Observable<boolean>;
-  @Input() pitchLabelType: PitchLabelType = 'none';
+  @Input() pitchLabelType: PitchLabelType = 'sharp';
   pitchLabelType$: Observable<PitchLabelType>;
 
   cursorY?: number;
+  @Input() showCrosshair: boolean = true;
+  @Input() showOvertones: boolean = false;
 
   constructor() {
     const toObs = fromInput(this);
@@ -203,6 +205,12 @@ export class AudioSpectrogramComponent {
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
+  }
+
+  overtoneOffsetY(n: number): number {
+    if (!this.spectrogramCanvas) return 0;
+    const pxPerPitch = this.spectrogramCanvas.nativeElement.clientHeight / (this.pitchMax - this.pitchMin);
+    return Math.round(Math.log2(n) * 12 * pxPerPitch);
   }
 }
 

@@ -7,6 +7,16 @@
   font-size: medium;
 }
 
+.settings-panel label.inline-comp {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+}
+
+.settings-panel label.inline-comp * {
+  margin-left: auto;
+}
+
 .settings-panel mat-slider {
   display: block;
 }

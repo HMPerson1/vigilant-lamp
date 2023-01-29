@@ -28,13 +28,15 @@ export class AppComponent {
   specTimeStepInput: number = 3
   get specTimeStep(): number { return 2 ** (this.TIME_STEP_INPUT_MAX - this.specTimeStepInput) }
   specLgExtraPad: number = 0
-  showPitchGrid: boolean = true;
-  pitchLabelType: PitchLabelType = 'none';
+  showPitchGrid: boolean = false;
+  pitchLabelType: PitchLabelType = 'sharp';
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   audioBufSrcNode?: AudioBufferSourceNode | null
 
   visCursorX?: number;
+  showCrosshair: boolean = true;
+  showOvertones: boolean = false;
 
   async onFileSelected(event: Event) {
     const fileInput = event.target as HTMLInputElement
