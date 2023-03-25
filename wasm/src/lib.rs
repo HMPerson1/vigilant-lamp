@@ -3,28 +3,87 @@ mod utils;
 
 use std::rc::Rc;
 
-use realfft::{num_complex::Complex32, RealToComplex, RealToComplexEven};
+use realfft::{
+    num_complex::{Complex32, Complex64},
+    RealFftPlanner, RealToComplex, RealToComplexEven,
+};
 use wasm_bindgen::{prelude::*, Clamped};
 
 use itertools::Itertools;
 use web_sys::ImageData;
 
+struct AudioBufferData {
+    sample_rate: f32,
+    samples: Box<[f32]>,
+}
+
 #[wasm_bindgen]
 pub struct AudioBuffer {
-    samples: Rc<[f32]>,
-    sample_rate: u32,
+    orig: Rc<AudioBufferData>,
+    ds_2: Rc<AudioBufferData>,
 }
 
 #[wasm_bindgen]
 impl AudioBuffer {
     #[wasm_bindgen(constructor)]
-    pub fn new(samples: Box<[f32]>, sample_rate: u32) -> Self {
+    pub fn new(samples: Box<[f32]>, sample_rate: f32) -> Self {
         utils::set_panic_hook();
+
+        let mut planner = rustfft::FftPlanner::new();
+        let (spectrum, norm1): (Vec<Complex64>, f64) = {
+            let fft =
+                RealToComplexEven::<f64>::new(samples.len().next_power_of_two(), &mut planner);
+            let mut input = fft.make_input_vec();
+            let mut output = fft.make_output_vec();
+            for (&sample_src, input_dst) in samples.iter().zip(input.iter_mut()) {
+                *input_dst = sample_src.into();
+            }
+            fft.process(&mut *input, &mut *output).unwrap();
+            (output, (fft.len() as f64).sqrt().recip())
+        };
+
+        let mut real_planner = RealFftPlanner::<f64>::new();
+        let samples_d2 = ifft_oneshot(
+            &mut real_planner,
+            &spectrum[0..(spectrum.len() - 1) / 2],
+            norm1,
+            (samples.len() + 1) / 2,
+        );
+
         Self {
-            samples: samples.into(),
-            sample_rate,
+            orig: Rc::new(AudioBufferData {
+                sample_rate,
+                samples,
+            }),
+            ds_2: Rc::new(AudioBufferData {
+                sample_rate: sample_rate / 2.,
+                samples: samples_d2,
+            }),
         }
     }
+}
+
+fn ifft_oneshot(
+    real_planner: &mut RealFftPlanner<f64>,
+    spectrum: &[Complex64],
+    spec_norm: f64,
+    out_len: usize,
+) -> Box<[f32]> {
+    let ifft = real_planner.plan_fft_inverse(spectrum.len() * 2);
+    let mut input = ifft.make_input_vec();
+    let mut output = ifft.make_output_vec();
+    // strip spectrum >= nyquist
+    assert_eq!(input.len() - 1, spectrum.len());
+    input[0..spectrum.len()].copy_from_slice(spectrum);
+    ifft.process(&mut *input, &mut *output).unwrap();
+    let norm2 = (ifft.len() as f64).sqrt().recip();
+    // strip trailing zeros & normalize
+    let mut samples_d2 = vec![0_f32; out_len];
+    for (&spec_src, samples_dst) in output.iter().zip(samples_d2.iter_mut()) {
+        *samples_dst = (spec_src * spec_norm * norm2) as f32;
+    }
+
+    samples_d2.into_boxed_slice()
 }
 
 #[wasm_bindgen]
@@ -35,19 +94,19 @@ pub fn render_waveform(
     width: u32,
     height: u32,
 ) -> Result<ImageData, JsValue> {
-    let audio_samples = &*audio.samples;
-    assert!(audio_samples.len() > 1);
+    let audio = &*audio.orig;
+    assert!(audio.samples.len() > 1);
     assert!(height > 1);
     let mut pixel_data = vec![0xff000000_u32; width as usize * height as usize];
-    let sample_start = time_start * audio.sample_rate as f32;
-    let x_to_sample = (time_end - time_start) / width as f32 * audio.sample_rate as f32;
+    let sample_start = time_start * audio.sample_rate;
+    let x_to_sample = (time_end - time_start) / width as f32 * audio.sample_rate;
     let hheightf = height as f32 / 2.;
     for x in 0..width {
         let chunk_start = (x as f32 * x_to_sample + sample_start) as usize;
-        let chunk_start = chunk_start.clamp(0, audio_samples.len() - 1);
+        let chunk_start = chunk_start.clamp(0, audio.samples.len() - 1);
         let chunk_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
-        let chunk_end = chunk_end.clamp(chunk_start, audio_samples.len());
-        let chunk = &audio_samples[chunk_start..chunk_end];
+        let chunk_end = chunk_end.clamp(chunk_start, audio.samples.len());
+        let chunk = &audio.samples[chunk_start..chunk_end];
         if let Some((min, max)) = chunk.iter().copied().minmax().into_option() {
             let y0 = (min * hheightf + hheightf) as u32;
             let y0 = y0.clamp(0, height as u32 - 1);
@@ -106,8 +165,7 @@ fn gen_gaussian_window(n: usize, sigma: f64) -> Box<[f32]> {
 
 #[wasm_bindgen]
 pub struct SpectrogramRenderer {
-    audio_samples: Rc<[f32]>,
-    audio_sample_rate: u32,
+    audio_buffer: Rc<AudioBufferData>,
     window: Box<[f32]>,
     fft_in: Box<[f32]>,
     fft_scratch: Box<[Complex32]>,
@@ -119,13 +177,9 @@ pub struct SpectrogramRenderer {
 impl SpectrogramRenderer {
     #[wasm_bindgen(constructor)]
     pub fn new(audio_buffer: &AudioBuffer, fft_window_size: usize, gaus_window_sigma: f64) -> Self {
-        let fft = realfft::RealToComplexEven::<f32>::new(
-            fft_window_size,
-            &mut rustfft::FftPlanner::new(),
-        );
+        let fft = RealToComplexEven::<f32>::new(fft_window_size, &mut rustfft::FftPlanner::new());
         Self {
-            audio_samples: audio_buffer.samples.clone(),
-            audio_sample_rate: audio_buffer.sample_rate,
+            audio_buffer: audio_buffer.orig.clone(),
             window: gen_gaussian_window(fft_window_size, gaus_window_sigma),
             fft_in: fft.make_input_vec().into(),
             fft_scratch: fft.make_scratch_vec().into(),
@@ -145,7 +199,7 @@ impl SpectrogramRenderer {
         time_end: f64,
     ) -> SpectrogramTile {
         assert!(self.window.len() == self.fft_in.len());
-        let audio_sample_rate = self.audio_sample_rate as f64;
+        let audio_sample_rate = self.audio_buffer.sample_rate as f64;
 
         let freq_min_ln = pitch2freq(pitch_min).ln();
         let freq_max_ln = pitch2freq(pitch_max).ln();
@@ -163,7 +217,7 @@ impl SpectrogramRenderer {
                 continue;
             }
             let sample = sample as usize;
-            if sample >= self.audio_samples.len() {
+            if sample >= self.audio_buffer.samples.len() {
                 break;
             }
             self.do_fft_at(sample);
@@ -181,7 +235,7 @@ impl SpectrogramRenderer {
     }
 
     fn do_fft_at(&mut self, sample: usize) {
-        copy_centered_window(sample, &self.audio_samples, &mut self.fft_in);
+        copy_centered_window(sample, &self.audio_buffer.samples, &mut self.fft_in);
 
         for (x, w) in self.fft_in.iter_mut().zip(self.window.iter()) {
             *x *= w;
@@ -193,8 +247,8 @@ impl SpectrogramRenderer {
     }
 
     fn db_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
-        let power =
-            self.fft_out.get(bucket)?.norm() as f32 / (self.audio_samples.len() as f32).sqrt();
+        let power = self.fft_out.get(bucket)?.norm() as f32
+            / (self.audio_buffer.samples.len() as f32).sqrt();
         // TODO(perf): faster approximation of log10
         Some(power.log10() * 20.)
     }
