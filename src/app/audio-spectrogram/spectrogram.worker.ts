@@ -23,15 +23,15 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
         const wasmAudioBuffer$ = audioData$.pipe(scan<AudioSamples, InstanceType<typeof wasm_module.AudioBuffer>, undefined>(
           (last, audioData) => {
             last?.free();
-            return new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+            return new wasm_module.PreprocessedAudio(audioData.samples, audioData.samples_ds2, audioData.samples_ds4, audioData.sampleRate);
           }, undefined))
-        const rendererParams$ = combineLatest({ wasmAudioBuffer: wasmAudioBuffer$, fftParams: fftParams$ });
+        const rendererParams$ = combineLatest({ wasmPprAudio: wasmAudioBuffer$, fftParams: fftParams$ });
         const renderer$ = rendererParams$.pipe(scan<ObservedValueOf<typeof rendererParams$>, InstanceType<typeof wasm_module.SpectrogramRenderer>, undefined>(
-          (last, { wasmAudioBuffer, fftParams }) => {
+          (last, { wasmPprAudio, fftParams }) => {
             last?.free();
             const usedLgWindowSize = Math.ceil(fftParams.lgWindowSize + fftParams.lgExtraPad)
             return new wasm_module.SpectrogramRenderer(
-              wasmAudioBuffer,
+              wasmPprAudio,
               2 ** usedLgWindowSize,
               0.2 / (2 ** (usedLgWindowSize - fftParams.lgWindowSize)),
             );
@@ -50,7 +50,7 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
             const tile = renderer.render(
               stepMax - stepMin, work.canvasHeight,
               work.pitchMin, work.pitchMax,
-              renderTimeMin, renderTimeMax)
+              renderTimeMin, renderTimeMax, work.mode)
 
             return {
               timeMin: renderTimeMin,

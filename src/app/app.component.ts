@@ -1,3 +1,4 @@
+import { coerceNumberProperty } from '@angular/cdk/coercion';
 import { Component, NgZone } from '@angular/core';
 import { AudioSamples } from './common';
 import { loadAudio } from './load-audio';
@@ -32,20 +33,25 @@ export class AppComponent {
   pitchLabelType: PitchLabelType = 'sharp';
   audioFile?: AudioBuffer
   audioData?: AudioSamples
+  loading: boolean = false;
   audioBufSrcNode?: AudioBufferSourceNode | null
 
   visCursorX?: number;
   showCrosshair: boolean = true;
   showOvertones: boolean = false;
 
+  debug_downsample: number = 0;
+
   async onFileSelected(event: Event) {
     const fileInput = event.target as HTMLInputElement
     if (fileInput.files?.length) {
+      this.loading = true
       const loaded = await loadAudio(fileInput.files[0], this.audioContext.sampleRate)
       this.audioFile = loaded.audioBuffer
       this.audioData = loaded.audioData
       this.vizTimeMin = 0
-      this.vizTimeMax = this.audioData.samples.length / this.audioData.sampleRate
+      this.vizTimeMax = this.audioData.timeLen
+      this.loading = false
     }
   }
 
@@ -69,4 +75,6 @@ export class AppComponent {
       this.audioBufSrcNode = undefined
     }
   }
+
+  evVal = (ev: Event) => coerceNumberProperty((ev.target! as HTMLInputElement).value)
 }

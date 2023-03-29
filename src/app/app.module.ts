@@ -6,6 +6,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { AppComponent } from './app.component';
@@ -20,6 +21,7 @@ import { AudioWaveformComponent } from './audio-waveform/audio-waveform.componen
   ],
   imports: [
     FormsModule,
+    MatProgressSpinnerModule,
     MatDividerModule,
     MatButtonToggleModule,
     MatSlideToggleModule,

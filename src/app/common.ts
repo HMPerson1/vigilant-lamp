@@ -3,11 +3,15 @@ export type Tagged<K extends string, T> = { type: K, val: T }
 export class AudioSamples {
   readonly sampleRate: number;
   readonly samples: Float32Array;
+  readonly samples_ds2: Float32Array;
+  readonly samples_ds4: Float32Array;
   get timeLen(): number { return this.samples.length / this.sampleRate; }
 
-  constructor(sampleRate: number, samples: Float32Array) {
+  constructor(sampleRate: number, samples: Float32Array, samples_ds2: Float32Array, samples_ds4: Float32Array) {
     this.sampleRate = sampleRate;
     this.samples = samples;
+    this.samples_ds2 = samples_ds2;
+    this.samples_ds4 = samples_ds4;
   }
 }
 
@@ -67,6 +71,7 @@ export type RenderWindowParams = SpecTileWindow & {
 
 export type SpectrogramWork = RenderWindowParams & {
   timeStep: number;
+  mode: number;
 }
 
 export type SpectrogramTileJs = SpecTileWindow & {

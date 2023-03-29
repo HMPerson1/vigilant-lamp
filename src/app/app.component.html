@@ -9,7 +9,7 @@
         [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
         [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
         [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType" [showCrosshair]="showCrosshair"
-        [showOvertones]="showOvertones"></app-audio-spectrogram>
+        [showOvertones]="showOvertones" [debug_downsample]="debug_downsample"></app-audio-spectrogram>
       <div class="crosshair" style="width: 1px;" [style.left.px]="visCursorX || 0"
         [hidden]="!showCrosshair || visCursorX === undefined"></div>
     </div>
@@ -25,14 +25,17 @@
         <button mat-icon-button aria-label="Stop" (click)="stopPlayback()" [disabled]="!audioBufSrcNode">
           <mat-icon>stop</mat-icon>
         </button>
+        <div style="padding: 4px" [hidden]="!loading">
+          <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+        </div>
       </div>
     </div>
     <div style="padding: 16px 0; display: flex; flex-direction: column;">
       <label>
         Spectral Power Scale
         <mat-slider min="-100" max="10" step="1">
-          <input matSliderStartThumb [(value)]="specDbMin">
-          <input matSliderEndThumb [(value)]="specDbMax">
+          <input matSliderStartThumb [value]="specDbMin" (input)="specDbMin=evVal($event)">
+          <input matSliderEndThumb [value]="specDbMax" (input)="specDbMax=evVal($event)">
         </mat-slider>
       </label>
       <label>
@@ -72,6 +75,14 @@
           <mat-button-toggle value="midi">MIDI</mat-button-toggle>
           <mat-button-toggle value="sharp">&sharp;</mat-button-toggle>
           <mat-button-toggle value="flat">&flat;</mat-button-toggle>
+        </mat-button-toggle-group>
+      </label>
+      <label class="inline-comp">
+        [DEBUG] downsample
+        <mat-button-toggle-group [(ngModel)]="debug_downsample">
+          <mat-button-toggle value="0">0</mat-button-toggle>
+          <mat-button-toggle value="1">1</mat-button-toggle>
+          <mat-button-toggle value="2">2</mat-button-toggle>
         </mat-button-toggle-group>
       </label>
     </div>

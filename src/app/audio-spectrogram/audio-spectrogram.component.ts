@@ -61,6 +61,8 @@ export class AudioSpectrogramComponent {
   @Input() showCrosshair: boolean = true;
   @Input() showOvertones: boolean = false;
 
+  @Input() debug_downsample: number = 0;
+
   constructor() {
     const toObs = fromInput(this);
     this.spectrogramCanvas$ = toObs('spectrogramCanvas')
@@ -76,6 +78,8 @@ export class AudioSpectrogramComponent {
     this.fftLgExtraPad$ = toObs('fftLgExtraPad')
     this.showPitchGrid$ = toObs('showPitchGrid')
     this.pitchLabelType$ = toObs('pitchLabelType')
+
+    const debug_downsample$ = toObs('debug_downsample')
 
     const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
 
@@ -104,11 +108,13 @@ export class AudioSpectrogramComponent {
 
     const hiresTileWork$: Observable<SpectrogramWork> = combineLatest({
       timeStep: this.timeStep$,
+      mode: debug_downsample$,
       ...renderWinParam$s
     })
     // TODO: inefficient; can request just the dirty rect
     const loresTileWork$: Observable<SpectrogramWork> = combineLatest({
       timeStep: of(32),
+      mode: debug_downsample$,
       ...renderWinParam$s
     })
 

@@ -61,6 +61,7 @@ export class AudioWaveformComponent {
     })
   }
 
+
   onWheel(event: WheelEvent) {
     if (!this.waveformCanvas) {
       console.error("scroll event before view rendered???");
