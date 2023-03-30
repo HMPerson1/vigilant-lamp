@@ -4,8 +4,8 @@
   <div style="pointer-events: none;">
     <div [hidden]="!showCrosshair || cursorY === undefined">
       <div class="crosshair" style="height: 1px;" [style.top.px]="cursorY || 0"></div>
-      <div class="crosshair" *ngFor="let i of [2,3,4,5,6,7,8]" style="height: 1px" [style.opacity]=".8-i*.05"
-        [style.top.px]="(cursorY || 0) - overtoneOffsetY(i)" [hidden]="!showOvertones"></div>
+      <div class="crosshair" *ngFor="let o of overtoneYOffsets" style="height: 1px" [style.opacity]=".8-o.i*.05"
+        [style.top.px]="(cursorY || 0) - o.y" [hidden]="!showOvertones"></div>
     </div>
     <div [hidden]="!showPitchGrid">
       <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders" [style.top.px]="p.y"></div>

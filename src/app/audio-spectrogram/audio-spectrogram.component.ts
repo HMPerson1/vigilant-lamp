@@ -68,6 +68,7 @@ export class AudioSpectrogramComponent {
   showPitchGridCenters = false;
   pitchLabels = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0, txt: "" }))
   pitchLabelFontSize = 0;
+  overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
 
   constructor() {
     const toObs = fromInput(this);
@@ -220,13 +221,10 @@ export class AudioSpectrogramComponent {
     }
   }
 
-  overtoneOffsetY(n: number): number {
-    if (!this.spectrogramCanvas) return 0;
-    const pxPerPitch = this.spectrogramCanvas.nativeElement.clientHeight / (this.pitchMax - this.pitchMin);
-    return Math.round(Math.log2(n) * 12 * pxPerPitch);
-  }
-
   updatePitchScale(render: GenSpecTile<DOMRect>, label: PitchLabelType) {
+    for (const o of this.overtoneYOffsets) {
+      o.y = Math.log2(o.i) * 12 / render.pitchPerPixel
+    }
     for (const o of this.pitchGridBorders) {
       o.y = render.pitch2y(o.p - 0.5)
     }
