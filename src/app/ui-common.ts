@@ -47,13 +47,15 @@ export function doScrollZoomTime<PropMin extends string, PropMax extends string>
   )
 }
 
+export const PITCH_MAX = 136;
+
 export function doScrollZoomPitch<PropMin extends string, PropMax extends string>(
   obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
   aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   doScrollZoom(
     obj, propMin, propMax,
-    0, 136, 6, 1 / 400, -1 / 1600 * aspectRatio,
+    0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
     wheelDelta, zoom, centerPosFrac,
   )
 }

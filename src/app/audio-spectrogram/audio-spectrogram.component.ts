@@ -6,7 +6,7 @@ import { fromWorker } from 'observable-webworker';
 import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
-import { doScrollZoomPitch, doScrollZoomTime, PitchLabelType, resizeObservable } from '../ui-common';
+import { doScrollZoomPitch, doScrollZoomTime, PitchLabelType, PITCH_MAX, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -62,6 +62,12 @@ export class AudioSpectrogramComponent {
   @Input() showOvertones: boolean = false;
 
   @Input() debug_downsample: number = 0;
+
+  pitchGridBorders = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0 }))
+  pitchGridCenters = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0 }))
+  showPitchGridCenters = false;
+  pitchLabels = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0, txt: "" }))
+  pitchLabelFontSize = 0;
 
   constructor() {
     const toObs = fromInput(this);
@@ -180,7 +186,8 @@ export class AudioSpectrogramComponent {
       const canvasTile = new GenSpecTile(render, specCanvas);
       renderTile(canvasTile, render.loresTileBmp, specCanvasCtx);
       renderTile(canvasTile, render.hiresTileBmp, specCanvasCtx);
-      renderPitchScale(canvasTile, specCanvasCtx, render.showPitchScale, render.pitchLabelType);
+      // use css pixels, not canvas pixels
+      this.updatePitchScale(new GenSpecTile(render, specCanvas.getBoundingClientRect()), render.pitchLabelType);
     })
   }
 
@@ -218,6 +225,21 @@ export class AudioSpectrogramComponent {
     const pxPerPitch = this.spectrogramCanvas.nativeElement.clientHeight / (this.pitchMax - this.pitchMin);
     return Math.round(Math.log2(n) * 12 * pxPerPitch);
   }
+
+  updatePitchScale(render: GenSpecTile<DOMRect>, label: PitchLabelType) {
+    for (const o of this.pitchGridBorders) {
+      o.y = render.pitch2y(o.p - 0.5)
+    }
+    for (const o of this.pitchGridCenters) {
+      o.y = render.pitch2y(o.p)
+    }
+    this.showPitchGridCenters = 1 / render.pitchPerPixel > 30
+    for (const o of this.pitchLabels) {
+      o.y = render.pitch2y(o.p)
+      o.txt = pitchLabel(label, o.p)
+    }
+    this.pitchLabelFontSize = lodash.clamp(Math.round(.8 / render.pitchPerPixel), 12, 20)
+  }
 }
 
 function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {
@@ -226,66 +248,6 @@ function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx:
   const yScale = tile.pitchPerPixel / render.pitchPerPixel;
   const yOffset = render.pitch2y(tile.pitchMax);
   specCanvasCtx.drawImage(tile.inner, xOffset, yOffset, tile.width * xScale, tile.height * yScale);
-}
-
-function renderPitchScale(render: SpecTileCanvas, specCanvasCtx: CanvasRenderingContext2D, grid: boolean, label: PitchLabelType) {
-  const forEachPitch = (f: (pitch: number) => void) => {
-    for (let pitch = Math.floor(render.pitchMin); pitch <= Math.ceil(render.pitchMax); pitch++) {
-      f(pitch)
-    }
-  }
-
-  specCanvasCtx.save();
-  specCanvasCtx.translate(0, 0.5);
-
-  if (grid) {
-    specCanvasCtx.save();
-    specCanvasCtx.lineWidth = 1;
-    specCanvasCtx.strokeStyle = 'green'
-    specCanvasCtx.beginPath();
-    forEachPitch((_pitch) => {
-      const y = Math.round(render.pitch2y(_pitch - .5));
-      specCanvasCtx.moveTo(0, y);
-      specCanvasCtx.lineTo(render.width, y);
-    })
-    specCanvasCtx.stroke();
-    specCanvasCtx.restore();
-
-    if (1 / render.pitchPerPixel > 30) {
-      specCanvasCtx.save();
-      specCanvasCtx.strokeStyle = 'gray'
-      specCanvasCtx.setLineDash([8, 8])
-      specCanvasCtx.beginPath()
-      forEachPitch((pitch) => {
-        const y = Math.round(render.pitch2y(pitch));
-        specCanvasCtx.moveTo(0, y);
-        specCanvasCtx.lineTo(render.width, y);
-      })
-      specCanvasCtx.stroke()
-      specCanvasCtx.restore();
-    }
-  }
-
-  if (label != 'none') {
-    specCanvasCtx.save();
-    specCanvasCtx.strokeStyle = 'black';
-    specCanvasCtx.fillStyle = 'white';
-    specCanvasCtx.lineWidth = 3;
-    specCanvasCtx.textBaseline = 'alphabetic';
-    const fontSize = lodash.clamp(Math.round(.8 / render.pitchPerPixel), 12, 20);
-    specCanvasCtx.font = `${fontSize}px sans-serif`
-    forEachPitch((pitch) => {
-      const pitchStr = pitchLabel(label, pitch);
-      const textMetrics = specCanvasCtx.measureText(pitchStr);
-      const textHeight = textMetrics.fontBoundingBoxAscent + textMetrics.fontBoundingBoxDescent;
-      const textBaseline = render.pitch2y(pitch) + textMetrics.fontBoundingBoxAscent - textHeight / 2;
-      specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
-      specCanvasCtx.fillText(pitchStr, 1, textBaseline);
-    })
-    specCanvasCtx.restore();
-  }
-
-  specCanvasCtx.restore();
 }
 
 function pitchLabel(label: PitchLabelType, pitch: number): string {

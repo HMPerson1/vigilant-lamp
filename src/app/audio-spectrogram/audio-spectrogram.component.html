@@ -1,9 +1,20 @@
 <div class="canvas-box" style="width: 100%; height: 100%;" (wheel)="onWheel($event)"
   (mousemove)="cursorY = $event.offsetY" (mouseleave)="cursorY = undefined">
   <canvas #spectrogram_canvas></canvas>
-  <div class="crosshair" style="height: 1px;" [style.top.px]="cursorY || 0"
-    [hidden]="!showCrosshair || cursorY === undefined"></div>
-  <div class="crosshair" *ngFor="let i of [2,3,4,5,6,7,8]" style="height: 1px" [style.opacity]=".8-i*.05"
-    [style.top.px]="(cursorY || 0) - overtoneOffsetY(i)"
-    [hidden]="!showCrosshair || !showOvertones || cursorY === undefined"></div>
+  <div style="pointer-events: none;">
+    <div [hidden]="!showCrosshair || cursorY === undefined">
+      <div class="crosshair" style="height: 1px;" [style.top.px]="cursorY || 0"></div>
+      <div class="crosshair" *ngFor="let i of [2,3,4,5,6,7,8]" style="height: 1px" [style.opacity]=".8-i*.05"
+        [style.top.px]="(cursorY || 0) - overtoneOffsetY(i)" [hidden]="!showOvertones"></div>
+    </div>
+    <div [hidden]="!showPitchGrid">
+      <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders" [style.top.px]="p.y"></div>
+    </div>
+    <div [hidden]="!showPitchGrid || !showPitchGridCenters">
+      <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters" [style.top.px]="p.y"></div>
+    </div>
+    <div [hidden]="pitchLabelType == 'none'" [style.font-size.px]="pitchLabelFontSize">
+      <div class="pitch-label" *ngFor="let p of pitchLabels" [style.top.px]="p.y"><span>{{p.txt}}</span></div>
+    </div>
+  </div>
 </div>
