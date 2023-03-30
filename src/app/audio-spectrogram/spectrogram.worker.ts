@@ -50,7 +50,7 @@ export class Spectrogram implements DoWork<SpecWorkerMsg, SpectrogramTileJs> {
             const tile = renderer.render(
               stepMax - stepMin, work.canvasHeight,
               work.pitchMin, work.pitchMax,
-              renderTimeMin, renderTimeMax, work.mode)
+              renderTimeMin, renderTimeMax)
 
             return {
               timeMin: renderTimeMin,

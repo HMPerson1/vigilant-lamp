@@ -205,34 +205,23 @@ impl SpectrogramRenderer {
         pitch_max: f64,
         time_start: f64,
         time_end: f64,
-        mode: u8,
     ) -> SpectrogramTile {
-        match mode {
-            1 => self.ds2.render(
-                canvas_width,
-                canvas_height,
-                pitch_min,
-                pitch_max,
-                time_start,
-                time_end,
-            ),
-            2 => self.ds4.render(
-                canvas_width,
-                canvas_height,
-                pitch_min,
-                pitch_max,
-                time_start,
-                time_end,
-            ),
-            _ => self.full.render(
-                canvas_width,
-                canvas_height,
-                pitch_min,
-                pitch_max,
-                time_start,
-                time_end,
-            ),
-        }
+        let min_sample_rate = 2. * pitch2freq(pitch_max + 1.) as f32;
+        let renderer = if min_sample_rate < self.ds4.audio.0.sample_rate {
+            &mut self.ds4
+        } else if min_sample_rate < self.ds2.audio.0.sample_rate {
+            &mut self.ds2
+        } else {
+            &mut self.full
+        };
+        renderer.render(
+            canvas_width,
+            canvas_height,
+            pitch_min,
+            pitch_max,
+            time_start,
+            time_end,
+        )
     }
 }
 
