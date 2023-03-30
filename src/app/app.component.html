@@ -10,6 +10,8 @@
         [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
         [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType" [showCrosshair]="showCrosshair"
         [showOvertones]="showOvertones" [debug_downsample]="debug_downsample"></app-audio-spectrogram>
+      <div class="crosshair" style="width: 1px; background-color: red;" [style.left.%]="playheadPosPct"
+        [hidden]="!audioBufSrcNode"></div>
       <div class="crosshair" style="width: 1px;" [style.left.px]="visCursorX || 0"
         [hidden]="!showCrosshair || visCursorX === undefined"></div>
     </div>

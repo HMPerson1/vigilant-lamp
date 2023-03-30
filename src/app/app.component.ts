@@ -1,5 +1,6 @@
 import { coerceNumberProperty } from '@angular/cdk/coercion';
 import { Component, NgZone } from '@angular/core';
+import { animationFrames, Subscription } from 'rxjs';
 import { AudioSamples } from './common';
 import { loadAudio } from './load-audio';
 import { PitchLabelType } from './ui-common';
@@ -11,7 +12,6 @@ import { PitchLabelType } from './ui-common';
 })
 export class AppComponent {
   constructor(private ngZone: NgZone) { }
-  audioContext: AudioContext = new AudioContext()
   readonly TIME_STEP_INPUT_MAX = 5
 
   title = 'vigilant-lamp'
@@ -34,7 +34,12 @@ export class AppComponent {
   audioFile?: AudioBuffer
   audioData?: AudioSamples
   loading: boolean = false;
-  audioBufSrcNode?: AudioBufferSourceNode | null
+
+  audioContext: AudioContext = new AudioContext()
+  audioBufSrcNode?: AudioBufferSourceNode;
+  playbackStartTime: number = 0;
+  playheadPosPct: number = 0;
+  playheadUpdateSub?: Subscription;
 
   visCursorX?: number;
   showCrosshair: boolean = true;
@@ -66,13 +71,21 @@ export class AppComponent {
     // WebAudio callbacks don't trigger change detection (yet)
     this.audioBufSrcNode.onended = () => this.ngZone.run(() => this.stopPlayback())
     this.audioBufSrcNode.connect(this.audioContext.destination)
-    this.audioBufSrcNode.start()
+    this.playbackStartTime = this.audioContext.currentTime + 0.005
+    this.playheadUpdateSub = animationFrames().subscribe((_x) => {
+      this.playheadPosPct = 100 * (this.audioContext.currentTime - this.playbackStartTime - this.vizTimeMin) / (this.vizTimeMax - this.vizTimeMin)
+    })
+    this.audioBufSrcNode.start(this.playbackStartTime)
   }
   stopPlayback() {
     if (this.audioBufSrcNode) {
       this.audioBufSrcNode.onended = null
       this.audioBufSrcNode.stop()
       this.audioBufSrcNode = undefined
+    }
+    if (this.playheadUpdateSub) {
+      this.playheadUpdateSub.unsubscribe()
+      this.playheadUpdateSub = undefined
     }
   }
 
