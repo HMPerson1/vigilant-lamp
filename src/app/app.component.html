@@ -1,6 +1,6 @@
 <div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
   <div class="groove-border" style="flex: 4; background-color: black;" (wheel)="$event.preventDefault()">
-    <div style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%;"
+    <div style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
       (mousemove)="visCursorX = $event.offsetX" (mouseleave)="visCursorX = undefined">
       <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin"
         [(timeMax)]="vizTimeMax"></app-audio-waveform>
