@@ -19,21 +19,24 @@
   <div class="groove-border settings-panel"
     style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 16px;">
     <div class="file-toolbar" style="display: flex; gap: 8px;">
-      <button mat-icon-button matTooltip="New Project" color="primary" (click)="onProjectNew($event)">
+      <button mat-icon-button matTooltip="New Project" color="primary" (click)="newProject()">
         <mat-icon>note_add</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Open" color="primary" (click)="onProjectLoad($event)">
+      <button mat-icon-button matTooltip="Open" color="primary" (click)="loadProject()">
         <mat-icon>file_open</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Save" color="primary" (click)="onProjectSave($event)">
+      <button mat-icon-button matTooltip="Save" color="primary" (click)="saveProject()" [disabled]="!project">
         <mat-icon>save</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Save As" color="primary" (click)="onProjectSave($event, true)">
+      <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)" [disabled]="!project">
         <mat-icon>save_as</mat-icon>
       </button>
       <div style="padding: 4px" [hidden]="!loading">
         <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
       </div>
+      <button mat-icon-button style="margin-left: auto;" matTooltip="Settings" color="primary" (click)="openSettings()" [disabled]="!project">
+        <mat-icon>settings</mat-icon>
+      </button>
     </div>
     <div class="playback-toolbar" style="display: flex; align-items: center; gap: 8px;">
       <button mat-icon-button [matTooltip]="audioBufSrcNode ? 'Pause' : 'Play'" (click)="playPauseClicked()"
@@ -49,33 +52,33 @@
         <mat-icon *ngIf="muted">volume_off</mat-icon>
       </button>
       <mat-slider style="flex: 1" min="0" max="100" step="1">
-        <input matSliderThumb [value]="volumePct" (input)="setVolume(evVal($event))">
+        <input matSliderThumb [(ngModel)]="volumePct">
       </mat-slider>
     </div>
     <div style="display: flex; flex-direction: column;">
       <label>
         Spectral Power Scale
         <mat-slider min="-100" max="10" step="1">
-          <input matSliderStartThumb [value]="specDbMin" (input)="specDbMin=evVal($event)">
-          <input matSliderEndThumb [value]="specDbMax" (input)="specDbMax=evVal($event)">
+          <input matSliderStartThumb [(ngModel)]="specDbMin">
+          <input matSliderEndThumb [(ngModel)]="specDbMax">
         </mat-slider>
       </label>
       <label>
         Time vs. Frequency Resolution
         <mat-slider min="10" max="16" step="0.5">
-          <input matSliderThumb [(value)]="specLgWindowSize">
+          <input matSliderThumb [(ngModel)]="specLgWindowSize">
         </mat-slider>
       </label>
       <label>
         Time Sampling
         <mat-slider min="0" [max]="TIME_STEP_INPUT_MAX" step="1">
-          <input matSliderThumb [(value)]="specTimeStepInput">
+          <input matSliderThumb [(ngModel)]="specTimeStepInput">
         </mat-slider>
       </label>
       <label>
         Freqency Sampling
         <mat-slider min="-1" max="3" step="1">
-          <input matSliderThumb [(value)]="specLgExtraPad">
+          <input matSliderThumb [(ngModel)]="specLgExtraPad">
         </mat-slider>
       </label>
       <label class="inline-comp">

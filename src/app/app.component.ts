@@ -1,7 +1,7 @@
 import { coerceNumberProperty } from '@angular/cdk/coercion';
 import { Component, NgZone } from '@angular/core';
 import { fileOpen } from 'browser-fs-access';
-import * as lodash from 'lodash';
+import * as lodash from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import { animationFrames, Subscription } from 'rxjs';
 import { AudioSamples } from './common';
@@ -45,10 +45,15 @@ export class AppComponent {
 
   // TODO: refactor into separate component
   audioContext: AudioContext = new AudioContext()
-  savedVolumePct: number = 100;
-  volumePct: number = 100;
-  get muted(): boolean { return this.volumePct == 0 };
   audioOutput: GainNode;
+  savedVolumePct: number = 100;
+  #volumePct: number = 100;
+  get volumePct(): number { return this.#volumePct; }
+  set volumePct(v: number) {
+    this.#volumePct = v;
+    this.audioOutput.gain.linearRampToValueAtTime(this.volumePct / 100, this.audioContext.currentTime + 0.01)
+  }
+  get muted(): boolean { return this.volumePct == 0 };
   audioBufSrcNode?: AudioBufferSourceNode; // defined iff currently playing
   playbackStartTime: number = 0;
   playheadPos: number = 0;
@@ -60,7 +65,7 @@ export class AppComponent {
 
   debug_downsample: number = 0;
 
-  async onProjectNew(event: Event) {
+  async newProject() {
     const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
     this.loading = true
     const loaded = await loadAudio(fh, this.audioContext.sampleRate)
@@ -71,23 +76,22 @@ export class AppComponent {
     this.loading = false
   }
 
-  onProjectLoad(event: Event) {
+  loadProject() {
   }
 
-  onProjectSave(event: Event, saveAs = false) {
+  saveProject(saveAs = false) {
+  }
+
+  openSettings() {
   }
 
   muteClicked() {
     if (this.muted) {
-      this.setVolume(this.savedVolumePct)
+      this.volumePct = this.savedVolumePct
     } else {
       this.savedVolumePct = this.volumePct
-      this.setVolume(0)
+      this.volumePct = 0
     }
-  }
-  setVolume(v: number) {
-    this.volumePct = v
-    this.audioOutput.gain.linearRampToValueAtTime(this.volumePct / 100, this.audioContext.currentTime + 0.01)
   }
 
   playPauseClicked() {
@@ -142,6 +146,4 @@ export class AppComponent {
       this.startPlayback()
     }
   }
-
-  evVal = (ev: Event) => coerceNumberProperty((ev.target! as HTMLInputElement).value)
 }
