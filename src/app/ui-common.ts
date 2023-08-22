@@ -1,44 +1,33 @@
+import * as t from 'io-ts';
 import { clamp } from "lodash-es";
 import { Observable } from "rxjs";
-import { AudioSamples } from "./common";
+import { AudioSamples, t_Uint8Array } from "./common";
 
-export class Project {
-  constructor(
-    public readonly audioFile: ArrayBuffer,
-    public readonly audio: AudioSamples,
-    public readonly bpm: number,
-    public readonly startOffset: number,
-    public readonly parts: ReadonlyArray<Part>,
-  ) { }
 
-  intoPrim() {
-    return {
-      audioFile: new Uint8Array(this.audioFile),
-      audio: this.audio.intoPrim(),
-      bpm: this.bpm,
-      startOffset: this.startOffset,
-      parts: this.parts,
-    };
-  }
-
-  static fromPrim(o: ReturnType<Project['intoPrim']>): Project {
-    return new Project(o.audioFile.slice().buffer, AudioSamples.fromPrim(o.audio), o.bpm, o.startOffset, o.parts)
-  }
-}
-
-export type Part = Readonly<{
-  notes: ReadonlyArray<Note>;
-}>
-
-export type Note = Readonly<{
+export type Note = t.TypeOf<typeof Note>;
+export const Note = t.readonly(t.type({
   /** in MIDI pulses at 96 ppq */
-  start: number;
+  start: t.number,
   /** in MIDI pulses at 96 ppq */
-  length: number;
+  length: t.number,
   /** in MIDI pitch */
-  pitch: number;
-  notation?: {}; // TODO
-}>
+  pitch: t.number,
+  notation: t.undefined, // TODO
+}));
+
+export type Part = t.TypeOf<typeof Part>;
+export const Part = t.readonly(t.type({
+  notes: t.readonlyArray(Note),
+}));
+
+export type Project = t.TypeOf<typeof Project>;
+export const Project = t.type({
+  audioFile: t_Uint8Array,
+  audio: AudioSamples,
+  bpm: t.number,
+  startOffset: t.number,
+  parts: t.readonlyArray(Part),
+});
 
 export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
 
@@ -77,11 +66,11 @@ export function doScrollZoom<PropMin extends string, PropMax extends string>(
 
 export function doScrollZoomTime<PropMin extends string, PropMax extends string>(
   obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
-  clampMax: number | undefined, wheelDelta: number, zoom: boolean, centerPosFrac: number
+  clampMax: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   doScrollZoom(
     obj, propMin, propMax,
-    0, clampMax || 30, 1 / 1000, 1 / 400, 1 / 1600,
+    0, clampMax, 1 / 1000, 1 / 400, 1 / 1600,
     wheelDelta, zoom, centerPosFrac,
   )
 }

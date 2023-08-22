@@ -1,11 +1,11 @@
 import { Component, NgZone } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { fileOpen, fileSave, supported as browserFsApiSupported } from 'browser-fs-access';
+import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import { Subscription, animationFrames } from 'rxjs';
-import { AudioSamples } from './common';
-import { loadAudio, downsampleAudio } from './load-audio';
+import { AudioSamples, audioSamplesDuration } from './common';
+import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
 import { ProjectService } from './project.service';
 import { PitchLabelType } from './ui-common';
@@ -76,10 +76,10 @@ export class AppComponent {
     this.loading = true
     try {
       const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
-      const buf = await fh.arrayBuffer()
-      this.audioBuffer = await loadAudio(buf.slice(0), this.audioContext.sampleRate)
+      const audioFile = new Uint8Array(await fh.arrayBuffer());
+      this.audioBuffer = await loadAudio(audioFile.slice().buffer, this.audioContext.sampleRate)
       const audioData = await downsampleAudio(this.audioBuffer, this.audioContext.sampleRate)
-      this.project.newProject(buf, audioData)
+      this.project.newProject(audioFile, audioData)
       this.projectFileHandle = undefined;
       this.vizTimeMin = 0
       this.vizTimeMax = this.audioBuffer.duration
@@ -97,8 +97,8 @@ export class AppComponent {
       this.projectFileHandle = projectFile.handle
       await this.project.fromBlob(projectFile)
       this.vizTimeMin = 0
-      this.vizTimeMax = this.project.project!.audio.timeLen
-      this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice(0), this.audioContext.sampleRate)
+      this.vizTimeMax = audioSamplesDuration(this.project.project!.audio)
+      this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
     } catch (e) {
       // TODO: show toast
       console.log(e);

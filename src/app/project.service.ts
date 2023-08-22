@@ -1,7 +1,9 @@
 import { Injectable } from '@angular/core';
+import * as msgpack from '@msgpack/msgpack';
+import { getOrElseW } from 'fp-ts/Either';
+import { pipe } from 'fp-ts/function';
 import { AudioSamples } from './common';
 import { Project } from './ui-common';
-import * as msgpack from '@msgpack/msgpack';
 
 @Injectable({
   providedIn: 'root'
@@ -14,20 +16,20 @@ export class ProjectService {
 
   get project(): Project | undefined { return this._project.length ? this._project[this._current] : undefined; }
 
-  newProject(audioFile: ArrayBuffer, audio: AudioSamples) {
-    this._project = [new Project(audioFile, audio, 120, 0, [])]
+  newProject(audioFile: Uint8Array, audio: AudioSamples) {
+    this._project = [{ audioFile, audio, bpm: 120, startOffset: 0, parts: [] }]
     this._current = 0;
   }
 
   async fromBlob(blob: Blob) {
-    this._project = [Project.fromPrim(await msgpack.decodeAsync(blob.stream()) as any)]
+    this._project = [pipe(Project.decode(await msgpack.decodeAsync(blob.stream()) as any), getOrElseW((e) => { throw new Error(`${e}`) }))]
     this._current = 0;
     console.log(this.project);
   }
 
   intoBlob(): Blob {
     if (!this.project) throw new Error("cannot serialize non-existant project")
-    return new Blob([msgpack.encode(this.project.intoPrim())])
+    return new Blob([msgpack.encode(Project.encode(this.project))])
   }
 
   modify(op: (a: Project) => Project) {

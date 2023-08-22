@@ -3,10 +3,10 @@ import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
-import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
+import { Observable, animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, GenSpecTile, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
-import { doScrollZoomPitch, doScrollZoomTime, PitchLabelType, PITCH_MAX, resizeObservable } from '../ui-common';
+import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
+import { PITCH_MAX, PitchLabelType, doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -213,7 +213,7 @@ export class AudioSpectrogramComponent {
     }
     if (deltaX) {
       doScrollZoomTime(
-        this, 'timeMin', 'timeMax', this.audioData?.timeLen,
+        this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
         deltaX, event.ctrlKey, event.offsetX / specCanvas.clientWidth
       )
       this.timeMinChange.emit(this.timeMin)

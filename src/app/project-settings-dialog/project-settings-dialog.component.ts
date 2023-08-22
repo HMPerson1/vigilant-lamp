@@ -18,7 +18,6 @@ export class ProjectSettingsDialogComponent {
   bpm: number = this.project.project?.bpm || 0;
 
   onOkClick(): void {
-    // TODO: broken
     this.project.modify(Lens.fromProp<Project>()('bpm').set(this.bpm))
     this.dialogRef.close()
   }

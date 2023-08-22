@@ -1,33 +1,23 @@
-export type Tagged<K extends string, T> = { type: K, val: T }
+import * as t from 'io-ts';
+import { fromRefinement } from 'io-ts-types/fromRefinement';
 
-export class AudioSamples {
-  get timeLen(): number { return this.samples.length / this.sampleRate; }
+export const t_Uint8Array = fromRefinement("Uint8Array", (u): u is Uint8Array => u instanceof Uint8Array);
+export const t_Float32Array = new t.Type<Float32Array, Uint8Array, Uint8Array>(
+  "Float32Array",
+  (u): u is Float32Array => u instanceof Float32Array,
+  (i, ctx) => t.success(new Float32Array(i.slice().buffer)),
+  (a) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength),
+);
 
-  constructor(
-    public readonly sampleRate: number,
-    public readonly samples: Float32Array,
-    public readonly samples_ds2: Float32Array,
-    public readonly samples_ds4: Float32Array
-  ) { }
+export type AudioSamples = t.TypeOf<typeof AudioSamples>;
+export const AudioSamples = t.readonly(t.type({
+  sampleRate: t.number,
+  samples: t_Uint8Array.pipe(t_Float32Array),
+  samples_ds2: t_Uint8Array.pipe(t_Float32Array),
+  samples_ds4: t_Uint8Array.pipe(t_Float32Array),
+}));
 
-  intoPrim() {
-    return {
-      sampleRate: this.sampleRate,
-      samples: reinterpretTypedArray(this.samples, Uint8Array),
-      samples_ds2: reinterpretTypedArray(this.samples_ds2, Uint8Array),
-      samples_ds4: reinterpretTypedArray(this.samples_ds4, Uint8Array),
-    };
-  }
-
-  static fromPrim(o: ReturnType<AudioSamples['intoPrim']>): AudioSamples {
-    return new AudioSamples(
-      o.sampleRate,
-      new Float32Array(o.samples.slice().buffer),
-      new Float32Array(o.samples_ds2.slice().buffer),
-      new Float32Array(o.samples_ds4.slice().buffer),
-    );
-  }
-}
+export const audioSamplesDuration = (a: AudioSamples): number => a.samples.length / a.sampleRate;
 
 export type SpecFftParams = { lgWindowSize: number, lgExtraPad: number }
 
@@ -107,6 +97,8 @@ export function reinterpretTypedArray<U>(t: TypedArrayLike, ty: TypedArrayTypeLi
   const newLen = t.byteLength / ty.BYTES_PER_ELEMENT
   return new ty(t.buffer, t.byteOffset, newLen)
 }
+
+export type Tagged<K extends string, T> = { type: K, val: T }
 
 export function tag<K extends string, T>(k: K): (v: T) => Tagged<K, T> { return v => { return { type: k, val: v } } }
 

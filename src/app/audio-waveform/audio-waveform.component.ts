@@ -1,8 +1,8 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { fromInput } from 'observable-from-input';
-import { animationFrameScheduler, combineLatest, debounceTime, filter, map, Observable, scan, switchMap } from 'rxjs';
+import { Observable, animationFrameScheduler, combineLatest, debounceTime, filter, map, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, isNotUndefined } from '../common';
+import { AudioSamples, audioSamplesDuration, isNotUndefined } from '../common';
 import { doScrollZoomTime, resizeObservable } from '../ui-common';
 
 @Component({
@@ -74,7 +74,7 @@ export class AudioWaveformComponent {
     const delta = event.deltaX + event.deltaY
     if (delta) {
       doScrollZoomTime(
-        this, 'timeMin', 'timeMax', this.audioData?.timeLen,
+        this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
         delta, event.ctrlKey, event.offsetX / waveCanvas.clientWidth
       )
       this.timeMinChange.emit(this.timeMin)
