@@ -1,11 +1,13 @@
-import { coerceNumberProperty } from '@angular/cdk/coercion';
 import { Component, NgZone } from '@angular/core';
-import { fileOpen } from 'browser-fs-access';
+import { MatDialog } from '@angular/material/dialog';
+import { fileOpen, fileSave, supported as browserFsApiSupported } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
-import { animationFrames, Subscription } from 'rxjs';
+import { Subscription, animationFrames } from 'rxjs';
 import { AudioSamples } from './common';
-import { loadAudio } from './load-audio';
+import { loadAudio, downsampleAudio } from './load-audio';
+import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
+import { ProjectService } from './project.service';
 import { PitchLabelType } from './ui-common';
 
 @Component({
@@ -14,7 +16,7 @@ import { PitchLabelType } from './ui-common';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private ngZone: NgZone) {
+  constructor(private ngZone: NgZone, private dialog: MatDialog, private project: ProjectService) {
     Mousetrap.bind("space", () => { ngZone.run(() => this.playPauseClicked()); return false; })
     const gainNode = this.audioContext.createGain()
     gainNode.connect(this.audioContext.destination)
@@ -22,10 +24,11 @@ export class AppComponent {
   }
   readonly TIME_STEP_INPUT_MAX = 5
 
-  title = 'vigilant-lamp'
-  secCtx = window.isSecureContext
-  coi = window.crossOriginIsolated
-  hwCcur = navigator.hardwareConcurrency
+  readonly title = 'vigilant-lamp'
+  readonly secCtx = window.isSecureContext
+  readonly coi = window.crossOriginIsolated
+  readonly hwCcur = navigator.hardwareConcurrency
+  readonly browserFsApiSupported = browserFsApiSupported
 
   specPitchMin: number = 12
   specPitchMax: number = 108
@@ -39,8 +42,11 @@ export class AppComponent {
   specLgExtraPad: number = 0
   showPitchGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
-  audioFile?: AudioBuffer
-  audioData?: AudioSamples
+
+  projectFileHandle?: FileSystemFileHandle;
+  get hasProject(): boolean { return !!this.project.project }
+  get audioData(): AudioSamples | undefined { return this.project.project?.audio }
+  audioBuffer?: AudioBuffer;
   loading: boolean = false;
 
   // TODO: refactor into separate component
@@ -66,23 +72,58 @@ export class AppComponent {
   debug_downsample: number = 0;
 
   async newProject() {
-    const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
+    // TODO: track if modified; warn if losing data
     this.loading = true
-    const loaded = await loadAudio(fh, this.audioContext.sampleRate)
-    this.audioFile = loaded.audioBuffer
-    this.audioData = loaded.audioData
-    this.vizTimeMin = 0
-    this.vizTimeMax = this.audioData.timeLen
+    try {
+      const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
+      const buf = await fh.arrayBuffer()
+      this.audioBuffer = await loadAudio(buf.slice(0), this.audioContext.sampleRate)
+      const audioData = await downsampleAudio(this.audioBuffer, this.audioContext.sampleRate)
+      this.project.newProject(buf, audioData)
+      this.projectFileHandle = undefined;
+      this.vizTimeMin = 0
+      this.vizTimeMax = this.audioBuffer.duration
+    } catch (e) {
+      // TODO: show toast
+      console.log(e);
+    }
     this.loading = false
   }
 
-  loadProject() {
+  async loadProject() {
+    this.loading = true
+    try {
+      const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' })
+      this.projectFileHandle = projectFile.handle
+      await this.project.fromBlob(projectFile)
+      this.vizTimeMin = 0
+      this.vizTimeMax = this.project.project!.audio.timeLen
+      this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice(0), this.audioContext.sampleRate)
+    } catch (e) {
+      // TODO: show toast
+      console.log(e);
+    }
+    this.loading = false
   }
 
-  saveProject(saveAs = false) {
+  async saveProject(saveAs = false) {
+    try {
+      this.projectFileHandle = await fileSave(
+        this.project.intoBlob(),
+        { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
+        saveAs ? null : this.projectFileHandle,
+      ) || undefined
+    } catch (e) {
+      // TODO: show toast
+      console.log(e);
+      alert("TODO: error saving");
+    }
   }
 
   openSettings() {
+    if (!this.project.project) return;
+    const dialogRef = this.dialog.open(ProjectSettingsDialogComponent);
+    dialogRef.afterClosed().subscribe((v) => console.log("dialog closed:", v));
   }
 
   muteClicked() {
@@ -95,7 +136,7 @@ export class AppComponent {
   }
 
   playPauseClicked() {
-    if (!this.audioFile) {
+    if (!this.audioBuffer) {
       return
     }
     if (this.audioBufSrcNode) {
@@ -112,7 +153,7 @@ export class AppComponent {
     this.stopPlayback()
   }
   startPlayback() {
-    this.audioBufSrcNode = new AudioBufferSourceNode(this.audioContext, { buffer: this.audioFile })
+    this.audioBufSrcNode = new AudioBufferSourceNode(this.audioContext, { buffer: this.audioBuffer })
     // WebAudio callbacks don't trigger change detection (yet)
     this.audioBufSrcNode.onended = () => this.ngZone.run(() => this.stopClicked())
     this.audioBufSrcNode.connect(this.audioOutput)
@@ -136,11 +177,11 @@ export class AppComponent {
   }
 
   onWaveformClick(event: MouseEvent) {
-    if (!this.audioFile) return;
+    if (!this.audioBuffer) return;
     event.preventDefault()
 
     const pos = event.offsetX / (event.target! as HTMLElement).clientWidth * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
-    this.playheadPos = lodash.clamp(pos, 0, this.audioFile.duration)
+    this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
     if (this.audioBufSrcNode) {
       this.stopPlayback()
       this.startPlayback()

@@ -1,5 +1,44 @@
 import { clamp } from "lodash-es";
 import { Observable } from "rxjs";
+import { AudioSamples } from "./common";
+
+export class Project {
+  constructor(
+    public readonly audioFile: ArrayBuffer,
+    public readonly audio: AudioSamples,
+    public readonly bpm: number,
+    public readonly startOffset: number,
+    public readonly parts: ReadonlyArray<Part>,
+  ) { }
+
+  intoPrim() {
+    return {
+      audioFile: new Uint8Array(this.audioFile),
+      audio: this.audio.intoPrim(),
+      bpm: this.bpm,
+      startOffset: this.startOffset,
+      parts: this.parts,
+    };
+  }
+
+  static fromPrim(o: ReturnType<Project['intoPrim']>): Project {
+    return new Project(o.audioFile.slice().buffer, AudioSamples.fromPrim(o.audio), o.bpm, o.startOffset, o.parts)
+  }
+}
+
+export type Part = Readonly<{
+  notes: ReadonlyArray<Note>;
+}>
+
+export type Note = Readonly<{
+  /** in MIDI pulses at 96 ppq */
+  start: number;
+  /** in MIDI pulses at 96 ppq */
+  length: number;
+  /** in MIDI pitch */
+  pitch: number;
+  notation?: {}; // TODO
+}>
 
 export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
 

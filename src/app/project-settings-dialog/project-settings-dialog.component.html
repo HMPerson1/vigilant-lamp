@@ -1,0 +1,11 @@
+<h1 mat-dialog-title>Project Settings</h1>
+<mat-dialog-content>
+  <mat-form-field>
+    <mat-label>Tempo (quarter notes per minute)</mat-label>
+    <input matInput type="number" [(ngModel)]="bpm">
+  </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Cancel</button>
+  <button mat-button (click)="onOkClick()">Ok</button>
+</mat-dialog-actions>

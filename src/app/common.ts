@@ -1,17 +1,31 @@
 export type Tagged<K extends string, T> = { type: K, val: T }
 
 export class AudioSamples {
-  readonly sampleRate: number;
-  readonly samples: Float32Array;
-  readonly samples_ds2: Float32Array;
-  readonly samples_ds4: Float32Array;
   get timeLen(): number { return this.samples.length / this.sampleRate; }
 
-  constructor(sampleRate: number, samples: Float32Array, samples_ds2: Float32Array, samples_ds4: Float32Array) {
-    this.sampleRate = sampleRate;
-    this.samples = samples;
-    this.samples_ds2 = samples_ds2;
-    this.samples_ds4 = samples_ds4;
+  constructor(
+    public readonly sampleRate: number,
+    public readonly samples: Float32Array,
+    public readonly samples_ds2: Float32Array,
+    public readonly samples_ds4: Float32Array
+  ) { }
+
+  intoPrim() {
+    return {
+      sampleRate: this.sampleRate,
+      samples: reinterpretTypedArray(this.samples, Uint8Array),
+      samples_ds2: reinterpretTypedArray(this.samples_ds2, Uint8Array),
+      samples_ds4: reinterpretTypedArray(this.samples_ds4, Uint8Array),
+    };
+  }
+
+  static fromPrim(o: ReturnType<AudioSamples['intoPrim']>): AudioSamples {
+    return new AudioSamples(
+      o.sampleRate,
+      new Float32Array(o.samples.slice().buffer),
+      new Float32Array(o.samples_ds2.slice().buffer),
+      new Float32Array(o.samples_ds4.slice().buffer),
+    );
   }
 }
 
@@ -46,15 +60,13 @@ export class SpecTileWindowExt implements SpecTileWindow {
 }
 
 export class GenSpecTile<T extends { width: number, height: number }> extends SpecTileWindowExt {
-  inner: T;
   get width() { return this.inner.width; }
   get height() { return this.inner.height; }
   get timePerPixel() { return this.timeRange / this.width; }
   get pitchPerPixel() { return this.pitchRange / this.height; }
 
-  constructor(window: SpecTileWindow, inner: T) {
+  constructor(window: SpecTileWindow, public readonly inner: T) {
     super(window);
-    this.inner = inner;
   }
 
   pitch2y(pitch: number) { return (1 - (pitch - this.pitchMin) / this.pitchRange) * this.height; }
@@ -77,6 +89,23 @@ export type SpectrogramWork = RenderWindowParams & {
 export type SpectrogramTileJs = SpecTileWindow & {
   width: number;
   pixels: Float32Array;
+}
+
+type TypedArrayTypeLike<U> = {
+  new(buffer: ArrayBufferLike, byteOffset?: number, length?: number): U;
+  readonly BYTES_PER_ELEMENT: number;
+};
+
+type TypedArrayLike = {
+  byteLength: number;
+  buffer: ArrayBufferLike;
+  byteOffset: number;
+};
+
+export function reinterpretTypedArray<U>(t: TypedArrayLike, ty: TypedArrayTypeLike<U>): U {
+  if (t.byteLength % ty.BYTES_PER_ELEMENT != 0) throw new Error("incompatible length")
+  const newLen = t.byteLength / ty.BYTES_PER_ELEMENT
+  return new ty(t.buffer, t.byteOffset, newLen)
 }
 
 export function tag<K extends string, T>(k: K): (v: T) => Tagged<K, T> { return v => { return { type: k, val: v } } }

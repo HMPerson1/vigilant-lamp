@@ -25,29 +25,31 @@
       <button mat-icon-button matTooltip="Open" color="primary" (click)="loadProject()">
         <mat-icon>file_open</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Save" color="primary" (click)="saveProject()" [disabled]="!project">
+      <button mat-icon-button *ngIf="browserFsApiSupported" matTooltip="Save" color="primary" (click)="saveProject()"
+        [disabled]="!hasProject">
         <mat-icon>save</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)" [disabled]="!project">
+      <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)" [disabled]="!hasProject">
         <mat-icon>save_as</mat-icon>
       </button>
       <div style="padding: 4px" [hidden]="!loading">
         <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
       </div>
-      <button mat-icon-button style="margin-left: auto;" matTooltip="Settings" color="primary" (click)="openSettings()" [disabled]="!project">
+      <button mat-icon-button style="margin-left: auto;" matTooltip="Settings" color="primary" (click)="openSettings()"
+        [disabled]="!hasProject">
         <mat-icon>settings</mat-icon>
       </button>
     </div>
     <div class="playback-toolbar" style="display: flex; align-items: center; gap: 8px;">
       <button mat-icon-button [matTooltip]="audioBufSrcNode ? 'Pause' : 'Play'" (click)="playPauseClicked()"
-        [disabled]="!audioFile">
+        [disabled]="!audioBuffer">
         <mat-icon *ngIf="!audioBufSrcNode">play_arrow</mat-icon>
         <mat-icon *ngIf="audioBufSrcNode">pause</mat-icon>
       </button>
       <button mat-icon-button matTooltip="Stop" (click)="stopClicked()" [disabled]="!audioBufSrcNode">
         <mat-icon>stop</mat-icon>
       </button>
-      <button mat-icon-button [matTooltip]="muted ? 'Unmute' : 'Mute'" (click)="muteClicked()" [disabled]="!audioFile">
+      <button mat-icon-button [matTooltip]="muted ? 'Unmute' : 'Mute'" (click)="muteClicked()" [disabled]="!audioBuffer">
         <mat-icon *ngIf="!muted">volume_up</mat-icon>
         <mat-icon *ngIf="muted">volume_off</mat-icon>
       </button>
