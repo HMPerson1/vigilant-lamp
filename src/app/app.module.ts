@@ -15,6 +15,7 @@ import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
 import { AppComponent } from './app.component';
+import { AudioPlayerComponent } from './audio-player/audio-player.component';
 import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
 import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
@@ -24,7 +25,8 @@ import { ProjectSettingsDialogComponent } from './project-settings-dialog/projec
     AppComponent,
     AudioWaveformComponent,
     AudioSpectrogramComponent,
-    ProjectSettingsDialogComponent
+    ProjectSettingsDialogComponent,
+    AudioPlayerComponent
   ],
   imports: [
     FormsModule,
