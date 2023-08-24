@@ -20,6 +20,7 @@ export class AudioPlayerComponent {
   @Input() audioBuffer?: AudioBuffer;
   /** defined iff currently playing */
   audioBufSrcNode?: AudioBufferSourceNode;
+  get isPlaying(): boolean { return !!this.audioBufSrcNode; }
 
   #playheadPos: number = 0;
   get internalPlayheadPos(): number { return this.#playheadPos }
@@ -31,7 +32,7 @@ export class AudioPlayerComponent {
     // exact fp equality: don't restart if this was a change initiated by us
     if (v === this.#playheadPos) return;
     this.#playheadPos = v;
-    if (this.audioBufSrcNode) {
+    if (this.isPlaying) {
       this.stopPlayback()
       this.startPlayback()
     }
@@ -41,10 +42,7 @@ export class AudioPlayerComponent {
   playheadUpdateSub?: Subscription;
 
   playPauseClicked() {
-    if (!this.audioBuffer) {
-      return
-    }
-    if (this.audioBufSrcNode) {
+    if (this.isPlaying) {
       // pause
       this.internalPlayheadPos = this.audioContext.currentTime - this.playbackStartTime
       this.stopPlayback()
@@ -59,8 +57,9 @@ export class AudioPlayerComponent {
   }
 
   startPlayback() {
+    if (!this.audioBuffer) return;
     this.audioBufSrcNode = new AudioBufferSourceNode(this.audioContext, { buffer: this.audioBuffer })
-    // WebAudio callbacks don't trigger change detection (yet)
+    // zone.js doesn't support WebAudio (https://github.com/angular/angular/issues/31736)
     this.audioBufSrcNode.onended = () => this.ngZone.run(() => this.stopClicked())
     this.audioBufSrcNode.connect(this.audioOutput)
     this.playbackStartTime = this.audioContext.currentTime
