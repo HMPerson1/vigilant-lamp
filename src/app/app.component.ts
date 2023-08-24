@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
 import { AudioContextService } from './audio-context.service';
@@ -15,7 +16,7 @@ import { PitchLabelType } from './ui-common';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private dialog: MatDialog, private project: ProjectService, private audioContextSvc: AudioContextService) { }
+  constructor(private dialog: MatDialog, private snackBar: MatSnackBar, private project: ProjectService, private audioContextSvc: AudioContextService) { }
 
   readonly TIME_STEP_INPUT_MAX = 5
 
@@ -67,8 +68,11 @@ export class AppComponent {
       this.vizTimeMin = 0
       this.vizTimeMax = this.audioBuffer.duration
     } catch (e) {
-      // TODO: show toast
+      console.log("error new project:")
       console.log(e);
+      if (!isUserAbortException(e)) {
+        this.snackBar.open(`Error creating a new project: ${e}`);
+      }
     }
     this.loading = false
   }
@@ -83,8 +87,11 @@ export class AppComponent {
       this.vizTimeMax = audioSamplesDuration(this.project.project!.audio)
       this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
     } catch (e) {
-      // TODO: show toast
+      console.log("error load project:")
       console.log(e);
+      if (!isUserAbortException(e)) {
+        this.snackBar.open(`Error opening project: ${e}`);
+      }
     }
     this.loading = false
   }
@@ -97,9 +104,11 @@ export class AppComponent {
         saveAs ? null : this.projectFileHandle,
       ) || undefined
     } catch (e) {
-      // TODO: show toast
+      console.log("error save project:")
       console.log(e);
-      alert("TODO: error saving");
+      if (!isUserAbortException(e)) {
+        this.snackBar.open(`Error saving project: ${e}`);
+      }
     }
   }
 
@@ -117,3 +126,5 @@ export class AppComponent {
     this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
   }
 }
+
+const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
