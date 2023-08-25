@@ -1,7 +1,7 @@
-<div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
-  <div class="groove-border" style="flex: 4; background-color: black;" (wheel)="$event.preventDefault()">
+<div class="content fill-screen" role="main">
+  <div class="groove-border" style="background-color: #000;" (wheel)="$event.preventDefault()">
     <div style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
-      (mousemove)="visCursorX = $event.offsetX" (mouseleave)="visCursorX = undefined">
+      (mousemove)="visPointerX = $event.offsetX" (mouseleave)="visPointerX = undefined">
       <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
         (click)="onWaveformClick($event)"></app-audio-waveform>
       <mat-divider style="border-color: gray;"></mat-divider>
@@ -12,13 +12,12 @@
         [showOvertones]="showOvertones" [debug_downsample]="debug_downsample"></app-audio-spectrogram>
       <div class="crosshair" style="width: 1px; background-color: red;"
         [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>
-      <div class="crosshair" style="width: 1px;" [style.left.px]="visCursorX || 0"
-        [hidden]="!showCrosshair || visCursorX === undefined"></div>
+      <div class="crosshair" style="width: 1px;" [style.left.px]="visPointerX || 0"
+        [hidden]="!showCrosshair || visPointerX === undefined"></div>
     </div>
   </div>
-  <div class="groove-border settings-panel"
-    style="flex: 1; padding: 8px; display: flex; flex-direction: column; gap: 16px;">
-    <div class="file-toolbar" style="display: flex; gap: 8px;">
+  <div class="groove-border settings-panel">
+    <div class="file-toolbar">
       <button mat-icon-button matTooltip="New Project" color="primary" (click)="newProject()">
         <mat-icon>note_add</mat-icon>
       </button>
@@ -32,71 +31,95 @@
       <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)" [disabled]="!hasProject">
         <mat-icon>save_as</mat-icon>
       </button>
-      <div style="padding: 4px" [hidden]="!loading">
+      <div style="padding: 4px;" [hidden]="!loading">
         <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
       </div>
-      <button mat-icon-button style="margin-left: auto;" matTooltip="Settings" color="primary" (click)="openSettings()"
-        [disabled]="!hasProject">
-        <mat-icon>settings</mat-icon>
+      <div style="flex: 1;"></div>
+      <button mat-icon-button matTooltip="Undo" color="primary" (click)="project.undo()"
+        [disabled]="!hasProject || !project.canUndo()">
+        <mat-icon>undo</mat-icon>
+      </button>
+      <button mat-icon-button matTooltip="Redo" color="primary" (click)="project.redo()"
+        [disabled]="!hasProject || !project.canRedo()">
+        <mat-icon>redo</mat-icon>
       </button>
     </div>
     <app-audio-player [(playheadPos)]="playheadPos" [audioBuffer]="audioBuffer"></app-audio-player>
-    <div style="display: flex; flex-direction: column;">
-      <label>
-        Spectral Power Scale
-        <mat-slider min="-100" max="10" step="1">
-          <input matSliderStartThumb [(ngModel)]="specDbMin">
-          <input matSliderEndThumb [(ngModel)]="specDbMax">
-        </mat-slider>
-      </label>
-      <label>
-        Time vs. Frequency Resolution
-        <mat-slider min="10" max="16" step="0.5">
-          <input matSliderThumb [(ngModel)]="specLgWindowSize">
-        </mat-slider>
-      </label>
-      <label>
-        Time Sampling
-        <mat-slider min="0" [max]="TIME_STEP_INPUT_MAX" step="1">
-          <input matSliderThumb [(ngModel)]="specTimeStepInput">
-        </mat-slider>
-      </label>
-      <label>
-        Freqency Sampling
-        <mat-slider min="-1" max="3" step="1">
-          <input matSliderThumb [(ngModel)]="specLgExtraPad">
-        </mat-slider>
-      </label>
-      <label class="inline-comp">
-        Cursor Crosshair
-        <mat-slide-toggle [(ngModel)]="showCrosshair"></mat-slide-toggle>
-      </label>
-      <label class="inline-comp">
-        Cursor Overtones
-        <mat-slide-toggle [(ngModel)]="showOvertones" [disabled]="!showCrosshair"></mat-slide-toggle>
-      </label>
-      <label class="inline-comp">
-        Pitch Grid
-        <mat-slide-toggle [(ngModel)]="showPitchGrid"></mat-slide-toggle>
-      </label>
-      <label class="inline-comp">
-        Pitch Labels
-        <mat-button-toggle-group [(ngModel)]="pitchLabelType">
-          <mat-button-toggle value="none">None</mat-button-toggle>
-          <mat-button-toggle value="midi">MIDI</mat-button-toggle>
-          <mat-button-toggle value="sharp">&sharp;</mat-button-toggle>
-          <mat-button-toggle value="flat">&flat;</mat-button-toggle>
-        </mat-button-toggle-group>
-      </label>
-      <label style="display: none;" class="inline-comp">
-        [DEBUG] downsample
-        <mat-button-toggle-group [(ngModel)]="debug_downsample">
-          <mat-button-toggle value="0">0</mat-button-toggle>
-          <mat-button-toggle value="1">1</mat-button-toggle>
-          <mat-button-toggle value="2">2</mat-button-toggle>
-        </mat-button-toggle-group>
-      </label>
-    </div>
+    <mat-accordion>
+      <mat-expansion-panel [disabled]="!hasProject">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            Spectrogram Settings
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <label>
+          Spectral Power Scale
+          <mat-slider min="-100" max="10" step="1">
+            <input matSliderStartThumb [(ngModel)]="specDbMin">
+            <input matSliderEndThumb [(ngModel)]="specDbMax">
+          </mat-slider>
+        </label>
+        <label>
+          Time vs. Frequency Resolution
+          <mat-slider min="10" max="16" step="0.5">
+            <input matSliderThumb [(ngModel)]="specLgWindowSize">
+          </mat-slider>
+        </label>
+        <label>
+          Time Sampling
+          <mat-slider min="0" [max]="TIME_STEP_INPUT_MAX" step="1">
+            <input matSliderThumb [(ngModel)]="specTimeStepInput">
+          </mat-slider>
+        </label>
+        <label>
+          Freqency Sampling
+          <mat-slider min="-1" max="3" step="1">
+            <input matSliderThumb [(ngModel)]="specLgExtraPad">
+          </mat-slider>
+        </label>
+        <label class="inline-comp">
+          Pointer Crosshair
+          <mat-slide-toggle [(ngModel)]="showCrosshair"></mat-slide-toggle>
+        </label>
+        <label class="inline-comp">
+          Pointer Overtones
+          <mat-slide-toggle [(ngModel)]="showOvertones" [disabled]="!showCrosshair"></mat-slide-toggle>
+        </label>
+        <label class="inline-comp">
+          Pitch Grid
+          <mat-slide-toggle [(ngModel)]="showPitchGrid"></mat-slide-toggle>
+        </label>
+        <label class="inline-comp">
+          Pitch Labels
+          <mat-button-toggle-group [(ngModel)]="pitchLabelType">
+            <mat-button-toggle value="none">None</mat-button-toggle>
+            <mat-button-toggle value="midi">MIDI</mat-button-toggle>
+            <mat-button-toggle value="sharp">&sharp;</mat-button-toggle>
+            <mat-button-toggle value="flat">&flat;</mat-button-toggle>
+          </mat-button-toggle-group>
+        </label>
+        <label style="display: none;" class="inline-comp">
+          [DEBUG] downsample
+          <mat-button-toggle-group [(ngModel)]="debug_downsample">
+            <mat-button-toggle value="0">0</mat-button-toggle>
+            <mat-button-toggle value="1">1</mat-button-toggle>
+            <mat-button-toggle value="2">2</mat-button-toggle>
+          </mat-button-toggle-group>
+        </label>
+      </mat-expansion-panel>
+      <mat-expansion-panel [disabled]="!hasProject">
+        <mat-expansion-panel-header>
+          <mat-panel-title>
+            Project Settings
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <mat-form-field>
+          <mat-label>Tempo</mat-label>
+          <input matInput type="number" [value]="project.project?.bpm" (change)="onBpmChange($event)">
+          <mat-hint>Beats per minute</mat-hint>
+        </mat-form-field>
+      </mat-expansion-panel>
+    </mat-accordion>
     <div style="margin-top: auto;">
       <div> Secure context: {{ secCtx }} </div>
       <div> Cross-origin isolated: {{ coi }} </div>

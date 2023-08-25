@@ -9,7 +9,7 @@ export const t_Float32Array = new t.Type<Float32Array, Uint8Array, Uint8Array>(
   (a) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength),
 );
 
-export type AudioSamples = t.TypeOf<typeof AudioSamples>;
+export interface AudioSamples extends t.TypeOf<typeof AudioSamples> {}
 export const AudioSamples = t.readonly(t.type({
   sampleRate: t.number,
   samples: t_Uint8Array.pipe(t_Float32Array),

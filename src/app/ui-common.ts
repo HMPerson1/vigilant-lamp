@@ -4,7 +4,7 @@ import { Observable } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
 
-export type Note = t.TypeOf<typeof Note>;
+export interface Note extends t.TypeOf<typeof Note> {}
 export const Note = t.readonly(t.type({
   /** in MIDI pulses at 96 ppq */
   start: t.number,
@@ -15,19 +15,20 @@ export const Note = t.readonly(t.type({
   notation: t.undefined, // TODO
 }));
 
-export type Part = t.TypeOf<typeof Part>;
+export interface Part extends t.TypeOf<typeof Part> {}
 export const Part = t.readonly(t.type({
   notes: t.readonlyArray(Note),
 }));
 
-export type Project = t.TypeOf<typeof Project>;
-export const Project = t.type({
+export interface Project extends t.TypeOf<typeof Project> {}
+// export type Project = t.TypeOf<typeof Project>;
+export const Project = t.readonly(t.type({
   audioFile: t_Uint8Array,
   audio: AudioSamples,
   bpm: t.number,
   startOffset: t.number,
   parts: t.readonlyArray(Part),
-});
+}));
 
 export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
 

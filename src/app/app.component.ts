@@ -3,12 +3,13 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
+import { Lens } from 'monocle-ts';
 import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
 import { ProjectService } from './project.service';
-import { PitchLabelType } from './ui-common';
+import { PitchLabelType, Project } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -16,7 +17,7 @@ import { PitchLabelType } from './ui-common';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private dialog: MatDialog, private snackBar: MatSnackBar, private project: ProjectService, private audioContextSvc: AudioContextService) { }
+  constructor(private dialog: MatDialog, private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService) { }
 
   readonly TIME_STEP_INPUT_MAX = 5
 
@@ -49,7 +50,7 @@ export class AppComponent {
 
   playheadPos: number = 0;
 
-  visCursorX?: number; // TODO: rename to pointer?
+  visPointerX?: number; // TODO: rename to pointer?
   showCrosshair: boolean = true;
   showOvertones: boolean = false;
 
@@ -124,6 +125,10 @@ export class AppComponent {
 
     const pos = event.offsetX / (event.target! as HTMLElement).clientWidth * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
     this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
+  }
+
+  onBpmChange(event: Event) {
+    this.project.modify(Lens.fromProp<Project>()('bpm').set(Number((event.target! as HTMLInputElement).value)), "bpm")
   }
 }
 

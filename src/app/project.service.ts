@@ -9,52 +9,76 @@ import { Project } from './ui-common';
   providedIn: 'root'
 })
 export class ProjectService {
-  private _project: Project[] = [];
+  private _history: Project[] = [];
   private _current: number = 0;
+  private _prevModFusionTag?: string;
+  private _prevModTime?: number;
 
   // invariant: _project.length == 0 || 0 <= _current < _project.length
 
-  get project(): Project | undefined { return this._project.length ? this._project[this._current] : undefined; }
+  get project(): Project | undefined { return this._history.length ? this._history[this._current] : undefined }
 
   newProject(audioFile: Uint8Array, audio: AudioSamples) {
-    this._project = [{ audioFile, audio, bpm: 120, startOffset: 0, parts: [] }]
+    this._history = [{ audioFile, audio, bpm: 120, startOffset: 0, parts: [] }];
     this._current = 0;
+    this._prevModFusionTag = undefined;
+    this._prevModTime = undefined;
   }
 
   async fromBlob(blob: Blob) {
-    this._project = [pipe(Project.decode(await msgpack.decodeAsync(blob.stream()) as any), getOrElseW((e) => { throw new Error(`${e}`) }))]
+    this._history = [pipe(Project.decode(await msgpack.decodeAsync(blob.stream()) as any), getOrElseW((e) => { throw new Error(`${e}`) }))];
     this._current = 0;
-    console.log(this.project);
+    this._prevModFusionTag = undefined;
+    this._prevModTime = undefined;
   }
 
   intoBlob(): Blob {
-    if (!this.project) throw new Error("cannot serialize non-existant project")
-    return new Blob([msgpack.encode(Project.encode(this.project))])
+    if (!this.project) throw new Error("cannot serialize non-existant project");
+    return new Blob([msgpack.encode(Project.encode(this.project))]);
   }
 
-  modify(op: (a: Project) => Project) {
+  /** if the previous modification had the same fusion tag, a new undo state may not be created */
+  modify(op: (a: Project) => Project, fusionTag?: string) {
     if (!this.project) return;
     const next = op(this.project);
-    this._current++;
-    this._project.splice(this._current);
-    this._project.push(next);
+    const modTime = performance.now();
+    if (
+      this._prevModFusionTag !== undefined
+      && this._prevModFusionTag === fusionTag // implies `fusionTag !== undefined`
+      && this._prevModTime !== undefined
+      && modTime - this._prevModTime <= MAX_FUSION_TIMEOUT
+    ) {
+      this._history[this._current] = next;
+    } else {
+      this._current++;
+      this._history.splice(this._current);
+      this._history.push(next);
+    }
+    this._prevModFusionTag = fusionTag;
+    // always reset timestamp to allow "chaining" changes
+    this._prevModTime = modTime;
   }
 
-  canUndo() {
-    return this._current - 1 > 0;
-  }
+  canUndo() { return this._current >= 1 }
 
   undo() {
     if (!this.canUndo()) return;
     this._current--;
+    // disable fusion after undo
+    this._prevModFusionTag = undefined;
+    this._prevModTime = undefined;
   }
 
-  canRedo() {
-    return this._current + 1 <= this._project.length - 1;
-  }
+  canRedo() { return this._current + 1 <= this._history.length - 1 }
 
   redo() {
     if (!this.canRedo()) return;
     this._current++;
+    // disable fusion after redo
+    this._prevModFusionTag = undefined;
+    this._prevModTime = undefined;
   }
 }
+
+/** if two modifications are more than this many milliseconds apart, they will not be merged */
+const MAX_FUSION_TIMEOUT: DOMHighResTimeStamp = 1000;
