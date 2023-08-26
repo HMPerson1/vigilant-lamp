@@ -2,6 +2,9 @@
   (mousemove)="cursorY = $event.offsetY" (mouseleave)="cursorY = undefined">
   <canvas #spectrogram_canvas></canvas>
   <div style="pointer-events: none;">
+    <div>
+      <div class="beat-grid" *ngFor="let i of beatGrid" [style.left.px]="i.x"></div>
+    </div>
     <div [hidden]="!showPitchGrid || !showPitchGridCenters">
       <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters" [style.top.px]="p.y"></div>
     </div>

@@ -21,3 +21,9 @@
   font-family: sans-serif;
   padding-left: 1px;
 }
+
+.beat-grid {
+  position: absolute;
+  border-left: 1px solid yellow;
+  height: 100%;
+}

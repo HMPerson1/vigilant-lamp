@@ -3,13 +3,12 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
-import { Lens } from 'monocle-ts';
 import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
 import { ProjectService } from './project.service';
-import { PitchLabelType, Project } from './ui-common';
+import { PitchLabelType, ProjectLens } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -128,7 +127,10 @@ export class AppComponent {
   }
 
   onBpmChange(event: Event) {
-    this.project.modify(Lens.fromProp<Project>()('bpm').set(Number((event.target! as HTMLInputElement).value)), "bpm")
+    this.project.modify(ProjectLens('bpm').set(Number((event.target! as HTMLInputElement).value)), "bpm")
+  }
+  onOffsetChange(event: Event) {
+    this.project.modify(ProjectLens('startOffset').set(Number((event.target! as HTMLInputElement).value)), "startOffset")
   }
 }
 

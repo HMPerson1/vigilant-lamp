@@ -6,6 +6,7 @@ import { fromWorker } from 'observable-webworker';
 import { Observable, animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
+import { ProjectService } from '../project.service';
 import { PITCH_MAX, PitchLabelType, doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
@@ -53,7 +54,6 @@ export class AudioSpectrogramComponent {
   fftLgExtraPad$: Observable<number>;
 
   @Input() showPitchGrid: boolean = false;
-  showPitchGrid$: Observable<boolean>;
   @Input() pitchLabelType: PitchLabelType = 'sharp';
   pitchLabelType$: Observable<PitchLabelType>;
 
@@ -70,7 +70,18 @@ export class AudioSpectrogramComponent {
   pitchLabelFontSize = 0;
   overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
 
-  constructor() {
+  get beatGrid() {
+    const project = this.project.project;
+    if (!project || !this.spectrogramCanvas) {
+      return []
+    }
+    const render = new GenSpecTile(this, this.spectrogramCanvas.nativeElement.getBoundingClientRect())
+    const bps = project.bpm / 60
+    const firstVisibleBeat = project.startOffset / 1000 + Math.max(Math.ceil((render.timeMin - project.startOffset / 1000) * bps), 0) / bps;
+    return Array.from({ length: Math.ceil(bps * (render.timeMax - firstVisibleBeat)) }, (_x, i) => ({ x: render.time2x(firstVisibleBeat + i / bps) }))
+  }
+
+  constructor(private project: ProjectService) {
     const toObs = fromInput(this);
     this.spectrogramCanvas$ = toObs('spectrogramCanvas')
     this.audioData$ = toObs('audioData')
@@ -83,7 +94,6 @@ export class AudioSpectrogramComponent {
     this.timeStep$ = toObs('timeStep')
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
     this.fftLgExtraPad$ = toObs('fftLgExtraPad')
-    this.showPitchGrid$ = toObs('showPitchGrid')
     this.pitchLabelType$ = toObs('pitchLabelType')
 
     const debug_downsample$ = toObs('debug_downsample')
@@ -170,7 +180,6 @@ export class AudioSpectrogramComponent {
     combineLatest({
       hiresTileBmp: hiresTileBmp$,
       loresTileBmp: loresTileBmp$,
-      showPitchScale: this.showPitchGrid$,
       pitchLabelType: this.pitchLabelType$,
       ...renderWinParam$s
     }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(render => {
