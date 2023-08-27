@@ -8,7 +8,9 @@ import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
 import { ProjectService } from './project.service';
-import { PitchLabelType, ProjectLens } from './ui-common';
+import { PitchLabelType, Project, ProjectLens, tupleLens } from './ui-common';
+import { Iso, Lens } from 'monocle-ts';
+import { coerceNumberProperty } from '@angular/cdk/coercion';
 
 @Component({
   selector: 'app-root',
@@ -39,6 +41,7 @@ export class AppComponent {
   get specTimeStep(): number { return 2 ** (this.TIME_STEP_INPUT_MAX - this.specTimeStepInput) }
   specLgExtraPad: number = 0
   showPitchGrid: boolean = false;
+  showBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
 
   projectFileHandle?: FileSystemFileHandle;
@@ -127,11 +130,19 @@ export class AppComponent {
   }
 
   onBpmChange(event: Event) {
-    this.project.modify(ProjectLens('bpm').set(Number((event.target! as HTMLInputElement).value)), "bpm")
+    modifyProjectNumberInput(this.project, ProjectLens('bpm'), event, 'bpm')
   }
   onOffsetChange(event: Event) {
-    this.project.modify(ProjectLens('startOffset').set(Number((event.target! as HTMLInputElement).value)), "startOffset")
+    modifyProjectNumberInput(this.project, ProjectLens('startOffset').composeIso(new Iso(x => x * 1000, x => x / 1000)), event, 'startOffset')
+  }
+  onTimesigUpperChange(event: Event) {
+    modifyProjectNumberInput(this.project, ProjectLens('timeSignature').compose(tupleLens(0)), event)
+  }
+  onTimesigLowerChange(event: Event) {
+    modifyProjectNumberInput(this.project, ProjectLens('timeSignature').compose(tupleLens(1)), event)
   }
 }
 
 const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
+const modifyProjectNumberInput = (project: ProjectService, tgt: Lens<Project, number>, event: Event, fusionTag?: string) =>
+  project.modify(tgt.set(coerceNumberProperty((event.target! as HTMLInputElement).value)), fusionTag) 

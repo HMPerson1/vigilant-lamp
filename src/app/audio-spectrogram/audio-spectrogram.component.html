@@ -1,23 +1,24 @@
 <div class="canvas-box" style="width: 100%; height: 100%;" (wheel)="onWheel($event)"
   (mousemove)="cursorY = $event.offsetY" (mouseleave)="cursorY = undefined">
   <canvas #spectrogram_canvas></canvas>
-  <div style="pointer-events: none;">
-    <div>
-      <div class="beat-grid" *ngFor="let i of beatGrid" [style.left.px]="i.x"></div>
+  <div class="grids-container">
+    <div *ngIf="showBeatGrid">
+      <div class="beat-grid" *ngFor="let i of beatGrid; trackBy: trackIdx" [style.transform]="'translateX('+i.x+'px)'" [class.beat-grid-measure]="i.m"></div>
     </div>
-    <div [hidden]="!showPitchGrid || !showPitchGridCenters">
-      <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters" [style.top.px]="p.y"></div>
+    <div *ngIf="showPitchGrid && showPitchGridCenters">
+      <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters" [style.transform]="'translateY('+p.y+'px)'"></div>
     </div>
-    <div [hidden]="!showPitchGrid">
-      <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders" [style.top.px]="p.y"></div>
+    <div *ngIf="showPitchGrid">
+      <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders" [style.transform]="'translateY('+p.y+'px)'"></div>
     </div>
-    <div [hidden]="pitchLabelType == 'none'" [style.font-size.px]="pitchLabelFontSize">
-      <div class="pitch-label" *ngFor="let p of pitchLabels" [style.top.px]="p.y"><span>{{p.txt}}</span></div>
+    <div *ngIf="pitchLabelType !== 'none'" [style.font-size.px]="pitchLabelFontSize">
+      <div class="pitch-label" *ngFor="let p of pitchLabels" [style.transform]="'translateY('+p.y+'px)'">
+        <span>{{p.txt}}</span></div>
     </div>
-    <div [hidden]="!showCrosshair || cursorY === undefined">
-      <div class="crosshair" style="height: 1px;" [style.top.px]="cursorY || 0"></div>
+    <div *ngIf="showCrosshair && cursorY !== undefined">
+      <div class="crosshair" style="height: 1px;" [style.transform]="'translateY('+(cursorY || 0)+'px)'"></div>
       <div class="crosshair" *ngFor="let o of overtoneYOffsets" style="height: 1px" [style.opacity]=".8-o.i*.05"
-        [style.top.px]="(cursorY || 0) - o.y" [hidden]="!showOvertones"></div>
+        [style.transform]="'translateY('+((cursorY || 0) - o.y)+'px)'" [hidden]="!showOvertones"></div>
     </div>
   </div>
 </div>

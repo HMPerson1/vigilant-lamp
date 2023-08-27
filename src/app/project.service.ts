@@ -19,14 +19,17 @@ export class ProjectService {
   get project(): Project | undefined { return this._history.length ? this._history[this._current] : undefined }
 
   newProject(audioFile: Uint8Array, audio: AudioSamples) {
-    this._history = [{ audioFile, audio, bpm: 120, startOffset: 0, parts: [] }];
+    this._history = [{ audioFile, audio, bpm: 120, startOffset: 0, timeSignature: [4, 4], parts: [] }];
     this._current = 0;
     this._prevModFusionTag = undefined;
     this._prevModTime = undefined;
   }
 
   async fromBlob(blob: Blob) {
-    this._history = [pipe(Project.decode(await msgpack.decodeAsync(blob.stream()) as any), getOrElseW((e) => { throw new Error(`${e}`) }))];
+    this._history = [pipe(
+      Project.decode(await msgpack.decodeAsync(blob.stream()) as any),
+      getOrElseW((e) => { console.log(e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`) })
+    )];
     this._current = 0;
     this._prevModFusionTag = undefined;
     this._prevModTime = undefined;

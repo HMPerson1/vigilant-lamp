@@ -7,7 +7,7 @@ import { Observable, animationFrameScheduler, combineLatest, debounceTime, disti
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
 import { ProjectService } from '../project.service';
-import { PITCH_MAX, PitchLabelType, doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
+import { PITCH_MAX, PitchLabelType, beat2time, doScrollZoomPitch, doScrollZoomTime, resizeObservable, time2beat } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -70,15 +70,28 @@ export class AudioSpectrogramComponent {
   pitchLabelFontSize = 0;
   overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
 
+  @Input() showBeatGrid: boolean = false;
+
+  // NEW PLAN: have one full-screen beat grid; re-layout only the visible lines on zoom; sroll is always just re-composite
+
   get beatGrid() {
     const project = this.project.project;
     if (!project || !this.spectrogramCanvas) {
       return []
     }
     const render = new GenSpecTile(this, this.spectrogramCanvas.nativeElement.getBoundingClientRect())
-    const bps = project.bpm / 60
-    const firstVisibleBeat = project.startOffset / 1000 + Math.max(Math.ceil((render.timeMin - project.startOffset / 1000) * bps), 0) / bps;
-    return Array.from({ length: Math.ceil(bps * (render.timeMax - firstVisibleBeat)) }, (_x, i) => ({ x: render.time2x(firstVisibleBeat + i / bps) }))
+    const secPerBeat = 60 / project.bpm;
+    const beatsPerMeasure = project.timeSignature[0];
+    const firstBeat = Math.max(Math.ceil(time2beat(project, render.timeMin)), 0);
+    if (secPerBeat / render.timePerPixel < 10) {
+      const secPerMeasure = secPerBeat * beatsPerMeasure;
+      const firstMeasure = Math.ceil(firstBeat / beatsPerMeasure);
+      const firstMeasureTime = beat2time(project, firstMeasure);
+      return Array.from({ length: Math.ceil((render.timeMax - firstMeasureTime) / secPerMeasure) }, (_x, i) => ({ x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)), m: true }))
+    } else {
+      const firstBeatTime = beat2time(project, firstBeat);
+      return Array.from({ length: Math.ceil((render.timeMax - firstBeatTime) / secPerBeat) }, (_x, i) => ({ x: Math.round(render.time2x(firstBeatTime + i * secPerBeat)), m: (firstBeat + i) % beatsPerMeasure == 0 }))
+    }
   }
 
   constructor(private project: ProjectService) {
@@ -232,13 +245,13 @@ export class AudioSpectrogramComponent {
 
   updatePitchScale(render: GenSpecTile<DOMRect>, label: PitchLabelType) {
     for (const o of this.overtoneYOffsets) {
-      o.y = Math.log2(o.i) * 12 / render.pitchPerPixel
+      o.y = Math.round(Math.log2(o.i) * 12 / render.pitchPerPixel)
     }
     for (const o of this.pitchGridBorders) {
-      o.y = render.pitch2y(o.p - 0.5)
+      o.y = Math.round(render.pitch2y(o.p - 0.5))
     }
     for (const o of this.pitchGridCenters) {
-      o.y = render.pitch2y(o.p)
+      o.y = Math.round(render.pitch2y(o.p))
     }
     this.showPitchGridCenters = 1 / render.pitchPerPixel > 30
     for (const o of this.pitchLabels) {
@@ -247,6 +260,7 @@ export class AudioSpectrogramComponent {
     }
     this.pitchLabelFontSize = lodash.clamp(Math.round(.8 / render.pitchPerPixel), 12, 20)
   }
+  trackIdx(idx: number, item: any) { return idx; }
 }
 
 function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {

@@ -9,10 +9,11 @@
         [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
         [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
         [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType" [showCrosshair]="showCrosshair"
-        [showOvertones]="showOvertones" [debug_downsample]="debug_downsample"></app-audio-spectrogram>
+        [showOvertones]="showOvertones" [showBeatGrid]="showBeatGrid"
+        [debug_downsample]="debug_downsample"></app-audio-spectrogram>
       <div class="crosshair" style="width: 1px; background-color: red;"
         [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>
-      <div class="crosshair" style="width: 1px;" [style.left.px]="visPointerX || 0"
+      <div class="crosshair" style="width: 1px;" [style.transform]="'translateX('+(visPointerX || 0)+'px)'"
         [hidden]="!showCrosshair || visPointerX === undefined"></div>
     </div>
   </div>
@@ -49,7 +50,7 @@
       <mat-expansion-panel [disabled]="!hasProject">
         <mat-expansion-panel-header>
           <mat-panel-title>
-            Spectrogram Settings
+            View Settings
           </mat-panel-title>
         </mat-expansion-panel-header>
         <label>
@@ -90,6 +91,10 @@
           <mat-slide-toggle [(ngModel)]="showPitchGrid"></mat-slide-toggle>
         </label>
         <label class="inline-comp">
+          Beat Grid
+          <mat-slide-toggle [(ngModel)]="showBeatGrid"></mat-slide-toggle>
+        </label>
+        <label class="inline-comp">
           Pitch Labels
           <mat-button-toggle-group [(ngModel)]="pitchLabelType">
             <mat-button-toggle value="none">None</mat-button-toggle>
@@ -110,7 +115,7 @@
       <mat-expansion-panel [disabled]="!hasProject">
         <mat-expansion-panel-header>
           <mat-panel-title>
-            Project Settings
+            Timing Settings
           </mat-panel-title>
         </mat-expansion-panel-header>
         <mat-form-field>
@@ -121,9 +126,19 @@
         </mat-form-field>
         <mat-form-field>
           <mat-label>Start Offset</mat-label>
-          <input matInput type="number" [value]="project.project?.startOffset" (change)="onOffsetChange($event)" min="0"
-            step="any">
+          <input matInput type="number" [value]="(project.project?.startOffset || 0) * 1000"
+            (change)="onOffsetChange($event)" min="0" step="any">
           <mat-hint>Milliseconds</mat-hint>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Time Signature upper</mat-label>
+          <input matInput type="number" [value]="project.project?.timeSignature?.[0]" (change)="onTimesigUpperChange($event)"
+            min="1" step="1">
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Time Signature lower</mat-label>
+          <input matInput type="number" [value]="project.project?.timeSignature?.[1]" (change)="onTimesigLowerChange($event)"
+            min="1" step="1">
         </mat-form-field>
       </mat-expansion-panel>
     </mat-accordion>

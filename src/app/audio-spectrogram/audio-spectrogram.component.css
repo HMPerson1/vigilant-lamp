@@ -1,3 +1,11 @@
+.grids-container {
+  pointer-events: none;
+}
+
+.grids-container > * {
+  isolation: isolate;
+}
+
 .pitch-grid-borders {
   position: absolute;
   border-top: 1px solid green;
@@ -7,13 +15,14 @@
 .pitch-grid-centers {
   position: absolute;
   border-top: 1px dashed gray;
+  height: 1px;
   width: 100%;
 }
 
 .pitch-label {
   position: absolute;
   color: white;
-  text-shadow: black 0px 0px 0.1em, black 0px 0px 0.2em, black 0px 0px 0.3em;
+  text-shadow: black 0px 0px 5px, black 0px 0px 5px, black 0px 0px 5px;
   height: 0;
   overflow: visible;
   display: flex;
@@ -24,6 +33,13 @@
 
 .beat-grid {
   position: absolute;
-  border-left: 1px solid yellow;
   height: 100%;
+  width: 1px;
+  border-left: 1px dashed yellow;
+  opacity: 50%;
+}
+
+.beat-grid-measure {
+  border-left-style: solid;
+  opacity: 100%;
 }

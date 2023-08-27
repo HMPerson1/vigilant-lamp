@@ -1,6 +1,6 @@
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
-import { Lens } from 'monocle-ts';
+import { Lens, lens } from 'monocle-ts';
 import { Observable } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
@@ -29,9 +29,15 @@ export const Project = t.readonly(t.type({
   audio: AudioSamples,
   bpm: t.number,
   startOffset: t.number,
+  timeSignature: t.tuple([t.number, t.number]),
   parts: t.readonlyArray(Part),
 }));
-export const ProjectLens = Lens.fromProp<Project>()
+export const ProjectLens = Lens.fromProp<Project>();
+
+export const time2beat = (proj: Project, t: number): number =>
+  (t - proj.startOffset) * proj.bpm / 60;
+export const beat2time = (proj: Project, b: number): number =>
+  b * 60 / proj.bpm + proj.startOffset;
 
 export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
 
@@ -91,3 +97,12 @@ export function doScrollZoomPitch<PropMin extends string, PropMax extends string
     wheelDelta, zoom, centerPosFrac,
   )
 }
+
+export const tupleLens: <T extends readonly any[], I extends number>(i: I) => Lens<[...T], [...T][I]> = (i) =>
+  new Lens((s) => s[i], (a) => (s) => {
+    if (s[i] === a) return s;
+    // tospliced will be available in two days
+    const s2 = [...s];
+    s2[i] = a;
+    return s2 as any;
+  });
