@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
+import { Observable, Subject } from 'rxjs';
 import { AudioSamples } from './common';
 import { Project } from './ui-common';
 
@@ -13,16 +14,23 @@ export class ProjectService {
   private _current: number = 0;
   private _prevModFusionTag?: string;
   private _prevModTime?: number;
+  private _project$ = new Subject<Project>();
+  get project$(): Observable<Project> { return this._project$ }
 
   // invariant: _project.length == 0 || 0 <= _current < _project.length
 
   get project(): Project | undefined { return this._history.length ? this._history[this._current] : undefined }
 
+  private _onChange(ft?: string, mt?: number) {
+    this._prevModFusionTag = ft;
+    this._prevModTime = mt;
+    this._project$.next(this.project!)
+  }
+
   newProject(audioFile: Uint8Array, audio: AudioSamples) {
     this._history = [{ audioFile, audio, bpm: 120, startOffset: 0, timeSignature: [4, 4], parts: [] }];
     this._current = 0;
-    this._prevModFusionTag = undefined;
-    this._prevModTime = undefined;
+    this._onChange();
   }
 
   async fromBlob(blob: Blob) {
@@ -31,8 +39,7 @@ export class ProjectService {
       getOrElseW((e) => { console.log(e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`) })
     )];
     this._current = 0;
-    this._prevModFusionTag = undefined;
-    this._prevModTime = undefined;
+    this._onChange();
   }
 
   intoBlob(): Blob {
@@ -57,9 +64,8 @@ export class ProjectService {
       this._history.splice(this._current);
       this._history.push(next);
     }
-    this._prevModFusionTag = fusionTag;
     // always reset timestamp to allow "chaining" changes
-    this._prevModTime = modTime;
+    this._onChange(fusionTag, modTime);
   }
 
   canUndo() { return this._current >= 1 }
@@ -67,9 +73,7 @@ export class ProjectService {
   undo() {
     if (!this.canUndo()) return;
     this._current--;
-    // disable fusion after undo
-    this._prevModFusionTag = undefined;
-    this._prevModTime = undefined;
+    this._onChange();
   }
 
   canRedo() { return this._current + 1 <= this._history.length - 1 }
@@ -77,9 +81,7 @@ export class ProjectService {
   redo() {
     if (!this.canRedo()) return;
     this._current++;
-    // disable fusion after redo
-    this._prevModFusionTag = undefined;
-    this._prevModTime = undefined;
+    this._onChange();
   }
 }
 
