@@ -6,7 +6,7 @@
   right: 0;
   padding: 4px;
   display: grid;
-  grid: 1fr / 7fr 2fr;
+  grid: 1fr / 7fr minmax(424px, 2fr);
   overflow: hidden;
 }
 
@@ -17,6 +17,7 @@
 
 .settings-panel {
   padding: 8px;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   gap: 16px;
