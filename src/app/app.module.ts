@@ -21,13 +21,15 @@ import { AppComponent } from './app.component';
 import { AudioPlayerComponent } from './audio-player/audio-player.component';
 import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
+import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     AudioWaveformComponent,
     AudioSpectrogramComponent,
-    AudioPlayerComponent
+    AudioPlayerComponent,
+    MeterSettingsPanelComponent
   ],
   imports: [
     FormsModule,
