@@ -133,27 +133,26 @@ export class AppComponent {
 }
 
 const bindProjectCtrl =
-  <U>(lens: Lens<Project, U>, fusionTag?: string) =>
-    <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<U>>): (this: This, formCtrl: FormControl<U>) => FormControl<U> =>
-      function (formCtrl: FormControl<U>) {
-        this.project.project$.forEach(prj => formCtrl.setValue(lens.get(prj), { emitEvent: false }));
-        formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid)).forEach(x => this.project.modify(lens.set(x), fusionTag));
-        return formCtrl;
-      }
+  <U>(lens: Lens<Project, U>, fusionTag?: string): (this: { project: ProjectService; }, formCtrl: FormControl<U>) => FormControl<U> =>
+    function (formCtrl: FormControl<U>) {
+      this.project.project$.forEach(prj => formCtrl.setValue(lens.get(prj), { emitEvent: false }));
+      formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid)).forEach(x => this.project.modify(lens.set(x), fusionTag));
+      return formCtrl;
+    }
 
 const bindProjectMeterCtrl = <Name extends keyof Meter>(useFusionTag: boolean = false) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<Meter[Name]>> & { name: Name }) => {
   const fieldName: Name = ctxt.name;
-  return bindProjectCtrl(ProjectLens(['meter', fieldName]), useFusionTag ? fieldName : undefined)(_x, ctxt)
+  return bindProjectCtrl(ProjectLens(['meter', fieldName]), useFusionTag ? fieldName : undefined)
 }
-const bindProjectMeterCtrlWithIso = <Name extends keyof Meter, U>(iso: Iso<Meter[Name], U>, useFusionTag: boolean = false) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<U>> & { name: Name }) => {
+const bindProjectMeterCtrlWithIso = <Name extends keyof Meter, U>(useFusionTag: boolean = false, iso: Iso<Meter[Name], U>) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<U>> & { name: Name }) => {
   const fieldName: Name = ctxt.name;
-  return bindProjectCtrl(ProjectLens(['meter', fieldName]).composeIso(iso), useFusionTag ? fieldName : undefined)(_x, ctxt)
+  return bindProjectCtrl(ProjectLens(['meter', fieldName]).composeIso(iso), useFusionTag ? fieldName : undefined)
 }
 
 class ProjectMeterCtrls {
   constructor(readonly project: ProjectService) { }
 
-  @bindProjectMeterCtrlWithIso(new Iso(x => x * 1000, x => x / 1000), true)
+  @bindProjectMeterCtrlWithIso(true, new Iso(x => x * 1000, x => x / 1000))
   startOffset = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
 
   @bindProjectMeterCtrl(true)
