@@ -10,7 +10,7 @@ import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './project.service';
-import { PitchLabelType, Project, ProjectLens } from './ui-common';
+import { Meter, PitchLabelType, Project, ProjectLens } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -129,69 +129,42 @@ export class AppComponent {
     this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
   }
 
-  projectMeterCtrls = {
-    startOffset: bindProjectCtrl(this.project,
-      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] }),
-      ProjectLens(['meter', 'startOffset']).composeIso(new Iso(x => x * 1000, x => x / 1000)), 'startOffset',
-    ),
-    bpm: bindProjectCtrl(this.project,
-      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] }),
-      ProjectLens(['meter', 'bpm']), 'bpm',
-    ),
-    measureLength: bindProjectCtrl(this.project,
-      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] }),
-      ProjectLens(['meter', 'measureLength']),
-    ),
-    subdivision: bindProjectCtrl(this.project,
-      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] }),
-      ProjectLens(['meter', 'subdivision']),
-    ),
-  }
+  projectMeterCtrls = new ProjectMeterCtrls(this.project);
 }
 
-const bindProjectCtrl = <T>(project: ProjectService, formCtrl: FormControl<T>, lens: Lens<Project, T>, fusionTag?: string): typeof formCtrl => {
-  project.project$.forEach(prj => formCtrl.setValue(lens.get(prj), { emitEvent: false }));
-  formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid)).forEach(x => project.modify(lens.set(x), fusionTag));
-  return formCtrl
+const bindProjectCtrl =
+  <U>(lens: Lens<Project, U>, fusionTag?: string) =>
+    <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<U>>): (this: This, formCtrl: FormControl<U>) => FormControl<U> =>
+      function (formCtrl: FormControl<U>) {
+        this.project.project$.forEach(prj => formCtrl.setValue(lens.get(prj), { emitEvent: false }));
+        formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid)).forEach(x => this.project.modify(lens.set(x), fusionTag));
+        return formCtrl;
+      }
+
+const bindProjectMeterCtrl = <Name extends keyof Meter>(useFusionTag: boolean = false) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<Meter[Name]>> & { name: Name }) => {
+  const fieldName: Name = ctxt.name;
+  return bindProjectCtrl(ProjectLens(['meter', fieldName]), useFusionTag ? fieldName : undefined)(_x, ctxt)
 }
-
-const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });
-const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
-
-/*
-const meterproxyfield = (useFusionTag: boolean = false, iso?: Iso<number, number>) => <T extends { [K in keyof Meter]?: any }>(target: T & { project: ProjectService }, propertyKey: keyof Meter, a: TypedPropertyDescriptor<number | undefined>) => {
-  const lens0 = ProjectLens(['meter', propertyKey]);
-  const lens = propertyKey === 'startOffset' ? lens0.composeIso(new Iso(x => x * 1000, x => x / 1000)) : lens0;
-  let changeDetHack = false; // https://github.com/angular/angular/issues/13063
-  a.get = function () {
-    // if (changeDetHack) return null as any;
-    // TODO: aaaaaaaaaaaa
-    const project: any = (this as any).project.project;
-    const ret = project ? lens.get(project) : undefined;
-    // console.log(`${propertyKey} -> ${ret}`);
-    return ret;
-  }
-  a.set = function (v: number | undefined | null) {
-    // console.log(`${propertyKey} <- ${v}`);
-    // const changeDetRef = (this as any).changeDetRef as ChangeDetectorRef;
-    changeDetHack = true;
-    // changeDetRef.detectChanges()
-    changeDetHack = false;
-    if (v !== undefined && v !== null) ((this as any).project as ProjectService).modify(lens.set(v), useFusionTag ? propertyKey : undefined);
-  }
+const bindProjectMeterCtrlWithIso = <Name extends keyof Meter, U>(iso: Iso<Meter[Name], U>, useFusionTag: boolean = false) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<U>> & { name: Name }) => {
+  const fieldName: Name = ctxt.name;
+  return bindProjectCtrl(ProjectLens(['meter', fieldName]).composeIso(iso), useFusionTag ? fieldName : undefined)(_x, ctxt)
 }
 
 class ProjectMeterCtrls {
   constructor(readonly project: ProjectService) { }
-  // @meterproxyfield(true) accessor bpm: number | undefined;
-  // @meterproxyfield(true, new Iso(x => x * 1000, x => x / 1000))
-  // accessor startOffset: number | undefined;
-  // @meterproxyfield() accessor measureLength: number | undefined;
-  // @meterproxyfield() accessor subdivision: number | undefined;
 
+  @bindProjectMeterCtrlWithIso(new Iso(x => x * 1000, x => x / 1000), true)
   startOffset = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
+
+  @bindProjectMeterCtrl(true)
   bpm = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
+
+  @bindProjectMeterCtrl()
   measureLength = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
+
+  @bindProjectMeterCtrl()
   subdivision = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
 }
-*/
+
+const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });
+const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
