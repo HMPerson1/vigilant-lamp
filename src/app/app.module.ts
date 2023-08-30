@@ -1,5 +1,5 @@
 import { NgModule } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialogModule } from '@angular/material/dialog';
@@ -31,6 +31,7 @@ import { AudioWaveformComponent } from './audio-waveform/audio-waveform.componen
   ],
   imports: [
     FormsModule,
+    ReactiveFormsModule,
     MatProgressSpinnerModule,
     MatDividerModule,
     MatButtonToggleModule,

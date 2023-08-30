@@ -1,14 +1,16 @@
-import { ChangeDetectorRef, Component } from '@angular/core';
+import { Component } from '@angular/core';
+import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
-import { Iso } from 'monocle-ts';
+import { Iso, Lens } from 'monocle-ts';
+import * as rxjs from 'rxjs';
 import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './project.service';
-import { Meter, PitchLabelType, ProjectLens, defaultMeter } from './ui-common';
+import { PitchLabelType, Project, ProjectLens } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -16,9 +18,7 @@ import { Meter, PitchLabelType, ProjectLens, defaultMeter } from './ui-common';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService, private titleService: Title, changeDetRef: ChangeDetectorRef) {
-    this.projectMeterProxy = new ProjectMeterProxy(project, changeDetRef)
-  }
+  constructor(private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService, private titleService: Title) { }
 
   readonly TIME_STEP_INPUT_MAX = 5
 
@@ -42,7 +42,6 @@ export class AppComponent {
   showPitchGrid: boolean = false;
   showBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
-  projectMeterProxy: ProjectMeterProxy;
 
   #projectFileHandle?: FileSystemFileHandle;
   get projectFileHandle() { return this.#projectFileHandle }
@@ -129,11 +128,38 @@ export class AppComponent {
     const pos = event.offsetX / (event.target! as HTMLElement).clientWidth * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
     this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
   }
+
+  projectMeterCtrls = {
+    startOffset: bindProjectCtrl(this.project,
+      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] }),
+      ProjectLens(['meter', 'startOffset']).composeIso(new Iso(x => x * 1000, x => x / 1000)), 'startOffset',
+    ),
+    bpm: bindProjectCtrl(this.project,
+      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] }),
+      ProjectLens(['meter', 'bpm']), 'bpm',
+    ),
+    measureLength: bindProjectCtrl(this.project,
+      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] }),
+      ProjectLens(['meter', 'measureLength']),
+    ),
+    subdivision: bindProjectCtrl(this.project,
+      new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] }),
+      ProjectLens(['meter', 'subdivision']),
+    ),
+  }
 }
 
+const bindProjectCtrl = <T>(project: ProjectService, formCtrl: FormControl<T>, lens: Lens<Project, T>, fusionTag?: string): typeof formCtrl => {
+  project.project$.forEach(prj => formCtrl.setValue(lens.get(prj), { emitEvent: false }));
+  formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid)).forEach(x => project.modify(lens.set(x), fusionTag));
+  return formCtrl
+}
+
+const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });
 const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
 
-const meterproxyfield = (useFusionTag: boolean = false) => <T extends { [K in keyof Meter]?: any }>(target: T & { project: ProjectService }, propertyKey: keyof Meter, a: TypedPropertyDescriptor<number | undefined>) => {
+/*
+const meterproxyfield = (useFusionTag: boolean = false, iso?: Iso<number, number>) => <T extends { [K in keyof Meter]?: any }>(target: T & { project: ProjectService }, propertyKey: keyof Meter, a: TypedPropertyDescriptor<number | undefined>) => {
   const lens0 = ProjectLens(['meter', propertyKey]);
   const lens = propertyKey === 'startOffset' ? lens0.composeIso(new Iso(x => x * 1000, x => x / 1000)) : lens0;
   let changeDetHack = false; // https://github.com/angular/angular/issues/13063
@@ -142,11 +168,11 @@ const meterproxyfield = (useFusionTag: boolean = false) => <T extends { [K in ke
     // TODO: aaaaaaaaaaaa
     const project: any = (this as any).project.project;
     const ret = project ? lens.get(project) : undefined;
-    console.log(`${propertyKey} -> ${ret}`);
+    // console.log(`${propertyKey} -> ${ret}`);
     return ret;
   }
   a.set = function (v: number | undefined | null) {
-    console.log(`${propertyKey} <- ${v}`);
+    // console.log(`${propertyKey} <- ${v}`);
     // const changeDetRef = (this as any).changeDetRef as ChangeDetectorRef;
     changeDetHack = true;
     // changeDetRef.detectChanges()
@@ -155,10 +181,17 @@ const meterproxyfield = (useFusionTag: boolean = false) => <T extends { [K in ke
   }
 }
 
-class ProjectMeterProxy {
-  constructor(readonly project: ProjectService, readonly changeDetRef: ChangeDetectorRef) { }
-  @meterproxyfield(true) accessor bpm: number | undefined;
-  @meterproxyfield(true) accessor startOffset: number | undefined;
-  @meterproxyfield() accessor measureLength: number | undefined;
-  @meterproxyfield() accessor subdivision: number | undefined;
+class ProjectMeterCtrls {
+  constructor(readonly project: ProjectService) { }
+  // @meterproxyfield(true) accessor bpm: number | undefined;
+  // @meterproxyfield(true, new Iso(x => x * 1000, x => x / 1000))
+  // accessor startOffset: number | undefined;
+  // @meterproxyfield() accessor measureLength: number | undefined;
+  // @meterproxyfield() accessor subdivision: number | undefined;
+
+  startOffset = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
+  bpm = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
+  measureLength = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
+  subdivision = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
 }
+*/

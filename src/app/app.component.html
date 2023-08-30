@@ -121,22 +121,21 @@
         </mat-expansion-panel-header>
         <mat-form-field hideRequiredMarker>
           <mat-label>Start Offset</mat-label>
-          <input matInput type="number" required [(ngModel)]="projectMeterProxy.startOffset" min="0" step="any">
+          <input matInput type="number" [formControl]="projectMeterCtrls.startOffset" min="0" step="any">
           <mat-hint>Milliseconds</mat-hint>
         </mat-form-field>
         <mat-form-field hideRequiredMarker>
           <mat-label>Tempo</mat-label>
-          <input matInput type="number" required [(ngModel)]="projectMeterProxy.bpm" min="0"
-            step="any">
+          <input matInput type="number" [formControl]="projectMeterCtrls.bpm" min="0" step="any">
           <mat-hint>Beats per minute</mat-hint>
         </mat-form-field>
         <mat-form-field hideRequiredMarker>
           <mat-label>Beats per measure</mat-label>
-          <input matInput type="number" required [(ngModel)]="projectMeterProxy.measureLength" min="1" step="1">
+          <input matInput type="number" [formControl]="projectMeterCtrls.measureLength" min="1" step="1">
         </mat-form-field>
         <mat-form-field hideRequiredMarker>
           <mat-label>Beat subdivision</mat-label>
-          <input matInput type="number" required [(ngModel)]="projectMeterProxy.subdivision" min="1" step="1">
+          <input matInput type="number" [formControl]="projectMeterCtrls.subdivision" min="1" step="1">
         </mat-form-field>
       </mat-expansion-panel>
     </mat-accordion>
