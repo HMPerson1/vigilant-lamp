@@ -16,18 +16,17 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { BrowserModule } from '@angular/platform-browser';
 import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 
+import { ErrorStateMatcher, ShowOnDirtyErrorStateMatcher } from '@angular/material/core';
 import { AppComponent } from './app.component';
 import { AudioPlayerComponent } from './audio-player/audio-player.component';
 import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
-import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
 
 @NgModule({
   declarations: [
     AppComponent,
     AudioWaveformComponent,
     AudioSpectrogramComponent,
-    ProjectSettingsDialogComponent,
     AudioPlayerComponent
   ],
   imports: [
@@ -49,7 +48,8 @@ import { ProjectSettingsDialogComponent } from './project-settings-dialog/projec
     BrowserAnimationsModule
   ],
   providers: [
-    { provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: { duration: 5000, horizontalPosition: "end" } }
+    { provide: MAT_SNACK_BAR_DEFAULT_OPTIONS, useValue: { duration: 5000, horizontalPosition: "end" } },
+    { provide: ErrorStateMatcher, useClass: ShowOnDirtyErrorStateMatcher },
   ],
   bootstrap: [AppComponent]
 })

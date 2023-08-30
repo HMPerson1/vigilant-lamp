@@ -17,6 +17,7 @@
         [hidden]="!showCrosshair || visPointerX === undefined"></div>
     </div>
   </div>
+
   <div class="groove-border settings-panel">
     <div class="file-toolbar">
       <button mat-icon-button matTooltip="New Project" color="primary" (click)="newProject()">
@@ -118,27 +119,24 @@
             Timing Settings
           </mat-panel-title>
         </mat-expansion-panel-header>
-        <mat-form-field>
+        <mat-form-field hideRequiredMarker>
+          <mat-label>Start Offset</mat-label>
+          <input matInput type="number" required [(ngModel)]="projectMeterProxy.startOffset" min="0" step="any">
+          <mat-hint>Milliseconds</mat-hint>
+        </mat-form-field>
+        <mat-form-field hideRequiredMarker>
           <mat-label>Tempo</mat-label>
-          <input matInput type="number" [value]="project.project?.bpm" (change)="onBpmChange($event)" min="0"
+          <input matInput type="number" required [(ngModel)]="projectMeterProxy.bpm" min="0"
             step="any">
           <mat-hint>Beats per minute</mat-hint>
         </mat-form-field>
-        <mat-form-field>
-          <mat-label>Start Offset</mat-label>
-          <input matInput type="number" [value]="(project.project?.startOffset || 0) * 1000"
-            (change)="onOffsetChange($event)" min="0" step="any">
-          <mat-hint>Milliseconds</mat-hint>
+        <mat-form-field hideRequiredMarker>
+          <mat-label>Beats per measure</mat-label>
+          <input matInput type="number" required [(ngModel)]="projectMeterProxy.measureLength" min="1" step="1">
         </mat-form-field>
-        <mat-form-field>
-          <mat-label>Time Signature upper</mat-label>
-          <input matInput type="number" [value]="project.project?.timeSignature?.[0]"
-            (change)="onTimesigUpperChange($event)" min="1" step="1">
-        </mat-form-field>
-        <mat-form-field>
-          <mat-label>Time Signature lower</mat-label>
-          <input matInput type="number" [value]="project.project?.timeSignature?.[1]"
-            (change)="onTimesigLowerChange($event)" min="1" step="1">
+        <mat-form-field hideRequiredMarker>
+          <mat-label>Beat subdivision</mat-label>
+          <input matInput type="number" required [(ngModel)]="projectMeterProxy.subdivision" min="1" step="1">
         </mat-form-field>
       </mat-expansion-panel>
     </mat-accordion>

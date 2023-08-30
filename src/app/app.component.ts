@@ -1,16 +1,14 @@
-import { Component } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
+import { ChangeDetectorRef, Component } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { Title } from '@angular/platform-browser';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
+import { Iso } from 'monocle-ts';
 import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
-import { ProjectSettingsDialogComponent } from './project-settings-dialog/project-settings-dialog.component';
 import { ProjectService } from './project.service';
-import { PitchLabelType, Project, ProjectLens, tupleLens } from './ui-common';
-import { Iso, Lens } from 'monocle-ts';
-import { coerceNumberProperty } from '@angular/cdk/coercion';
+import { Meter, PitchLabelType, ProjectLens, defaultMeter } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -18,11 +16,12 @@ import { coerceNumberProperty } from '@angular/cdk/coercion';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private dialog: MatDialog, private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService) { }
+  constructor(private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService, private titleService: Title, changeDetRef: ChangeDetectorRef) {
+    this.projectMeterProxy = new ProjectMeterProxy(project, changeDetRef)
+  }
 
   readonly TIME_STEP_INPUT_MAX = 5
 
-  readonly title = 'vigilant-lamp'
   readonly secCtx = window.isSecureContext
   readonly coi = window.crossOriginIsolated
   readonly hwCcur = navigator.hardwareConcurrency
@@ -43,8 +42,15 @@ export class AppComponent {
   showPitchGrid: boolean = false;
   showBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
+  projectMeterProxy: ProjectMeterProxy;
 
-  projectFileHandle?: FileSystemFileHandle;
+  #projectFileHandle?: FileSystemFileHandle;
+  get projectFileHandle() { return this.#projectFileHandle }
+  set projectFileHandle(p) {
+    this.#projectFileHandle = p;
+    this.titleService.setTitle(`${p?.name || '(unsaved project)'} - Vigilant Lamp`);
+  }
+
   get hasProject(): boolean { return !!this.project.project }
   get audioData(): AudioSamples | undefined { return this.project.project?.audio }
   audioBuffer?: AudioBuffer;
@@ -84,8 +90,8 @@ export class AppComponent {
     this.loading = true
     try {
       const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' })
-      this.projectFileHandle = projectFile.handle
       await this.project.fromBlob(projectFile)
+      this.projectFileHandle = projectFile.handle
       this.vizTimeMin = 0
       this.vizTimeMax = audioSamplesDuration(this.project.project!.audio)
       this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
@@ -105,6 +111,7 @@ export class AppComponent {
         this.project.intoBlob(),
         { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
         saveAs ? null : this.projectFileHandle,
+        true,
       ) || undefined
     } catch (e) {
       console.log("error save project:")
@@ -115,12 +122,6 @@ export class AppComponent {
     }
   }
 
-  openSettings() {
-    if (!this.project.project) return;
-    const dialogRef = this.dialog.open(ProjectSettingsDialogComponent);
-    dialogRef.afterClosed().subscribe((v) => console.log("dialog closed:", v));
-  }
-
   onWaveformClick(event: MouseEvent) {
     if (!this.audioBuffer) return;
     event.preventDefault()
@@ -128,21 +129,36 @@ export class AppComponent {
     const pos = event.offsetX / (event.target! as HTMLElement).clientWidth * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
     this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
   }
-
-  onBpmChange(event: Event) {
-    modifyProjectNumberInput(this.project, ProjectLens('bpm'), event, 'bpm')
-  }
-  onOffsetChange(event: Event) {
-    modifyProjectNumberInput(this.project, ProjectLens('startOffset').composeIso(new Iso(x => x * 1000, x => x / 1000)), event, 'startOffset')
-  }
-  onTimesigUpperChange(event: Event) {
-    modifyProjectNumberInput(this.project, ProjectLens('timeSignature').compose(tupleLens(0)), event)
-  }
-  onTimesigLowerChange(event: Event) {
-    modifyProjectNumberInput(this.project, ProjectLens('timeSignature').compose(tupleLens(1)), event)
-  }
 }
 
 const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
-const modifyProjectNumberInput = (project: ProjectService, tgt: Lens<Project, number>, event: Event, fusionTag?: string) =>
-  project.modify(tgt.set(coerceNumberProperty((event.target! as HTMLInputElement).value)), fusionTag) 
+
+const meterproxyfield = (useFusionTag: boolean = false) => <T extends { [K in keyof Meter]?: any }>(target: T & { project: ProjectService }, propertyKey: keyof Meter, a: TypedPropertyDescriptor<number | undefined>) => {
+  const lens0 = ProjectLens(['meter', propertyKey]);
+  const lens = propertyKey === 'startOffset' ? lens0.composeIso(new Iso(x => x * 1000, x => x / 1000)) : lens0;
+  let changeDetHack = false; // https://github.com/angular/angular/issues/13063
+  a.get = function () {
+    // if (changeDetHack) return null as any;
+    // TODO: aaaaaaaaaaaa
+    const project: any = (this as any).project.project;
+    const ret = project ? lens.get(project) : undefined;
+    console.log(`${propertyKey} -> ${ret}`);
+    return ret;
+  }
+  a.set = function (v: number | undefined | null) {
+    console.log(`${propertyKey} <- ${v}`);
+    // const changeDetRef = (this as any).changeDetRef as ChangeDetectorRef;
+    changeDetHack = true;
+    // changeDetRef.detectChanges()
+    changeDetHack = false;
+    if (v !== undefined && v !== null) ((this as any).project as ProjectService).modify(lens.set(v), useFusionTag ? propertyKey : undefined);
+  }
+}
+
+class ProjectMeterProxy {
+  constructor(readonly project: ProjectService, readonly changeDetRef: ChangeDetectorRef) { }
+  @meterproxyfield(true) accessor bpm: number | undefined;
+  @meterproxyfield(true) accessor startOffset: number | undefined;
+  @meterproxyfield() accessor measureLength: number | undefined;
+  @meterproxyfield() accessor subdivision: number | undefined;
+}

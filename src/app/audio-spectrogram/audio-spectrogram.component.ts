@@ -258,16 +258,16 @@ export class AudioSpectrogramComponent {
   }
 
   updateBeatGrid(render: GenSpecTile<DOMRect>, project: Project) {
-    const secPerBeat = 60 / project.bpm;
-    const beatsPerMeasure = project.timeSignature[0];
-    const firstBeat = Math.max(Math.ceil(time2beat(project, render.timeMin)), 0);
+    const secPerBeat = 60 / project.meter.bpm;
+    const beatsPerMeasure = project.meter.measureLength;
+    const firstBeat = Math.max(Math.ceil(time2beat(project.meter, render.timeMin)), 0);
     if (secPerBeat / render.timePerPixel < 10) {
       const secPerMeasure = secPerBeat * beatsPerMeasure;
       const firstMeasure = Math.ceil(firstBeat / beatsPerMeasure);
-      const firstMeasureTime = beat2time(project, firstMeasure);
+      const firstMeasureTime = beat2time(project.meter, firstMeasure);
       this.beatGrid = Array.from({ length: Math.ceil((render.timeMax - firstMeasureTime) / secPerMeasure) }, (_x, i) => ({ x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)), m: true }))
     } else {
-      const firstBeatTime = beat2time(project, firstBeat);
+      const firstBeatTime = beat2time(project.meter, firstBeat);
       this.beatGrid = Array.from({ length: Math.ceil((render.timeMax - firstBeatTime) / secPerBeat) }, (_x, i) => ({ x: Math.round(render.time2x(firstBeatTime + i * secPerBeat)), m: (firstBeat + i) % beatsPerMeasure == 0 }))
     }
   }

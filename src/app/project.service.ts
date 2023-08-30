@@ -4,7 +4,7 @@ import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
 import { Observable, Subject } from 'rxjs';
 import { AudioSamples } from './common';
-import { Project } from './ui-common';
+import { Project, defaultMeter } from './ui-common';
 
 @Injectable({
   providedIn: 'root'
@@ -28,7 +28,7 @@ export class ProjectService {
   }
 
   newProject(audioFile: Uint8Array, audio: AudioSamples) {
-    this._history = [{ audioFile, audio, bpm: 120, startOffset: 0, timeSignature: [4, 4], parts: [] }];
+    this._history = [{ audioFile, audio, meter: defaultMeter, parts: [] }];
     this._current = 0;
     this._onChange();
   }

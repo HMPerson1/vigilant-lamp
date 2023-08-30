@@ -23,21 +23,33 @@ export const Part = t.readonly(t.type({
   notes: t.readonlyArray(Note),
 }));
 
+export interface Meter extends t.TypeOf<typeof Meter> { }
+export const Meter = t.readonly(t.type({
+  startOffset: t.number,
+  bpm: t.number,
+  measureLength: t.number,
+  subdivision: t.number,
+}));
+export const defaultMeter: Meter = {
+  startOffset: 0,
+  bpm: 120,
+  measureLength: 4,
+  subdivision: 2,
+}
+
+export const time2beat = (meter: Meter, t: number): number =>
+  (t - meter.startOffset) * meter.bpm / 60;
+export const beat2time = (meter: Meter, b: number): number =>
+  b * 60 / meter.bpm + meter.startOffset;
+
 export interface Project extends t.TypeOf<typeof Project> { }
 export const Project = t.readonly(t.type({
   audioFile: t_Uint8Array,
   audio: AudioSamples,
-  bpm: t.number,
-  startOffset: t.number,
-  timeSignature: t.tuple([t.number, t.number]),
+  meter: Meter,
   parts: t.readonlyArray(Part),
 }));
-export const ProjectLens = Lens.fromProp<Project>();
-
-export const time2beat = (proj: Project, t: number): number =>
-  (t - proj.startOffset) * proj.bpm / 60;
-export const beat2time = (proj: Project, b: number): number =>
-  b * 60 / proj.bpm + proj.startOffset;
+export const ProjectLens = Lens.fromPath<Project>();
 
 export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
 
@@ -97,12 +109,3 @@ export function doScrollZoomPitch<PropMin extends string, PropMax extends string
     wheelDelta, zoom, centerPosFrac,
   )
 }
-
-export const tupleLens: <T extends readonly any[], I extends number>(i: I) => Lens<[...T], [...T][I]> = (i) =>
-  new Lens((s) => s[i], (a) => (s) => {
-    if (s[i] === a) return s;
-    // tospliced will be available in two days
-    const s2 = [...s];
-    s2[i] = a;
-    return s2 as any;
-  });
