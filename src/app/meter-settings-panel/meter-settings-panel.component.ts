@@ -15,11 +15,11 @@ export class MeterSettingsPanelComponent {
   constructor(private project: ProjectService) {
     project.project$.pipe(rxjs.map((prj) => prj.meter.state === 'active'), rxjs.distinctUntilChanged()).forEach((isSet) => {
       if (isSet) {
-        this.projectMeterCtrls.bpm.enable()
-        this.projectMeterCtrls.startOffset.enable()
+        this.projectMeterCtrls.bpm.enable({ emitEvent: false })
+        this.projectMeterCtrls.startOffset.enable({ emitEvent: false })
       } else {
-        this.projectMeterCtrls.bpm.disable()
-        this.projectMeterCtrls.startOffset.disable()
+        this.projectMeterCtrls.bpm.disable({ emitEvent: false })
+        this.projectMeterCtrls.startOffset.disable({ emitEvent: false })
       }
     })
   }
