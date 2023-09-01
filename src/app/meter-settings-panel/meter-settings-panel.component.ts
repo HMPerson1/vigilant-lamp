@@ -1,5 +1,6 @@
 import { Component } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
+import { flow } from 'fp-ts/lib/function';
 import { Iso, Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
@@ -11,9 +12,46 @@ import { Meter, Project, ProjectLens } from '../ui-common';
   styleUrls: ['./meter-settings-panel.component.css']
 })
 export class MeterSettingsPanelComponent {
-  constructor(private project: ProjectService) { }
+  constructor(private project: ProjectService) {
+    project.project$.pipe(rxjs.map((prj) => prj.meter.state === 'active'), rxjs.distinctUntilChanged()).forEach((isSet) => {
+      if (isSet) {
+        this.projectMeterCtrls.bpm.enable()
+        this.projectMeterCtrls.startOffset.enable()
+      } else {
+        this.projectMeterCtrls.bpm.disable()
+        this.projectMeterCtrls.startOffset.disable()
+      }
+    })
+  }
 
   projectMeterCtrls = new ProjectMeterCtrls(this.project);
+
+  get isMeterSet() { return this.project.project?.meter?.state !== 'unset' }
+
+  onPickAllClick() {
+    // TODO: implement
+    this.project.modify(ProjectLens(['meter', 'state']).set('active'))
+  }
+
+  onOffsetPickClick(event: MouseEvent) {
+    // TODO: global modal editing
+    // if `isSet`, draw beat grid the whole time, otherwise just draw the cursor
+    event.stopPropagation()
+  }
+
+  onOffsetBumpBeat(dir: number) {
+    if (!this.isMeterSet) return;
+    this.project.modify((prj) => ProjectLens(['meter', 'startOffset']).modify(x => x + dir * 60 / prj.meter.bpm)(prj), 'startOffsetBump')
+    // TODO: this should adjust the representation of notes so that the real time stays constant
+  }
+  onTempoMult(factor: number, dir: 1 | -1) {
+    if (!this.isMeterSet) return;
+    this.project.modify(flow(
+      ProjectLens(['meter', 'bpm']).modify(x => dir === 1 ? x * factor : x / factor),
+      ProjectLens(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : x % factor === 0 ? x / factor : x),
+    ))
+    // TODO: this should adjust the representation of notes so that the real time stays constant
+  }
 }
 
 const bindProjectCtrl =

@@ -1,6 +1,6 @@
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
-import { Lens, lens } from 'monocle-ts';
+import { Lens } from 'monocle-ts';
 import { Observable } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
@@ -25,12 +25,14 @@ export const Part = t.readonly(t.type({
 
 export interface Meter extends t.TypeOf<typeof Meter> { }
 export const Meter = t.readonly(t.type({
+  state: t.union([t.literal('unset'), t.literal('active'), t.literal('locked')]),
   startOffset: t.number,
   bpm: t.number,
   measureLength: t.number,
   subdivision: t.number,
 }));
 export const defaultMeter: Meter = {
+  state: 'unset',
   startOffset: 0,
   bpm: 120,
   measureLength: 4,

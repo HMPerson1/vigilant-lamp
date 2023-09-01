@@ -37,7 +37,7 @@ export class AppComponent {
   get specTimeStep(): number { return 2 ** (this.TIME_STEP_INPUT_MAX - this.specTimeStepInput) }
   specLgExtraPad: number = 0
   showPitchGrid: boolean = false;
-  showBeatGrid: boolean = false;
+  userShowBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
 
   #projectFileHandle?: FileSystemFileHandle;
@@ -50,7 +50,7 @@ export class AppComponent {
   get hasProject(): boolean { return !!this.project.project }
   get audioData(): AudioSamples | undefined { return this.project.project?.audio }
   audioBuffer?: AudioBuffer;
-  loading: boolean = false;
+  loading: boolean = false; // TODO: loading?: 'new' | 'open'
 
   playheadPos: number = 0;
 
@@ -59,6 +59,11 @@ export class AppComponent {
   showOvertones: boolean = false;
 
   debug_downsample: number = 0;
+
+  meterPanelExpanded: boolean = false;
+  get showBeatGrid() {
+    return this.userShowBeatGrid || (this.meterPanelExpanded && this.project.project?.meter?.state !== 'unset')
+  }
 
   async newProject() {
     // TODO: track if modified; warn if losing data

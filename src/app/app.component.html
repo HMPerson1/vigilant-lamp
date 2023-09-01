@@ -93,7 +93,7 @@
         </label>
         <label class="inline-comp">
           Beat Grid
-          <mat-slide-toggle [(ngModel)]="showBeatGrid"></mat-slide-toggle>
+          <mat-slide-toggle [(ngModel)]="userShowBeatGrid"></mat-slide-toggle>
         </label>
         <label class="inline-comp">
           Pitch Labels
@@ -113,10 +113,10 @@
           </mat-button-toggle-group>
         </label>
       </mat-expansion-panel>
-      <mat-expansion-panel [disabled]="!hasProject">
+      <mat-expansion-panel [disabled]="!hasProject" [(expanded)]="meterPanelExpanded">
         <mat-expansion-panel-header>
           <mat-panel-title>
-            Timing Settings
+            Meter Settings
           </mat-panel-title>
         </mat-expansion-panel-header>
         <app-meter-settings-panel></app-meter-settings-panel>
