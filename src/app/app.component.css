@@ -6,7 +6,7 @@
   right: 0;
   padding: 4px;
   display: grid;
-  grid: 1fr / 7fr minmax(424px, 2fr);
+  grid: 1fr / 7fr minmax(360px, 2fr);
   overflow: hidden;
 }
 
@@ -26,6 +26,18 @@
 .file-toolbar {
   display: flex;
   gap: 8px;
+}
+
+.stacking {
+  contain: layout;
+}
+
+.stacking>*:not(:first-child) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 .settings-panel label {

@@ -50,7 +50,7 @@ export class AppComponent {
   get hasProject(): boolean { return !!this.project.project }
   get audioData(): AudioSamples | undefined { return this.project.project?.audio }
   audioBuffer?: AudioBuffer;
-  loading: boolean = false; // TODO: loading?: 'new' | 'open'
+  loading?: 'new' | 'open'
 
   playheadPos: number = 0;
 
@@ -67,7 +67,7 @@ export class AppComponent {
 
   async newProject() {
     // TODO: track if modified; warn if losing data
-    this.loading = true
+    this.loading = 'new'
     try {
       const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
       const audioFile = new Uint8Array(await fh.arrayBuffer());
@@ -84,11 +84,11 @@ export class AppComponent {
         this.snackBar.open(`Error creating a new project: ${e}`);
       }
     }
-    this.loading = false
+    this.loading = undefined
   }
 
   async loadProject() {
-    this.loading = true
+    this.loading = 'open'
     try {
       const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' })
       await this.project.fromBlob(projectFile)
@@ -103,7 +103,7 @@ export class AppComponent {
         this.snackBar.open(`Error opening project: ${e}`);
       }
     }
-    this.loading = false
+    this.loading = undefined
   }
 
   async saveProject(saveAs = false) {

@@ -3,7 +3,7 @@
     <!-- TODO: "pick" is not the right word -->
     <button mat-raised-button color="primary" (click)="onPickAllClick()"><mat-icon>edit</mat-icon>PICK ALL</button>
   </div>
-  <div>
+  <div class="input-row">
     <mat-form-field hideRequiredMarker>
       <mat-label>Start Offset</mat-label>
       <input matInput type="number" [formControl]="projectMeterCtrls.startOffset" step="any">
@@ -19,7 +19,7 @@
         [disabled]="!isMeterSet"><mat-icon>edit</mat-icon></button>
     </mat-form-field>
   </div>
-  <div class="row">
+  <div class="input-row">
     <mat-form-field hideRequiredMarker>
       <mat-label>Beats per measure</mat-label>
       <input matInput type="number" [formControl]="projectMeterCtrls.measureLength" min="1" step="1">
@@ -29,7 +29,7 @@
       <input matInput type="number" [formControl]="projectMeterCtrls.subdivision" min="1" step="1">
     </mat-form-field>
   </div>
-  <div class="row">
+  <div>
     <div>Adjust meter while keeping notes</div>
     <div class="icon-button-row">
       <button mat-icon-button (click)="onOffsetBumpBeat(-1)" matTooltip="Back one beat"

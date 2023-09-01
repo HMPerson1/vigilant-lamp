@@ -20,12 +20,22 @@
 
   <div class="groove-border settings-panel">
     <div class="file-toolbar">
-      <button mat-icon-button matTooltip="New Project" color="primary" (click)="newProject()">
-        <mat-icon>note_add</mat-icon>
-      </button>
-      <button mat-icon-button matTooltip="Open" color="primary" (click)="loadProject()">
-        <mat-icon>file_open</mat-icon>
-      </button>
+      <div class="stacking">
+        <button mat-icon-button matTooltip="New Project" color="primary" (click)="newProject()" [disabled]="!!loading">
+          <mat-icon>note_add</mat-icon>
+        </button>
+        <div style="padding: 4px;" [hidden]="loading !== 'new'">
+          <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+        </div>
+      </div>
+      <div class="stacking">
+        <button mat-icon-button matTooltip="Open" color="primary" (click)="loadProject()" [disabled]="!!loading">
+          <mat-icon>file_open</mat-icon>
+        </button>
+        <div style="padding: 4px;" [hidden]="loading !== 'open'">
+          <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+        </div>
+      </div>
       <button mat-icon-button *ngIf="browserFsApiSupported" matTooltip="Save" color="primary" (click)="saveProject()"
         [disabled]="!hasProject">
         <mat-icon>save</mat-icon>
@@ -33,9 +43,6 @@
       <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)" [disabled]="!hasProject">
         <mat-icon>save_as</mat-icon>
       </button>
-      <div style="padding: 4px;" [style.visibility]="loading ? 'visible' : 'hidden'">
-        <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
-      </div>
       <div style="flex: 1;"></div>
       <button mat-icon-button matTooltip="Undo" color="primary" (click)="project.undo()"
         [disabled]="!hasProject || !project.canUndo()">
