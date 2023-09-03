@@ -1,21 +1,20 @@
 <div class="container">
   <div>
-    <!-- TODO: "pick" is not the right word -->
-    <button mat-raised-button color="primary" (click)="onPickAllClick()"><mat-icon>edit</mat-icon>PICK ALL</button>
+    <button mat-raised-button color="primary" (click)="onPickAllClick()"><mat-icon>edit</mat-icon>SET ALL</button>
   </div>
   <div class="input-row">
     <mat-form-field hideRequiredMarker>
       <mat-label>Start Offset</mat-label>
       <input matInput type="number" [formControl]="projectMeterCtrls.startOffset" step="any">
       <mat-hint>Milliseconds</mat-hint>
-      <button mat-icon-button matSuffix matTooltip="Set by click" (click)="onOffsetPickClick($event)"
+      <button mat-icon-button matSuffix matTooltip="Set by mouse" (click)="onOffsetPickClick($event)"
         [disabled]="!isMeterSet"><mat-icon>edit</mat-icon></button>
     </mat-form-field>
     <mat-form-field hideRequiredMarker>
       <mat-label>Tempo</mat-label>
       <input matInput type="number" [formControl]="projectMeterCtrls.bpm" min="0" step="any">
       <mat-hint>Beats per minute</mat-hint>
-      <button mat-icon-button matSuffix matTooltip="Set by click"
+      <button mat-icon-button matSuffix matTooltip="Set by mouse"
         [disabled]="!isMeterSet"><mat-icon>edit</mat-icon></button>
     </mat-form-field>
   </div>
@@ -53,13 +52,11 @@
 </div>
 
 <ng-template cdkPortal #portalHelpOffset="cdkPortal">
-  <div>
-    <h1>TODO: PICKING OFFSET</h1>
-  </div>
+  <h1>Setting Start Offset</h1>
+  <span style="font-size: medium;">Click on the spectrogram on the <em>first beat</em> to set the start offset</span>
 </ng-template>
 
 <ng-template cdkPortal #portalHelpTempo="cdkPortal">
-  <div>
-    <h1>TODO: PICKING TEMPO</h1>
-  </div>
+  <h1>Setting Tempo</h1>
+  <span style="font-size: medium;">Click on the spectrogram on the <em>second beat</em> to set the tempo</span>
 </ng-template>

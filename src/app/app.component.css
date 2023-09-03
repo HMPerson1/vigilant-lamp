@@ -52,7 +52,19 @@
   display: block;
 }
 
-.drawer {
-  display: flex;
-  flex-direction: column;
+.drawer-contents {
+  padding: 8px;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid: 1fr 1fr / auto;
+}
+
+.drawer-contents>*:first-child {
+  align-self: flex-end;
+  justify-self: center;
+}
+
+.drawer-contents>*:last-child {
+  align-self: flex-start;
 }

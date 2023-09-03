@@ -45,7 +45,7 @@ export class MeterSettingsPanelComponent {
 
     this.project.modify(flow(
       ProjectLens(['meter', 'state']).set('active'),
-      ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100) / 100),
+      ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100000) / 100000),
       ProjectLens(['meter', 'bpm']).set(Math.round(100 * 60 / (beat2 - newOffset)) / 100),
     ))
   }

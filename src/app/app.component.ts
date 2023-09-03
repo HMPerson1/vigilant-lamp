@@ -1,5 +1,5 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
-import { Portal, PortalOutlet } from '@angular/cdk/portal';
+import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -90,6 +90,7 @@ export class AppComponent {
       }
     }
     this.loading = undefined
+    this.drawer.openedChange.subscribe(v => console.log(`drawer openedChange ${v}`));
   }
 
   async loadProject() {
@@ -138,7 +139,8 @@ export class AppComponent {
 
   @ViewChild('visElem') visElem!: ElementRef<HTMLElement>;
   @ViewChild('drawer') drawer!: MatDrawer;
-  @ViewChild('portalOutlet') portalOutlet!: PortalOutlet;
+  @ViewChild('drawer', { read: ElementRef }) drawerElem!: ElementRef<HTMLElement>;
+  @ViewChild('portalOutlet') portalOutlet!: CdkPortalOutlet;
   modalState?: { drawerCancel: () => void; visClick: (x: number) => void };
 
   modalPickFromSpectrogram: ModalPickFromSpectrogramFn = async (drawerContents: Portal<any>, onInput: Partial<rxjs.Observer<number | undefined>>, openedVia?: FocusOrigin): Promise<number | undefined> => {
@@ -151,8 +153,9 @@ export class AppComponent {
     let onInputSub: rxjs.Subscription | undefined;
 
     try {
-      this.portalOutlet.attach(drawerContents);
+      this.portalOutlet.portal = drawerContents;
       this.drawer.open(openedVia);
+      this.drawerElem.nativeElement?.focus();
 
       onInputSub = this.visMouseX.pipe(rxjs.map(x => x !== undefined ? x2time(x) : undefined)).subscribe(onInput)
 
@@ -178,8 +181,7 @@ export class AppComponent {
     } finally {
       this.modalState = undefined;
       onInputSub?.unsubscribe();
-      this.drawer.close();
-      this.portalOutlet.detach();
+      this.drawer.close().then(() => this.portalOutlet.detach());
     }
   }
 

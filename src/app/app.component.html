@@ -141,8 +141,12 @@
       </div>
     </div>
   </mat-sidenav-content>
-  <mat-sidenav mode="over" position="end" [style.width.px]="settings_panel.offsetWidth" #drawer class="drawer">
-    <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
-    <button mat-button (click)="modalState?.drawerCancel()">CANCEL</button>
+  <mat-sidenav mode="over" position="end" [style.width.px]="settings_panel.offsetWidth" autoFocus="dialog" #drawer>
+    <div class="drawer-contents">
+      <div>
+        <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
+      </div>
+      <button mat-stroked-button (click)="modalState?.drawerCancel()">CANCEL</button>
+    </div>
   </mat-sidenav>
 </mat-sidenav-container>
