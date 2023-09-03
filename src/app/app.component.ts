@@ -1,13 +1,17 @@
-import { Component } from '@angular/core';
+import { FocusOrigin } from '@angular/cdk/a11y';
+import { Portal, PortalOutlet } from '@angular/cdk/portal';
+import { Component, ElementRef, ViewChild } from '@angular/core';
+import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
+import * as rxjs from 'rxjs';
 import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './project.service';
-import { PitchLabelType } from './ui-common';
+import { ModalPickFromSpectrogramFn, PitchLabelType } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -54,7 +58,8 @@ export class AppComponent {
 
   playheadPos: number = 0;
 
-  visPointerX?: number; // TODO: rename to pointer?
+  /** offset space of `visElem` */
+  visMouseX = new rxjs.BehaviorSubject<number | undefined>(undefined);
   showCrosshair: boolean = true;
   showOvertones: boolean = false;
 
@@ -129,6 +134,60 @@ export class AppComponent {
 
     const pos = event.offsetX / (event.target! as HTMLElement).clientWidth * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
     this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
+  }
+
+  @ViewChild('visElem') visElem!: ElementRef<HTMLElement>;
+  @ViewChild('drawer') drawer!: MatDrawer;
+  @ViewChild('portalOutlet') portalOutlet!: PortalOutlet;
+  modalState?: { drawerCancel: () => void; visClick: (x: number) => void };
+
+  modalPickFromSpectrogram: ModalPickFromSpectrogramFn = async (drawerContents: Portal<any>, onInput: Partial<rxjs.Observer<number | undefined>>, openedVia?: FocusOrigin): Promise<number | undefined> => {
+    if (this.drawer.opened) throw new Error('already modal picking');
+    if (!this.visElem.nativeElement) throw new Error('template broke');
+    const x2time = (x: number) => {
+      const visBounds = this.visElem.nativeElement.getBoundingClientRect();
+      return x / visBounds.width * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
+    }
+    let onInputSub: rxjs.Subscription | undefined;
+
+    try {
+      this.portalOutlet.attach(drawerContents);
+      this.drawer.open(openedVia);
+
+      onInputSub = this.visMouseX.pipe(rxjs.map(x => x !== undefined ? x2time(x) : undefined)).subscribe(onInput)
+
+      let cancelResolve!: () => void;
+      const cancelButtonClick = new Promise<number | undefined>(resolve => { cancelResolve = () => resolve(undefined); });
+
+      let visClickResolve!: (x: number) => void;
+      const visClick = new Promise<number | undefined>(resolve => { visClickResolve = resolve });
+
+      this.modalState = { visClick: visClickResolve, drawerCancel: cancelResolve };
+      const res = await Promise.race<number | undefined>([
+        visClick,
+        cancelButtonClick,
+        rxjs.firstValueFrom(this.drawer.closedStart, { defaultValue: undefined }).then(() => undefined),
+      ]);
+
+      if (res === undefined) {
+        // cancelled
+        return undefined;
+      } else {
+        return x2time(res);
+      }
+    } finally {
+      this.modalState = undefined;
+      onInputSub?.unsubscribe();
+      this.drawer.close();
+      this.portalOutlet.detach();
+    }
+  }
+
+  onVisClick(event: MouseEvent) {
+    if (!this.modalState) return;
+    this.modalState.visClick(event.offsetX);
+    event.preventDefault();
+    event.stopPropagation();
   }
 }
 

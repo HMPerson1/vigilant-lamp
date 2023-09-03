@@ -1,7 +1,9 @@
+import { FocusOrigin } from '@angular/cdk/a11y';
+import { Portal } from '@angular/cdk/portal';
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
-import { Observable } from "rxjs";
+import { Observable, Observer } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
 // TODO: pulses per quarter? beat?
@@ -111,3 +113,5 @@ export function doScrollZoomPitch<PropMin extends string, PropMax extends string
     wheelDelta, zoom, centerPosFrac,
   )
 }
+
+export type ModalPickFromSpectrogramFn = (drawerContents: Portal<any>, onInput: Partial<Observer<number | undefined>>, openedVia?: FocusOrigin) => Promise<number | undefined>;

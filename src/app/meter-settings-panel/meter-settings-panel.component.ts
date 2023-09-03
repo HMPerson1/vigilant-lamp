@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { CdkPortal } from '@angular/cdk/portal';
+import { Component, Input, ViewChild } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { flow } from 'fp-ts/lib/function';
 import { Iso, Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
-import { Meter, Project, ProjectLens } from '../ui-common';
+import { Meter, ModalPickFromSpectrogramFn, Project, ProjectLens } from '../ui-common';
 
 @Component({
   selector: 'app-meter-settings-panel',
@@ -12,6 +13,11 @@ import { Meter, Project, ProjectLens } from '../ui-common';
   styleUrls: ['./meter-settings-panel.component.css']
 })
 export class MeterSettingsPanelComponent {
+
+  @Input() modalPickFn?: ModalPickFromSpectrogramFn;
+  @ViewChild("portalHelpOffset") portalHelpOffset!: CdkPortal;
+  @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
+
   constructor(private project: ProjectService) {
     project.project$.pipe(rxjs.map((prj) => prj.meter.state === 'active'), rxjs.distinctUntilChanged()).forEach((isSet) => {
       if (isSet) {
@@ -28,9 +34,20 @@ export class MeterSettingsPanelComponent {
 
   get isMeterSet() { return this.project.project?.meter?.state !== 'unset' }
 
-  onPickAllClick() {
-    // TODO: implement
-    this.project.modify(ProjectLens(['meter', 'state']).set('active'))
+  async onPickAllClick() {
+    if (!this.modalPickFn) return;
+    // TODO: live update??
+    const newOffset = await this.modalPickFn(this.portalHelpOffset, {}, 'mouse');
+    if (newOffset === undefined) return;
+
+    const beat2 = await this.modalPickFn(this.portalHelpTempo, {}, 'mouse');
+    if (beat2 === undefined || beat2 <= newOffset) return;
+
+    this.project.modify(flow(
+      ProjectLens(['meter', 'state']).set('active'),
+      ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100) / 100),
+      ProjectLens(['meter', 'bpm']).set(Math.round(100 * 60 / (beat2 - newOffset)) / 100),
+    ))
   }
 
   onOffsetPickClick(event: MouseEvent) {

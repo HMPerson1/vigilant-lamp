@@ -1,10 +1,4 @@
 .content {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 4px;
   display: grid;
   grid: 1fr / 7fr minmax(360px, 2fr);
   overflow: hidden;
@@ -56,4 +50,9 @@
 
 .settings-panel mat-slider {
   display: block;
+}
+
+.drawer {
+  display: flex;
+  flex-direction: column;
 }
