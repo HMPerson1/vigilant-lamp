@@ -1,5 +1,5 @@
 import { CdkPortal } from '@angular/cdk/portal';
-import { Component, Input, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { flow } from 'fp-ts/lib/function';
 import { Iso, Lens } from 'monocle-ts';
@@ -13,10 +13,13 @@ import { Meter, ModalPickFromSpectrogramFn, Project, ProjectLens } from '../ui-c
   styleUrls: ['./meter-settings-panel.component.css']
 })
 export class MeterSettingsPanelComponent {
-
   @Input() modalPickFn?: ModalPickFromSpectrogramFn;
+
+  @Output() liveMeter = new EventEmitter<Partial<Meter>>();
+
   @ViewChild("portalHelpOffset") portalHelpOffset!: CdkPortal;
   @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
+
 
   constructor(private project: ProjectService) {
     project.project$.pipe(rxjs.map((prj) => prj.meter.state === 'active'), rxjs.distinctUntilChanged()).forEach((isSet) => {
@@ -28,6 +31,7 @@ export class MeterSettingsPanelComponent {
         this.projectMeterCtrls.startOffset.disable({ emitEvent: false })
       }
     })
+    project.project$.forEach(prj => this.liveMeter.emit(prj.meter));
   }
 
   projectMeterCtrls = new ProjectMeterCtrls(this.project);
@@ -35,19 +39,35 @@ export class MeterSettingsPanelComponent {
   get isMeterSet() { return this.project.project?.meter?.state !== 'unset' }
 
   async onPickAllClick() {
-    if (!this.modalPickFn) return;
-    // TODO: live update??
-    const newOffset = await this.modalPickFn(this.portalHelpOffset, {}, 'mouse');
-    if (newOffset === undefined) return;
+    const initMeter0 = this.project.project?.meter;
+    if (!this.modalPickFn || !initMeter0) return;
 
-    const beat2 = await this.modalPickFn(this.portalHelpTempo, {}, 'mouse');
-    if (beat2 === undefined || beat2 <= newOffset) return;
+    try {
+      const initMeter: Partial<Meter> = { ...initMeter0, state: 'active', bpm: undefined, startOffset: undefined };
 
-    this.project.modify(flow(
-      ProjectLens(['meter', 'state']).set('active'),
-      ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100000) / 100000),
-      ProjectLens(['meter', 'bpm']).set(Math.round(100 * 60 / (beat2 - newOffset)) / 100),
-    ))
+      const newOffset = await this.modalPickFn(
+        this.portalHelpOffset,
+        { next: v => this.liveMeter.emit({ ...initMeter, startOffset: v }) },
+        'mouse',
+      );
+      if (newOffset === undefined) return;
+      const initMeter2 = { ...initMeter, startOffset: newOffset };
+
+      const beat2 = await this.modalPickFn(
+        this.portalHelpTempo,
+        { next: v => this.liveMeter.emit(v !== undefined && v > newOffset ? { ...initMeter2, bpm: 60 / (v - newOffset) } : initMeter2) },
+        'mouse',
+      );
+      if (beat2 === undefined || beat2 <= newOffset) return;
+
+      this.project.modify(flow(
+        ProjectLens(['meter', 'state']).set('active'),
+        ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100000) / 100000),
+        ProjectLens(['meter', 'bpm']).set(Math.round(100 * 60 / (beat2 - newOffset)) / 100),
+      ))
+    } finally {
+      this.liveMeter.emit(this.project.project?.meter);
+    }
   }
 
   onOffsetPickClick(event: MouseEvent) {

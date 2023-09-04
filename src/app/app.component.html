@@ -15,7 +15,7 @@
             [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
           <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
-            [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [showBeatGrid]="showBeatGrid"
+            [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
             (wheel)="specElem.onWheel($event)"></app-spectrogram-grids>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
@@ -108,7 +108,8 @@
           </label>
           <label class="inline-comp">
             Beat Grid
-            <mat-slide-toggle [(ngModel)]="userShowBeatGrid"></mat-slide-toggle>
+            <mat-slide-toggle [(ngModel)]="userShowBeatGrid" [disabled]="!hasProjectMeter"
+              [matTooltip]="!hasProjectMeter ? 'Meter has not been set' : ''"></mat-slide-toggle>
           </label>
           <label class="inline-comp">
             Pitch Labels
@@ -134,7 +135,8 @@
               Meter Settings
             </mat-panel-title>
           </mat-expansion-panel-header>
-          <app-meter-settings-panel [modalPickFn]="modalPickFromSpectrogram"></app-meter-settings-panel>
+          <app-meter-settings-panel [modalPickFn]="modalPickFromSpectrogram"
+            (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
         </mat-expansion-panel>
       </mat-accordion>
       <div style="margin-top: auto;">

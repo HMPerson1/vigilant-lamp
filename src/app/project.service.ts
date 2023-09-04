@@ -36,7 +36,7 @@ export class ProjectService {
   async fromBlob(blob: Blob) {
     this._history = [pipe(
       Project.decode(await msgpack.decodeAsync(blob.stream()) as any),
-      getOrElseW((e) => { console.log(e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`) })
+      getOrElseW((e) => { console.log("fromBlob:", e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`) })
     )];
     this._current = 0;
     this._onChange();
@@ -87,3 +87,5 @@ export class ProjectService {
 
 /** if two modifications are more than this many milliseconds apart, they will not be merged */
 const MAX_FUSION_TIMEOUT: DOMHighResTimeStamp = 1000;
+
+// TODO: keep track of if project was modified since last save

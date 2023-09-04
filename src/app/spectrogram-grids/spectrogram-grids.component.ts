@@ -2,10 +2,9 @@ import { Component, ElementRef, HostListener, Input } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
-import { animationFrameScheduler, combineLatest, debounceTime } from 'rxjs';
+import { Subject, animationFrameScheduler, combineLatest, debounceTime } from 'rxjs';
 import { GenSpecTile } from '../common';
-import { ProjectService } from '../project.service';
-import { PITCH_MAX, PitchLabelType, Project, beat2time, time2beat } from '../ui-common';
+import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-grids',
@@ -32,10 +31,11 @@ export class SpectrogramGridsComponent {
   pitchLabelFontSize = 0;
   overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
 
-  @Input() showBeatGrid: boolean = false;
   beatGrid: Array<{ x: number, m: boolean }> = [];
+  @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
+  #meter$ = new Subject<Partial<Meter> | undefined>();
 
-  constructor(project: ProjectService, elemRef: ElementRef<HTMLElement>) {
+  constructor(elemRef: ElementRef<HTMLElement>) {
     const toObs = fromInput(this);
     const timeMin$ = toObs('timeMin')
     const timeMax$ = toObs('timeMax')
@@ -60,10 +60,10 @@ export class SpectrogramGridsComponent {
     })
 
     combineLatest({
-      project: project.project$,
+      meter: this.#meter$,
       ...renderWinParam$s
     }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(params => {
-      this.updateBeatGrid(new GenSpecTile(params, hostElem.getBoundingClientRect()), params.project);
+      this.updateBeatGrid(new GenSpecTile(params, hostElem.getBoundingClientRect()), params.meter);
     })
   }
 
@@ -90,17 +90,27 @@ export class SpectrogramGridsComponent {
     this.pitchLabelFontSize = lodash.clamp(Math.round(.8 / winParams.pitchPerPixel), 12, 20)
   }
 
-  updateBeatGrid(render: GenSpecTile<DOMRect>, project: Project) {
-    const secPerBeat = 60 / project.meter.bpm;
-    const beatsPerMeasure = project.meter.measureLength;
-    const firstBeat = Math.max(Math.ceil(time2beat(project.meter, render.timeMin)), 0);
+  updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
+    if (meter === undefined || meter.state === 'unset') {
+      this.beatGrid = [];
+      return;
+    } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
+      this.beatGrid = [{ x: Math.round(render.time2x(meter.startOffset)), m: false }];
+      return;
+    } else if (!Meter.is(meter)) {
+      console.log("weird meter:", meter);
+      return;
+    }
+    const secPerBeat = 60 / meter.bpm;
+    const beatsPerMeasure = meter.measureLength;
+    const firstBeat = Math.max(Math.ceil(time2beat(meter, render.timeMin)), 0);
     if (secPerBeat / render.timePerPixel < 10) {
       const secPerMeasure = secPerBeat * beatsPerMeasure;
       const firstMeasure = Math.ceil(firstBeat / beatsPerMeasure);
-      const firstMeasureTime = beat2time(project.meter, firstMeasure);
+      const firstMeasureTime = beat2time(meter, firstMeasure);
       this.beatGrid = Array.from({ length: Math.ceil((render.timeMax - firstMeasureTime) / secPerMeasure) }, (_x, i) => ({ x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)), m: true }))
     } else {
-      const firstBeatTime = beat2time(project.meter, firstBeat);
+      const firstBeatTime = beat2time(meter, firstBeat);
       this.beatGrid = Array.from({ length: Math.ceil((render.timeMax - firstBeatTime) / secPerBeat) }, (_x, i) => ({ x: Math.round(render.time2x(firstBeatTime + i * secPerBeat)), m: (firstBeat + i) % beatsPerMeasure == 0 }))
     }
   }

@@ -1,5 +1,5 @@
 <div class="grids-container">
-  <div *ngIf="showBeatGrid">
+  <div *ngIf="beatGrid">
     <div class="beat-grid" *ngFor="let i of beatGrid; trackBy: trackIdx" [style.transform]="'translateX('+i.x+'px)'"
       [class.beat-grid-measure]="i.m"></div>
   </div>

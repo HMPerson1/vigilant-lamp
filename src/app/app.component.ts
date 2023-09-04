@@ -11,7 +11,7 @@ import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './project.service';
-import { ModalPickFromSpectrogramFn, PitchLabelType } from './ui-common';
+import { Meter, ModalPickFromSpectrogramFn, PitchLabelType } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -52,6 +52,8 @@ export class AppComponent {
   }
 
   get hasProject(): boolean { return !!this.project.project }
+  get hasProjectMeter(): boolean { return this.project.project?.meter?.state !== 'unset' }
+
   get audioData(): AudioSamples | undefined { return this.project.project?.audio }
   audioBuffer?: AudioBuffer;
   loading?: 'new' | 'open'
@@ -66,9 +68,8 @@ export class AppComponent {
   debug_downsample: number = 0;
 
   meterPanelExpanded: boolean = false;
-  get showBeatGrid() {
-    return this.userShowBeatGrid || (this.meterPanelExpanded && this.project.project?.meter?.state !== 'unset')
-  }
+  get displayedMeter(): Partial<Meter> | undefined { return this.meterPanelExpanded ? this.liveMeter : this.userShowBeatGrid ? this.project.project?.meter : undefined }
+  liveMeter?: Partial<Meter>;
 
   async newProject() {
     // TODO: track if modified; warn if losing data
@@ -83,14 +84,12 @@ export class AppComponent {
       this.vizTimeMin = 0
       this.vizTimeMax = this.audioBuffer.duration
     } catch (e) {
-      console.log("error new project:")
-      console.log(e);
+      console.log("error new project:", e);
       if (!isUserAbortException(e)) {
         this.snackBar.open(`Error creating a new project: ${e}`);
       }
     }
     this.loading = undefined
-    this.drawer.openedChange.subscribe(v => console.log(`drawer openedChange ${v}`));
   }
 
   async loadProject() {
@@ -103,8 +102,7 @@ export class AppComponent {
       this.vizTimeMax = audioSamplesDuration(this.project.project!.audio)
       this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
     } catch (e) {
-      console.log("error load project:")
-      console.log(e);
+      console.log("error load project:", e);
       if (!isUserAbortException(e)) {
         this.snackBar.open(`Error opening project: ${e}`);
       }
@@ -121,8 +119,7 @@ export class AppComponent {
         true,
       ) || undefined
     } catch (e) {
-      console.log("error save project:")
-      console.log(e);
+      console.log("error save project:", e);
       if (!isUserAbortException(e)) {
         this.snackBar.open(`Error saving project: ${e}`);
       }
