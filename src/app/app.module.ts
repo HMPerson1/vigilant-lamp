@@ -24,6 +24,7 @@ import { AudioPlayerComponent } from './audio-player/audio-player.component';
 import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
 import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
+import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
 
 @NgModule({
   declarations: [
@@ -31,7 +32,8 @@ import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settin
     AudioWaveformComponent,
     AudioSpectrogramComponent,
     AudioPlayerComponent,
-    MeterSettingsPanelComponent
+    MeterSettingsPanelComponent,
+    SpectrogramGridsComponent
   ],
   imports: [
     FormsModule,
