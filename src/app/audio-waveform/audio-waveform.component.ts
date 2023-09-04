@@ -8,7 +8,6 @@ import { doScrollZoomTime, resizeObservable } from '../ui-common';
 @Component({
   selector: 'app-audio-waveform',
   templateUrl: './audio-waveform.component.html',
-  styleUrls: ['./audio-waveform.component.css']
 })
 export class AudioWaveformComponent {
   @ViewChild('waveform_canvas') waveformCanvas?: ElementRef<HTMLCanvasElement>

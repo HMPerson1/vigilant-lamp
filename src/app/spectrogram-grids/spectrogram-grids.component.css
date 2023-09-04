@@ -1,5 +1,6 @@
 .grids-container {
   pointer-events: none;
+  contain: strict;
   /* apparently this makes Chrome's compositor behave better */
   position: absolute;
   top: 0;
