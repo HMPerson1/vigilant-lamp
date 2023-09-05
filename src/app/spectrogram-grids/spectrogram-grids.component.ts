@@ -98,7 +98,7 @@ export class SpectrogramGridsComponent {
       this.beatGrid = [{ x: Math.round(render.time2x(meter.startOffset)), m: false }];
       return;
     } else if (!Meter.is(meter)) {
-      console.log("weird meter:", meter);
+      this.beatGrid = [];
       return;
     }
     const secPerBeat = 60 / meter.bpm;

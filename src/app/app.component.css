@@ -58,6 +58,7 @@
   height: 100%;
   display: grid;
   grid: 1fr 1fr / auto;
+  gap: 8px;
 }
 
 .drawer-contents>*:first-child {

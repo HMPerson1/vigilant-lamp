@@ -1,7 +1,7 @@
 import { CdkPortal } from '@angular/cdk/portal';
 import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
-import { flow } from 'fp-ts/lib/function';
+import { flow } from 'fp-ts/function';
 import { Iso, Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
@@ -19,6 +19,8 @@ export class MeterSettingsPanelComponent {
 
   @ViewChild("portalHelpOffset") portalHelpOffset!: CdkPortal;
   @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
+  @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
+  editOffsetDone$ = new rxjs.Subject<void>();
 
 
   constructor(private project: ProjectService) {
@@ -47,18 +49,24 @@ export class MeterSettingsPanelComponent {
 
       const newOffset = await this.modalPickFn(
         this.portalHelpOffset,
-        { next: v => this.liveMeter.emit({ ...initMeter, startOffset: v }) },
         'mouse',
+        ({ mousemove, click }) => {
+          mousemove.forEach(v => this.liveMeter.emit({ ...initMeter, startOffset: v }));
+          return rxjs.firstValueFrom(click);
+        },
       );
       if (newOffset === undefined) return;
       const initMeter2 = { ...initMeter, startOffset: newOffset };
 
       const beat2 = await this.modalPickFn(
         this.portalHelpTempo,
-        { next: v => this.liveMeter.emit(v !== undefined && v > newOffset ? { ...initMeter2, bpm: 60 / (v - newOffset) } : initMeter2) },
         'mouse',
+        ({ mousemove, click }) => {
+          mousemove.forEach(v => this.liveMeter.emit(v !== undefined && v > newOffset ? { ...initMeter2, bpm: 60 / (v - newOffset) } : initMeter2));
+          return rxjs.firstValueFrom(click.pipe(rxjs.filter(v => v > newOffset)));
+        }
       );
-      if (beat2 === undefined || beat2 <= newOffset) return;
+      if (beat2 === undefined) return;
 
       this.project.modify(flow(
         ProjectLens(['meter', 'state']).set('active'),
@@ -70,10 +78,43 @@ export class MeterSettingsPanelComponent {
     }
   }
 
-  onOffsetPickClick(event: MouseEvent) {
-    // TODO: global modal editing
-    // if `isSet`, draw beat grid the whole time, otherwise just draw the cursor
-    event.stopPropagation()
+  async onOffsetEditClick(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const initMeter = this.project.project?.meter;
+    if (!this.modalPickFn || !initMeter) return;
+
+    try {
+      const newOffset = await this.modalPickFn(
+        this.portalHelpOffsetEdit,
+        'mouse',
+        async ({ mousedown, mousemove, mouseup }) => {
+          let dragStart: number | undefined;
+          let newOffset = initMeter.startOffset;
+          mousedown.forEach(v => {
+            if (dragStart === undefined) dragStart = v;
+          });
+          mouseup.forEach(v => {
+            if (dragStart !== undefined && v !== undefined) newOffset += v - dragStart;
+            dragStart = undefined;
+          });
+          mousemove.forEach(v => {
+            return this.liveMeter.emit({ ...initMeter, startOffset: newOffset + (dragStart !== undefined && v !== undefined ? v - dragStart : 0) });
+          });
+
+          await rxjs.firstValueFrom(this.editOffsetDone$);
+          return newOffset;
+        }
+      );
+      if (newOffset === undefined) return;
+
+      this.project.modify(
+        ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100000) / 100000),
+      )
+    } finally {
+      this.liveMeter.emit(this.project.project?.meter);
+    }
   }
 
   onOffsetBumpBeat(dir: number) {

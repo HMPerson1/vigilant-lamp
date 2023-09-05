@@ -3,7 +3,7 @@ import { Portal } from '@angular/cdk/portal';
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
-import { Observable, Observer } from "rxjs";
+import { Observable } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
 // TODO: pulses per quarter? beat?
@@ -33,6 +33,7 @@ export const Meter = t.readonly(t.type({
   measureLength: t.number,
   subdivision: t.number,
 }));
+export const MeterLens = Lens.fromProp<Meter>();
 export const defaultMeter: Meter = {
   state: 'unset',
   startOffset: 0,
@@ -114,4 +115,15 @@ export function doScrollZoomPitch<PropMin extends string, PropMax extends string
   )
 }
 
-export type ModalPickFromSpectrogramFn = (drawerContents: Portal<any>, onInput: Partial<Observer<number | undefined>>, openedVia?: FocusOrigin) => Promise<number | undefined>;
+type MouseObservables = {
+  mousedown: Observable<number>;
+  mousemove: Observable<number | undefined>;
+  mouseup: Observable<number | undefined>;
+  click: Observable<number>;
+};
+
+export type ModalPickFromSpectrogramFn = (
+  drawerContents: Portal<any>,
+  openedVia: FocusOrigin | undefined,
+  onInput: (a: MouseObservables) => Promise<number>,
+) => Promise<number | undefined>;
