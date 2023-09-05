@@ -12,6 +12,6 @@
     <mat-icon *ngIf="muted">volume_off</mat-icon>
   </button>
   <mat-slider style="flex: 1; margin: 0 24px;" min="0" max="100" step="1" [disabled]="!audioBuffer">
-    <input matSliderThumb [(ngModel)]="volumePct">
+    <input matSliderThumb [(ngModel)]="volumePct" (change)="onVolumeChange()">
   </mat-slider>
 </div>

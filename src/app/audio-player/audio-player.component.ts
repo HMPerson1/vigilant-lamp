@@ -86,9 +86,15 @@ export class AudioPlayerComponent {
   get volumePct(): number { return this.#volumePct; }
   set volumePct(v: number) {
     this.#volumePct = v;
-    this.audioOutput.gain.linearRampToValueAtTime(this.volumePct / 100, this.audioContext.currentTime + 0.01)
+    // https://www.dr-lex.be/info-stuff/volumecontrols.html
+    const amplitude = 1e-2 * Math.exp(Math.LN10 * 2e-2 * Math.max(v, 10)) * Math.min(v / 10, 1);
+    this.audioOutput.gain.linearRampToValueAtTime(amplitude, this.audioContext.currentTime + 0.01);
   }
-  get muted(): boolean { return this.volumePct == 0 };
+  get muted(): boolean { return this.volumePct === 0 }
+
+  onVolumeChange() {
+    if (this.volumePct !== 0) this.savedVolumePct = this.volumePct;
+  }
 
   muteClicked() {
     if (this.muted) {
