@@ -15,7 +15,7 @@
           <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
-            (wheel)="specElem.onWheel($event)" (click)="onVisClick($event)" #visElem></app-spectrogram-grids>
+            (wheel)="specElem.onWheel($event)" #visElem></app-spectrogram-grids>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
           [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>
@@ -134,7 +134,7 @@
               Meter Settings
             </mat-panel-title>
           </mat-expansion-panel-header>
-          <app-meter-settings-panel [modalPickFn]="modalPickFromSpectrogram"
+          <app-meter-settings-panel [modalEdit]="modalSpectrogramEdit"
             (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
         </mat-expansion-panel>
       </mat-accordion>
@@ -150,8 +150,10 @@
     <div class="drawer-contents">
       <div style="width: 100%;">
         <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
+        <button mat-raised-button color="primary" class="drawer-done" [hidden]="modalState?.doneClick === undefined"
+          (click)="modalState?.doneClick!()">DONE</button>
       </div>
-      <button mat-stroked-button (click)="modalState?.drawerCancel()">CANCEL</button>
+      <button mat-stroked-button (click)="drawer.close()">CANCEL</button>
     </div>
   </mat-sidenav>
 </mat-sidenav-container>

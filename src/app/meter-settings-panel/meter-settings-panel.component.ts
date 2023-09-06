@@ -5,7 +5,7 @@ import { flow } from 'fp-ts/function';
 import { Iso, Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
-import { Meter, ModalPickFromSpectrogramFn, Project, ProjectLens } from '../ui-common';
+import { Meter, ModalSpectrogramEdit, Project, ProjectLens } from '../ui-common';
 
 @Component({
   selector: 'app-meter-settings-panel',
@@ -13,7 +13,7 @@ import { Meter, ModalPickFromSpectrogramFn, Project, ProjectLens } from '../ui-c
   styleUrls: ['./meter-settings-panel.component.css']
 })
 export class MeterSettingsPanelComponent {
-  @Input() modalPickFn?: ModalPickFromSpectrogramFn;
+  @Input() modalEdit?: ModalSpectrogramEdit;
 
   @Output() liveMeter = new EventEmitter<Partial<Meter>>();
 
@@ -21,9 +21,6 @@ export class MeterSettingsPanelComponent {
   @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
   @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
   @ViewChild("portalHelpTempoEdit") portalHelpTempoEdit!: CdkPortal;
-  editOffsetDone$ = new rxjs.Subject<void>();
-  editTempoDone$ = new rxjs.Subject<void>();
-
 
   constructor(private project: ProjectService) {
     project.project$.pipe(rxjs.map((prj) => prj.meter.state === 'active'), rxjs.distinctUntilChanged()).forEach((isSet) => {
@@ -44,29 +41,25 @@ export class MeterSettingsPanelComponent {
 
   async onPickAllClick() {
     const initMeter0 = this.project.project?.meter;
-    if (!this.modalPickFn || !initMeter0) return;
+    if (!this.modalEdit || !initMeter0) return;
 
     try {
-      const initMeter: Partial<Meter> = { ...initMeter0, state: 'active', bpm: undefined, startOffset: undefined };
+      const initMeter1: Partial<Meter> = { ...initMeter0, state: 'active', bpm: undefined, startOffset: undefined };
 
-      const newOffset = await this.modalPickFn(
+      const newOffset = await this.modalEdit.click(
         this.portalHelpOffset,
         'mouse',
-        ({ mousemove, click }) => {
-          mousemove.forEach(v => this.liveMeter.emit({ ...initMeter, startOffset: v }));
-          return rxjs.firstValueFrom(click);
-        },
+        () => true,
+        v => this.liveMeter.emit({ ...initMeter1, startOffset: v }),
       );
       if (newOffset === undefined) return;
-      const initMeter2 = { ...initMeter, startOffset: newOffset };
+      const initMeter2 = { ...initMeter1, startOffset: newOffset };
 
-      const beat2 = await this.modalPickFn(
+      const beat2 = await this.modalEdit.click(
         this.portalHelpTempo,
         'mouse',
-        ({ mousemove, click }) => {
-          mousemove.forEach(v => this.liveMeter.emit(v !== undefined && v > newOffset ? { ...initMeter2, bpm: 60 / (v - newOffset) } : initMeter2));
-          return rxjs.firstValueFrom(click.pipe(rxjs.filter(v => v > newOffset)));
-        }
+        v => v > newOffset,
+        v => this.liveMeter.emit(v !== undefined ? { ...initMeter2, bpm: 60 / (v - newOffset) } : initMeter2),
       );
       if (beat2 === undefined) return;
 
@@ -85,34 +78,19 @@ export class MeterSettingsPanelComponent {
     event.stopPropagation();
 
     const initMeter = this.project.project?.meter;
-    if (!this.modalPickFn || !initMeter) return;
+    if (!this.modalEdit || !initMeter) return;
 
     try {
-      const newOffset = await this.modalPickFn(
+      const offsetOffset = await this.modalEdit.drag(
         this.portalHelpOffsetEdit,
         'mouse',
-        async ({ mousedown, mousemove, mouseup }) => {
-          let dragStart: number | undefined;
-          let newOffset = initMeter.startOffset;
-          mousedown.forEach(v => {
-            if (dragStart === undefined) dragStart = v;
-          });
-          mouseup.forEach(v => {
-            if (dragStart !== undefined && v !== undefined) newOffset += v - dragStart;
-            dragStart = undefined;
-          });
-          mousemove.forEach(v => {
-            return this.liveMeter.emit({ ...initMeter, startOffset: newOffset + (dragStart !== undefined && v !== undefined ? v - dragStart : 0) });
-          });
-
-          await rxjs.firstValueFrom(this.editOffsetDone$);
-          return newOffset;
-        }
+        (start, end) => end - start,
+        v => this.liveMeter.emit({ ...initMeter, startOffset: initMeter.startOffset + v })
       );
-      if (newOffset === undefined) return;
+      if (offsetOffset === undefined) return;
 
       this.project.modify(
-        ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100000) / 100000),
+        ProjectLens(['meter', 'startOffset']).modify(o => Math.round((o + offsetOffset) * 100000) / 100000),
       )
     } finally {
       this.liveMeter.emit(this.project.project?.meter);
@@ -124,34 +102,19 @@ export class MeterSettingsPanelComponent {
     event.stopPropagation();
 
     const initMeter = this.project.project?.meter;
-    if (!this.modalPickFn || !initMeter) return;
+    if (!this.modalEdit || !initMeter) return;
 
     try {
-      const newTempo = await this.modalPickFn(
+      const tempoScaleLn = await this.modalEdit.drag(
         this.portalHelpTempoEdit,
         'mouse',
-        async ({ mousedown, mousemove, mouseup }) => {
-          let dragStart: number | undefined;
-          let newTempo = initMeter.bpm;
-          mousedown.forEach(v => {
-            if (dragStart === undefined) dragStart = v;
-          });
-          mouseup.forEach(v => {
-            if (dragStart !== undefined && v !== undefined) newTempo *= (dragStart - initMeter.startOffset) / (v - initMeter.startOffset);
-            dragStart = undefined;
-          });
-          mousemove.forEach(v => {
-            return this.liveMeter.emit({ ...initMeter, bpm: newTempo * (dragStart !== undefined && v !== undefined ? (dragStart - initMeter.startOffset) / (v - initMeter.startOffset) : 1) });
-          });
-
-          await rxjs.firstValueFrom(this.editTempoDone$);
-          return newTempo;
-        }
+        (start, end) => start > initMeter.startOffset && end > initMeter.startOffset ? Math.log((start - initMeter.startOffset) / (end - initMeter.startOffset)) : undefined,
+        v => this.liveMeter.emit({ ...initMeter, bpm: initMeter.bpm * Math.exp(v) }),
       );
-      if (newTempo === undefined) return;
+      if (tempoScaleLn === undefined) return;
 
       this.project.modify(
-        ProjectLens(['meter', 'bpm']).set(Math.round(100 * newTempo) / 100),
+        ProjectLens(['meter', 'bpm']).modify(bpm => Math.round(100 * bpm * Math.exp(tempoScaleLn)) / 100),
       )
     } finally {
       this.liveMeter.emit(this.project.project?.meter);

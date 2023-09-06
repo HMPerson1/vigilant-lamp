@@ -115,15 +115,17 @@ export function doScrollZoomPitch<PropMin extends string, PropMax extends string
   )
 }
 
-type MouseObservables = {
-  mousedown: Observable<number>;
-  mousemove: Observable<number | undefined>;
-  mouseup: Observable<number | undefined>;
-  click: Observable<number>;
-};
-
-export type ModalPickFromSpectrogramFn = (
-  drawerContents: Portal<any>,
-  openedVia: FocusOrigin | undefined,
-  onInput: (a: MouseObservables) => Promise<number>,
-) => Promise<number | undefined>;
+export interface ModalSpectrogramEdit {
+  click: (
+    drawerContents: Portal<any>,
+    openedVia: FocusOrigin | undefined,
+    accept: (v: number) => boolean,
+    onInput: (v: number | undefined) => void,
+  ) => Promise<number | undefined>;
+  drag: (
+    drawerContents: Portal<any>,
+    openedVia: FocusOrigin | undefined,
+    interpretDrag: (start: number, end: number) => number | undefined,
+    onInput: (v: number) => void,
+  ) => Promise<number | undefined>;
+}

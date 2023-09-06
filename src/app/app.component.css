@@ -58,12 +58,18 @@
   height: 100%;
   display: grid;
   grid: 1fr 1fr / auto;
-  gap: 8px;
+  gap: 16px;
 }
 
 .drawer-contents>*:first-child {
   align-self: flex-end;
   justify-self: center;
+}
+
+.drawer-done {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
 }
 
 .drawer-contents>*:last-child {

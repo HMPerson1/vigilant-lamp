@@ -1,4 +1,5 @@
-import { CdkPortalOutlet } from '@angular/cdk/portal';
+import { FocusOrigin } from '@angular/cdk/a11y';
+import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
 import { Component, ElementRef, ViewChild } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -10,7 +11,7 @@ import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './project.service';
-import { Meter, ModalPickFromSpectrogramFn, PitchLabelType } from './ui-common';
+import { Meter, ModalSpectrogramEdit, PitchLabelType } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -138,67 +139,92 @@ export class AppComponent {
   @ViewChild('drawer') drawer!: MatDrawer;
   @ViewChild('drawer', { read: ElementRef }) drawerElem!: ElementRef<HTMLElement>;
   @ViewChild('portalOutlet') portalOutlet!: CdkPortalOutlet;
-  modalState?: { drawerCancel: () => void };
+  modalState?: { doneClick?: () => void };
 
-  // TODO: click vs drag should probably be two different things
-  modalPickFromSpectrogram: ModalPickFromSpectrogramFn = async (drawerContents, openedVia, onInput): Promise<number | undefined> => {
+  private async _doModal<T>(drawerContents: Portal<any>, openedVia: FocusOrigin | undefined, donePromise: Promise<T>, newModalState: { doneClick?: () => void }): Promise<T | undefined> {
     if (this.drawer.opened) throw new Error('already modal picking');
-    const event2time = (event: MouseEvent) => {
-      const visBounds = this.visElem.nativeElement.getBoundingClientRect();
-      return (event.clientX - visBounds.x) / visBounds.width * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
-    }
-    const modalEnd = new rxjs.Subject<void>();
-
     try {
       this.portalOutlet.portal = drawerContents;
       this.drawer.open(openedVia);
       this.drawerElem.nativeElement.focus();
-
-      const inputEnd = onInput({
-        mousedown:
-          rxjs.fromEvent(this.visElem.nativeElement, 'mousedown')
-            .pipe(rxjs.takeUntil(modalEnd), rxjs.map(ev => event2time(ev as MouseEvent))),
-        mousemove:
-          rxjs.merge(
-            rxjs.fromEvent(this.visElem.nativeElement, 'mousemove').pipe(rxjs.map(ev => event2time(ev as MouseEvent))),
-            rxjs.fromEvent(this.visElem.nativeElement, 'mouseleave').pipe(rxjs.map(() => undefined)),
-          ).pipe(rxjs.takeUntil(modalEnd)),
-        mouseup:
-          rxjs.fromEvent(this.visElem.nativeElement, 'mouseup')
-            .pipe(rxjs.takeUntil(modalEnd), rxjs.map(ev => {
-              const visBounds = this.visElem.nativeElement.getBoundingClientRect();
-              if (lodash.inRange((ev as MouseEvent).clientX, visBounds.left, visBounds.right)) {
-                return event2time(ev as MouseEvent);
-              } else {
-                return undefined;
-              }
-            })),
-        click:
-          rxjs.fromEvent(this.visElem.nativeElement, 'click')
-            .pipe(rxjs.takeUntil(modalEnd), rxjs.map(ev => event2time(ev as MouseEvent))),
-      });
-
-      let cancelResolve!: () => void;
-      const cancelButtonClick = new Promise<number | undefined>(resolve => { cancelResolve = () => resolve(undefined); });
-
-      this.modalState = { drawerCancel: cancelResolve };
-      return await Promise.race<number | undefined>([
-        inputEnd,
-        cancelButtonClick,
+      this.modalState = newModalState;
+      return await Promise.race([
+        donePromise,
         rxjs.firstValueFrom(this.drawer.closedStart, { defaultValue: undefined }).then(() => undefined),
       ]);
     } finally {
       this.modalState = undefined;
-      this.drawer.close().then(() => this.portalOutlet.detach());
-      modalEnd.next();
-      modalEnd.complete();
+      this.drawer.close().then(v => { if (v === 'close') this.portalOutlet.detach() });
     }
   }
 
-  onVisClick(event: MouseEvent) {
-    if (!this.modalState) return;
-    event.preventDefault();
-    event.stopPropagation();
+  readonly modalSpectrogramEdit: ModalSpectrogramEdit = {
+    click: async (
+      drawerContents: Portal<any>,
+      openedVia: FocusOrigin | undefined,
+      accept: (v: number) => boolean,
+      onInput: (v: number | undefined) => void
+    ): Promise<number | undefined> => {
+      const onInputSub = rxjs.merge(
+        rxjs.fromEvent(this.visElem.nativeElement, 'mousemove').pipe(rxjs.map(this.event2time), rxjs.map(v => accept(v) ? v : undefined), rxjs.distinctUntilChanged()),
+        rxjs.fromEvent(this.visElem.nativeElement, 'mouseleave').pipe(rxjs.map(() => undefined)),
+      ).subscribe(onInput);
+      const donePromise = rxjs.firstValueFrom(rxjs.fromEvent(this.visElem.nativeElement, 'click').pipe(rxjs.map(this.event2time), rxjs.filter(accept)));
+      try {
+        return await this._doModal(drawerContents, openedVia, donePromise, {});
+      } finally {
+        onInputSub.unsubscribe();
+      }
+    },
+
+    drag: async (
+      drawerContents: Portal<any>,
+      openedVia: FocusOrigin | undefined,
+      interpretDrag: (start: number, end: number) => number | undefined,
+      onInput: (v: number) => void
+    ): Promise<number | undefined> => {
+      let accumDrag = 0;
+      let dragStart: number | undefined;
+      let mouseInbounds = false;
+      const onInputSub = rxjs.merge(
+        rxjs.fromEvent(this.visElem.nativeElement, 'mousedown'),
+        rxjs.fromEvent(this.visElem.nativeElement, 'mousemove'),
+        rxjs.fromEvent(this.visElem.nativeElement, 'mouseleave'),
+        rxjs.fromEvent(document, 'mouseup'),
+      ).subscribe(ev => {
+        switch (ev.type) {
+          case 'mousedown':
+            if (dragStart === undefined) dragStart = this.event2time(ev);
+            mouseInbounds = true;
+            break;
+          case 'mousemove':
+            if (dragStart !== undefined) onInput(accumDrag + (interpretDrag(dragStart, this.event2time(ev)) ?? 0));
+            mouseInbounds = true;
+            break;
+          case 'mouseleave':
+            if (dragStart !== undefined) onInput(accumDrag);
+            mouseInbounds = false;
+            break;
+          case 'mouseup':
+            if (dragStart !== undefined && mouseInbounds) accumDrag += interpretDrag(dragStart, this.event2time(ev)) ?? 0;
+            dragStart = undefined;
+            mouseInbounds = false;
+            break;
+        }
+      });
+      let resolveDone!: () => void;
+      const doneClicked = new Promise<void>(resolve => resolveDone = resolve);
+      try {
+        return await this._doModal(drawerContents, openedVia, doneClicked.then(() => accumDrag), { doneClick: resolveDone })
+      } finally {
+        onInputSub.unsubscribe();
+      }
+    },
+  }
+
+  private readonly event2time = (event: Event) => {
+    const visBounds = this.visElem.nativeElement.getBoundingClientRect();
+    return ((event as MouseEvent).clientX - visBounds.x) / visBounds.width * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
   }
 }
 
