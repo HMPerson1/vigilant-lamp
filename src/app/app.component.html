@@ -148,7 +148,7 @@
   </mat-sidenav-content>
   <mat-sidenav mode="over" position="end" [style.width.px]="settings_panel.offsetWidth" autoFocus="dialog" #drawer>
     <div class="drawer-contents">
-      <div>
+      <div style="width: 100%;">
         <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
       </div>
       <button mat-stroked-button (click)="modalState?.drawerCancel()">CANCEL</button>

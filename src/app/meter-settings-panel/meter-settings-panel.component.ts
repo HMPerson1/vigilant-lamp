@@ -128,7 +128,7 @@ export class MeterSettingsPanelComponent {
 
     try {
       const newTempo = await this.modalPickFn(
-        this.portalHelpOffsetEdit,
+        this.portalHelpTempoEdit,
         'mouse',
         async ({ mousedown, mousemove, mouseup }) => {
           let dragStart: number | undefined;
@@ -144,7 +144,7 @@ export class MeterSettingsPanelComponent {
             return this.liveMeter.emit({ ...initMeter, bpm: newTempo * (dragStart !== undefined && v !== undefined ? (dragStart - initMeter.startOffset) / (v - initMeter.startOffset) : 1) });
           });
 
-          await rxjs.firstValueFrom(this.editOffsetDone$);
+          await rxjs.firstValueFrom(this.editTempoDone$);
           return newTempo;
         }
       );
