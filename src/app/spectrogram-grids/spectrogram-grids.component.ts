@@ -107,7 +107,7 @@ export class SpectrogramGridsComponent {
     if (secPerBeat / render.timePerPixel < 10) {
       const secPerMeasure = secPerBeat * beatsPerMeasure;
       const firstMeasure = Math.ceil(firstBeat / beatsPerMeasure);
-      const firstMeasureTime = beat2time(meter, firstMeasure);
+      const firstMeasureTime = beat2time(meter, firstMeasure * beatsPerMeasure);
       const length = Math.ceil((render.timeMax - firstMeasureTime) / secPerMeasure);
       if (length > 2000) throw new Error("too many beats");
       this.beatGrid = Array.from({ length }, (_x, i) => ({ x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)), m: true }))
