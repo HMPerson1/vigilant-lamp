@@ -20,7 +20,9 @@ export class MeterSettingsPanelComponent {
   @ViewChild("portalHelpOffset") portalHelpOffset!: CdkPortal;
   @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
   @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
+  @ViewChild("portalHelpTempoEdit") portalHelpTempoEdit!: CdkPortal;
   editOffsetDone$ = new rxjs.Subject<void>();
+  editTempoDone$ = new rxjs.Subject<void>();
 
 
   constructor(private project: ProjectService) {
@@ -111,6 +113,45 @@ export class MeterSettingsPanelComponent {
 
       this.project.modify(
         ProjectLens(['meter', 'startOffset']).set(Math.round(newOffset * 100000) / 100000),
+      )
+    } finally {
+      this.liveMeter.emit(this.project.project?.meter);
+    }
+  }
+
+  async onTempoEditClick(event: MouseEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const initMeter = this.project.project?.meter;
+    if (!this.modalPickFn || !initMeter) return;
+
+    try {
+      const newTempo = await this.modalPickFn(
+        this.portalHelpOffsetEdit,
+        'mouse',
+        async ({ mousedown, mousemove, mouseup }) => {
+          let dragStart: number | undefined;
+          let newTempo = initMeter.bpm;
+          mousedown.forEach(v => {
+            if (dragStart === undefined) dragStart = v;
+          });
+          mouseup.forEach(v => {
+            if (dragStart !== undefined && v !== undefined) newTempo *= (dragStart - initMeter.startOffset) / (v - initMeter.startOffset);
+            dragStart = undefined;
+          });
+          mousemove.forEach(v => {
+            return this.liveMeter.emit({ ...initMeter, bpm: newTempo * (dragStart !== undefined && v !== undefined ? (dragStart - initMeter.startOffset) / (v - initMeter.startOffset) : 1) });
+          });
+
+          await rxjs.firstValueFrom(this.editOffsetDone$);
+          return newTempo;
+        }
+      );
+      if (newTempo === undefined) return;
+
+      this.project.modify(
+        ProjectLens(['meter', 'bpm']).set(Math.round(100 * newTempo) / 100),
       )
     } finally {
       this.liveMeter.emit(this.project.project?.meter);

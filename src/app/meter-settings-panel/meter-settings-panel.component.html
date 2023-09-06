@@ -14,7 +14,7 @@
       <mat-label>Tempo</mat-label>
       <input matInput type="number" [formControl]="projectMeterCtrls.bpm" min="0" step="any">
       <mat-hint>Beats per minute</mat-hint>
-      <button mat-icon-button matSuffix matTooltip="Set by mouse"
+      <button mat-icon-button matSuffix matTooltip="Set by mouse" (click)="onTempoEditClick($event)"
         [disabled]="!isMeterSet"><mat-icon>edit</mat-icon></button>
     </mat-form-field>
   </div>
@@ -65,4 +65,10 @@
   <h1>Editing Start Offset</h1>
   <span style="font-size: medium;">Click <em> and drag</em> on the spectrogram change the start offset</span>
   <button mat-raised-button color="primary" class="help-done" (click)="editOffsetDone$.next()">DONE</button>
+</ng-template>
+
+<ng-template cdkPortal #portalHelpTempoEdit="cdkPortal">
+  <h1>Editing Tempo</h1>
+  <span style="font-size: medium;">Click <em> and drag</em> on the spectrogram change the tempo</span>
+  <button mat-raised-button color="primary" class="help-done" (click)="editTempoDone$.next()">DONE</button>
 </ng-template>
