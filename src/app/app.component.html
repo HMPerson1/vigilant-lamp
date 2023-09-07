@@ -1,85 +1,159 @@
-<div class="content fill-screen" role="main" style="width: 100%; padding: 4px; display: flex; overflow: hidden;">
-  <div class="groove-border" style="flex: 4; background-color: black;" (wheel)="$event.preventDefault()">
-    <div style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%;"
-      (mousemove)="visCursorX = $event.offsetX" (mouseleave)="visCursorX = undefined">
-      <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin"
-        [(timeMax)]="vizTimeMax"></app-audio-waveform>
-      <mat-divider style="border-color: gray;"></mat-divider>
-      <app-audio-spectrogram style="flex: 1;" [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
-        [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
-        [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
-        [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType" [showCrosshair]="showCrosshair"
-        [showOvertones]="showOvertones"></app-audio-spectrogram>
-      <div class="crosshair" style="width: 1px;" [style.left.px]="visCursorX || 0"
-        [hidden]="!showCrosshair || visCursorX === undefined"></div>
-    </div>
-  </div>
-  <div class="groove-border settings-panel" style="flex: 1; padding: 4px 8px; display: flex; flex-direction: column;">
-    <div style="display: flex; align-items: center;">
-      <button mat-raised-button color="primary" (click)="fileInput.click()">Set Music</button>
-      <input #fileInput type="file" hidden (change)="onFileSelected($event)" accept="audio/*">
-      <div style="flex: 1; padding: 0 16px; display: flex;">
-        <button mat-icon-button aria-label="Play" (click)="startPlayback()" [disabled]="!audioFile">
-          <mat-icon>play_arrow</mat-icon>
-        </button>
-        <button mat-icon-button aria-label="Stop" (click)="stopPlayback()" [disabled]="!audioBufSrcNode">
-          <mat-icon>stop</mat-icon>
-        </button>
+<mat-sidenav-container class="fill-container" hasBackdrop="false" style="user-select: none;">
+  <mat-sidenav-content class="content fill-container" role="main">
+    <div class="groove-border" style="background-color: #000;" (wheel)="$event.preventDefault()">
+      <div
+        style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
+        (mousemove)="visMouseX.next($event.offsetX)" (mouseleave)="visMouseX.next(undefined)">
+        <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
+          (click)="onWaveformClick($event)"></app-audio-waveform>
+        <mat-divider style="border-color: gray;"></mat-divider>
+        <div style="flex: 1" class="stacking">
+          <app-audio-spectrogram style="width: 100%; height: 100%;" [audioData]="audioData" [(timeMin)]="vizTimeMin"
+            [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin"
+            [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"
+            [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
+          <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
+            [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
+            [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
+            (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor" #visElem></app-spectrogram-grids>
+        </div>
+        <div class="crosshair" style="width: 1px; background-color: red;"
+          [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>
+        <div class="crosshair" style="width: 1px;" [style.transform]="'translateX('+(visMouseX.value || 0)+'px)'"
+          [hidden]="!showCrosshair || visMouseX.value === undefined"></div>
       </div>
     </div>
-    <div style="padding: 16px 0; display: flex; flex-direction: column;">
-      <label>
-        Spectral Power Scale
-        <mat-slider min="-100" max="10" step="1">
-          <input matSliderStartThumb [(value)]="specDbMin">
-          <input matSliderEndThumb [(value)]="specDbMax">
-        </mat-slider>
-      </label>
-      <label>
-        Time vs. Frequency Resolution
-        <mat-slider min="10" max="16" step="0.5">
-          <input matSliderThumb [(value)]="specLgWindowSize">
-        </mat-slider>
-      </label>
-      <label>
-        Time Sampling
-        <mat-slider min="0" [max]="TIME_STEP_INPUT_MAX" step="1">
-          <input matSliderThumb [(value)]="specTimeStepInput">
-        </mat-slider>
-      </label>
-      <label>
-        Freqency Sampling
-        <mat-slider min="-1" max="3" step="1">
-          <input matSliderThumb [(value)]="specLgExtraPad">
-        </mat-slider>
-      </label>
-      <label class="inline-comp">
-        Cursor Crosshair
-        <mat-slide-toggle [(ngModel)]="showCrosshair"></mat-slide-toggle>
-      </label>
-      <label class="inline-comp">
-        Cursor Overtones
-        <mat-slide-toggle [(ngModel)]="showOvertones" [disabled]="!showCrosshair"></mat-slide-toggle>
-      </label>
-      <label class="inline-comp">
-        Pitch Grid
-        <mat-slide-toggle [(ngModel)]="showPitchGrid"></mat-slide-toggle>
-      </label>
-      <label class="inline-comp">
-        Pitch Labels
-        <mat-button-toggle-group [(ngModel)]="pitchLabelType">
-          <mat-button-toggle value="none">None</mat-button-toggle>
-          <mat-button-toggle value="midi">MIDI</mat-button-toggle>
-          <mat-button-toggle value="sharp">&sharp;</mat-button-toggle>
-          <mat-button-toggle value="flat">&flat;</mat-button-toggle>
-        </mat-button-toggle-group>
-      </label>
+    <div class="groove-border settings-panel" #settings_panel>
+      <div class="file-toolbar">
+        <div class="stacking">
+          <button mat-icon-button matTooltip="New Project" color="primary"
+            (click)="newProject(); settings_panel.offsetWidth" [disabled]="!!loading">
+            <mat-icon>note_add</mat-icon>
+          </button>
+          <div style="padding: 4px;" [hidden]="loading !== 'new'">
+            <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+          </div>
+        </div>
+        <div class="stacking">
+          <button mat-icon-button matTooltip="Open" color="primary" (click)="loadProject()" [disabled]="!!loading">
+            <mat-icon>file_open</mat-icon>
+          </button>
+          <div style="padding: 4px;" [hidden]="loading !== 'open'">
+            <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+          </div>
+        </div>
+        <button mat-icon-button *ngIf="browserFsApiSupported" matTooltip="Save" color="primary" (click)="saveProject()"
+          [disabled]="!hasProject">
+          <mat-icon>save</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)"
+          [disabled]="!hasProject">
+          <mat-icon>save_as</mat-icon>
+        </button>
+        <div style="flex: 1;"></div>
+        <button mat-icon-button matTooltip="Undo" color="primary" (click)="project.undo()"
+          [disabled]="!hasProject || !project.canUndo()">
+          <mat-icon>undo</mat-icon>
+        </button>
+        <button mat-icon-button matTooltip="Redo" color="primary" (click)="project.redo()"
+          [disabled]="!hasProject || !project.canRedo()">
+          <mat-icon>redo</mat-icon>
+        </button>
+      </div>
+      <app-audio-player [(playheadPos)]="playheadPos" [audioBuffer]="audioBuffer"></app-audio-player>
+      <mat-accordion>
+        <mat-expansion-panel [disabled]="!hasProject">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              View Settings
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <label>
+            Spectral Power Scale
+            <mat-slider min="-100" max="10" step="1">
+              <input matSliderStartThumb [(ngModel)]="specDbMin">
+              <input matSliderEndThumb [(ngModel)]="specDbMax">
+            </mat-slider>
+          </label>
+          <label>
+            Time vs. Frequency Resolution
+            <mat-slider min="10" max="16" step="0.5">
+              <input matSliderThumb [(ngModel)]="specLgWindowSize">
+            </mat-slider>
+          </label>
+          <label>
+            Time Sampling
+            <mat-slider min="0" [max]="TIME_STEP_INPUT_MAX" step="1">
+              <input matSliderThumb [(ngModel)]="specTimeStepInput">
+            </mat-slider>
+          </label>
+          <label>
+            Freqency Sampling
+            <mat-slider min="-1" max="3" step="1">
+              <input matSliderThumb [(ngModel)]="specLgExtraPad">
+            </mat-slider>
+          </label>
+          <label class="inline-comp">
+            Pointer Crosshair
+            <mat-slide-toggle [(ngModel)]="userShowCrosshair"></mat-slide-toggle>
+          </label>
+          <label class="inline-comp">
+            Pointer Overtones
+            <mat-slide-toggle [(ngModel)]="showOvertones" [disabled]="!userShowCrosshair"></mat-slide-toggle>
+          </label>
+          <label class="inline-comp">
+            Pitch Grid
+            <mat-slide-toggle [(ngModel)]="showPitchGrid"></mat-slide-toggle>
+          </label>
+          <label class="inline-comp">
+            Beat Grid
+            <mat-slide-toggle [(ngModel)]="userShowBeatGrid" [disabled]="!hasProjectMeter"
+              [matTooltip]="!hasProjectMeter ? 'Meter has not been set' : ''"></mat-slide-toggle>
+          </label>
+          <label class="inline-comp">
+            Pitch Labels
+            <mat-button-toggle-group [(ngModel)]="pitchLabelType">
+              <mat-button-toggle value="none">None</mat-button-toggle>
+              <mat-button-toggle value="midi">MIDI</mat-button-toggle>
+              <mat-button-toggle value="sharp">&sharp;</mat-button-toggle>
+              <mat-button-toggle value="flat">&flat;</mat-button-toggle>
+            </mat-button-toggle-group>
+          </label>
+          <label style="display: none;" class="inline-comp">
+            [DEBUG] downsample
+            <mat-button-toggle-group [(ngModel)]="debug_downsample">
+              <mat-button-toggle value="0">0</mat-button-toggle>
+              <mat-button-toggle value="1">1</mat-button-toggle>
+              <mat-button-toggle value="2">2</mat-button-toggle>
+            </mat-button-toggle-group>
+          </label>
+        </mat-expansion-panel>
+        <mat-expansion-panel [disabled]="!hasProject" [(expanded)]="meterPanelExpanded">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              Meter Settings
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <app-meter-settings-panel [modalEdit]="modalSpectrogramEdit"
+            (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
+        </mat-expansion-panel>
+      </mat-accordion>
+      <div style="margin-top: auto;">
+        <div> Secure context: {{ secCtx }} </div>
+        <div> Cross-origin isolated: {{ coi }} </div>
+        <div> AudioContext sample rate: {{ audioContext.sampleRate }} </div>
+        <div> Hardware concurrency: {{ hwCcur }} </div>
+      </div>
     </div>
-    <div style="margin-top: auto;">
-      <div> Secure context: {{ secCtx }} </div>
-      <div> Cross-origin isolated: {{ coi }} </div>
-      <div> AudioContext sample rate: {{ audioContext.sampleRate }} </div>
-      <div> Hardware concurrency: {{ hwCcur }} </div>
+  </mat-sidenav-content>
+  <mat-sidenav mode="over" position="end" [style.width.px]="settings_panel.offsetWidth" autoFocus="dialog" #drawer>
+    <div class="drawer-contents">
+      <div style="width: 100%;">
+        <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
+        <button mat-raised-button color="primary" class="drawer-done" [hidden]="modalState?.doneClick === undefined"
+          (click)="modalState?.doneClick!()">DONE</button>
+      </div>
+      <button mat-stroked-button (click)="drawer.close()">CANCEL</button>
     </div>
-  </div>
-</div>
+  </mat-sidenav>
+</mat-sidenav-container>

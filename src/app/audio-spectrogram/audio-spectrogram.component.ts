@@ -1,12 +1,10 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
-import { midiToNoteName } from '@tonaljs/midi';
-import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
-import { animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, Observable, of, scan, switchMap } from 'rxjs';
+import { Observable, animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, GenSpecTile, isNotUndefined, RenderWindowParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
-import { doScrollZoomPitch, doScrollZoomTime, PitchLabelType, resizeObservable } from '../ui-common';
+import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
+import { doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -20,7 +18,6 @@ type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
 @Component({
   selector: 'app-audio-spectrogram',
   templateUrl: './audio-spectrogram.component.html',
-  styleUrls: ['./audio-spectrogram.component.css']
 })
 export class AudioSpectrogramComponent {
   @ViewChild('spectrogram_canvas') spectrogramCanvas?: ElementRef<HTMLCanvasElement>;
@@ -52,14 +49,7 @@ export class AudioSpectrogramComponent {
   @Input() fftLgExtraPad: number = 0;
   fftLgExtraPad$: Observable<number>;
 
-  @Input() showPitchGrid: boolean = false;
-  showPitchGrid$: Observable<boolean>;
-  @Input() pitchLabelType: PitchLabelType = 'sharp';
-  pitchLabelType$: Observable<PitchLabelType>;
-
-  cursorY?: number;
-  @Input() showCrosshair: boolean = true;
-  @Input() showOvertones: boolean = false;
+  @Input() debug_downsample: number = 0;
 
   constructor() {
     const toObs = fromInput(this);
@@ -74,8 +64,8 @@ export class AudioSpectrogramComponent {
     this.timeStep$ = toObs('timeStep')
     this.fftLgWindowSize$ = toObs('fftLgWindowSize')
     this.fftLgExtraPad$ = toObs('fftLgExtraPad')
-    this.showPitchGrid$ = toObs('showPitchGrid')
-    this.pitchLabelType$ = toObs('pitchLabelType')
+
+    const debug_downsample$ = toObs('debug_downsample')
 
     const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
 
@@ -104,11 +94,13 @@ export class AudioSpectrogramComponent {
 
     const hiresTileWork$: Observable<SpectrogramWork> = combineLatest({
       timeStep: this.timeStep$,
+      mode: debug_downsample$,
       ...renderWinParam$s
     })
     // TODO: inefficient; can request just the dirty rect
     const loresTileWork$: Observable<SpectrogramWork> = combineLatest({
       timeStep: of(32),
+      mode: debug_downsample$,
       ...renderWinParam$s
     })
 
@@ -157,24 +149,21 @@ export class AudioSpectrogramComponent {
     combineLatest({
       hiresTileBmp: hiresTileBmp$,
       loresTileBmp: loresTileBmp$,
-      showPitchScale: this.showPitchGrid$,
-      pitchLabelType: this.pitchLabelType$,
       ...renderWinParam$s
-    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(render => {
+    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(winParams => {
       if (!this.spectrogramCanvas) return
 
       const specCanvas = this.spectrogramCanvas.nativeElement
-      specCanvas.width = render.canvasWidth
-      specCanvas.height = render.canvasHeight
+      specCanvas.width = winParams.canvasWidth
+      specCanvas.height = winParams.canvasHeight
       const specCanvasCtx = specCanvas.getContext('2d')!
       specCanvasCtx.imageSmoothingEnabled = false
       specCanvasCtx.fillStyle = 'gray'
       specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
 
-      const canvasTile = new GenSpecTile(render, specCanvas);
-      renderTile(canvasTile, render.loresTileBmp, specCanvasCtx);
-      renderTile(canvasTile, render.hiresTileBmp, specCanvasCtx);
-      renderPitchScale(canvasTile, specCanvasCtx, render.showPitchScale, render.pitchLabelType);
+      const canvasTile = new GenSpecTile(winParams, specCanvas);
+      renderTile(canvasTile, winParams.loresTileBmp, specCanvasCtx);
+      renderTile(canvasTile, winParams.hiresTileBmp, specCanvasCtx);
     })
   }
 
@@ -199,18 +188,12 @@ export class AudioSpectrogramComponent {
     }
     if (deltaX) {
       doScrollZoomTime(
-        this, 'timeMin', 'timeMax', this.audioData?.timeLen,
+        this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
         deltaX, event.ctrlKey, event.offsetX / specCanvas.clientWidth
       )
       this.timeMinChange.emit(this.timeMin)
       this.timeMaxChange.emit(this.timeMax)
     }
-  }
-
-  overtoneOffsetY(n: number): number {
-    if (!this.spectrogramCanvas) return 0;
-    const pxPerPitch = this.spectrogramCanvas.nativeElement.clientHeight / (this.pitchMax - this.pitchMin);
-    return Math.round(Math.log2(n) * 12 * pxPerPitch);
   }
 }
 
@@ -220,71 +203,6 @@ function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx:
   const yScale = tile.pitchPerPixel / render.pitchPerPixel;
   const yOffset = render.pitch2y(tile.pitchMax);
   specCanvasCtx.drawImage(tile.inner, xOffset, yOffset, tile.width * xScale, tile.height * yScale);
-}
-
-function renderPitchScale(render: SpecTileCanvas, specCanvasCtx: CanvasRenderingContext2D, grid: boolean, label: PitchLabelType) {
-  const forEachPitch = (f: (pitch: number) => void) => {
-    for (let pitch = Math.floor(render.pitchMin); pitch <= Math.ceil(render.pitchMax); pitch++) {
-      f(pitch)
-    }
-  }
-
-  specCanvasCtx.save();
-  specCanvasCtx.translate(0, 0.5);
-
-  if (grid) {
-    specCanvasCtx.save();
-    specCanvasCtx.lineWidth = 1;
-    specCanvasCtx.strokeStyle = 'green'
-    specCanvasCtx.beginPath();
-    forEachPitch((_pitch) => {
-      const y = Math.round(render.pitch2y(_pitch - .5));
-      specCanvasCtx.moveTo(0, y);
-      specCanvasCtx.lineTo(render.width, y);
-    })
-    specCanvasCtx.stroke();
-    specCanvasCtx.restore();
-
-    if (1 / render.pitchPerPixel > 30) {
-      specCanvasCtx.save();
-      specCanvasCtx.strokeStyle = 'gray'
-      specCanvasCtx.setLineDash([8, 8])
-      specCanvasCtx.beginPath()
-      forEachPitch((pitch) => {
-        const y = Math.round(render.pitch2y(pitch));
-        specCanvasCtx.moveTo(0, y);
-        specCanvasCtx.lineTo(render.width, y);
-      })
-      specCanvasCtx.stroke()
-      specCanvasCtx.restore();
-    }
-  }
-
-  if (label != 'none') {
-    specCanvasCtx.save();
-    specCanvasCtx.strokeStyle = 'black';
-    specCanvasCtx.fillStyle = 'white';
-    specCanvasCtx.lineWidth = 3;
-    specCanvasCtx.textBaseline = 'alphabetic';
-    const fontSize = lodash.clamp(Math.round(.8 / render.pitchPerPixel), 12, 20);
-    specCanvasCtx.font = `${fontSize}px sans-serif`
-    forEachPitch((pitch) => {
-      const pitchStr = pitchLabel(label, pitch);
-      const textMetrics = specCanvasCtx.measureText(pitchStr);
-      const textHeight = textMetrics.fontBoundingBoxAscent + textMetrics.fontBoundingBoxDescent;
-      const textBaseline = render.pitch2y(pitch) + textMetrics.fontBoundingBoxAscent - textHeight / 2;
-      specCanvasCtx.strokeText(pitchStr, 1, textBaseline);
-      specCanvasCtx.fillText(pitchStr, 1, textBaseline);
-    })
-    specCanvasCtx.restore();
-  }
-
-  specCanvasCtx.restore();
-}
-
-function pitchLabel(label: PitchLabelType, pitch: number): string {
-  if (label === 'midi') return `${pitch}`;
-  return midiToNoteName(pitch, { sharps: label === 'sharp' }).replace('#', '♯').replace('b', '♭');
 }
 
 // NB: design decision to NOT store FFT results since the memory consumption would be too high

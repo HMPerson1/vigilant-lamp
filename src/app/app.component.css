@@ -1,6 +1,37 @@
+.content {
+  display: grid;
+  grid: 1fr / 7fr minmax(360px, 2fr);
+  overflow: hidden;
+}
+
 .groove-border {
   border: 4px;
   border-style: groove;
+}
+
+.settings-panel {
+  padding: 8px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.file-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.stacking {
+  contain: layout;
+}
+
+.stacking>*:not(:first-child) {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
 }
 
 .settings-panel label {
@@ -19,4 +50,28 @@
 
 .settings-panel mat-slider {
   display: block;
+}
+
+.drawer-contents {
+  padding: 8px;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  grid: 1fr 1fr / auto;
+  gap: 16px;
+}
+
+.drawer-contents>*:first-child {
+  align-self: flex-end;
+  justify-self: center;
+}
+
+.drawer-done {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.drawer-contents>*:last-child {
+  align-self: flex-start;
 }
