@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, distinctUntilChanged } from 'rxjs';
 import { AudioSamples } from './common';
 import { Project, defaultMeter } from './ui-common';
 
@@ -16,6 +16,9 @@ export class ProjectService {
   private _prevModTime?: number;
   private _project$ = new Subject<Project>();
   get project$(): Observable<Project> { return this._project$ }
+  private _lastSaved?: Project;
+  private _isUnsaved$ = new Subject<boolean>();
+  readonly isUnsaved$: Observable<boolean> = this._isUnsaved$.pipe(distinctUntilChanged());
 
   // invariant: _project.length == 0 || 0 <= _current < _project.length
 
@@ -24,7 +27,8 @@ export class ProjectService {
   private _onChange(ft?: string, mt?: number) {
     this._prevModFusionTag = ft;
     this._prevModTime = mt;
-    this._project$.next(this.project!)
+    this._project$.next(this.project!);
+    this._isUnsaved$.next(!Object.is(this.project, this._lastSaved));
   }
 
   newProject(audioFile: Uint8Array, audio: AudioSamples) {
@@ -83,9 +87,13 @@ export class ProjectService {
     this._current++;
     this._onChange();
   }
+
+  markSaved() {
+    if (!this.project) return;
+    this._lastSaved = this.project;
+    this._isUnsaved$.next(false);
+  }
 }
 
 /** if two modifications are more than this many milliseconds apart, they will not be merged */
 const MAX_FUSION_TIMEOUT: DOMHighResTimeStamp = 1000;
-
-// TODO: keep track of if project was modified since last save

@@ -19,7 +19,18 @@ import { Meter, ModalSpectrogramEdit, PitchLabelType } from './ui-common';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService, private titleService: Title) { }
+  constructor(private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService, titleService: Title) {
+    rxjs.combineLatest({ unsaved: project.isUnsaved$, name: this.#projectName$ }).forEach(({ unsaved, name }) =>
+      titleService.setTitle(`${name ?? '(unsaved project)'}${unsaved ? '*' : ''} - Vigilant Lamp`)
+    );
+    project.isUnsaved$.forEach(unsaved => {
+      if (unsaved) {
+        addEventListener('beforeunload', beforeUnloadListener);
+      } else {
+        removeEventListener('beforeunload', beforeUnloadListener);
+      }
+    })
+  }
 
   readonly TIME_STEP_INPUT_MAX = 5
 
@@ -44,11 +55,12 @@ export class AppComponent {
   userShowBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
 
+  #projectName$ = new rxjs.Subject<String | undefined>();
   #projectFileHandle?: FileSystemFileHandle;
   get projectFileHandle() { return this.#projectFileHandle }
   set projectFileHandle(p) {
     this.#projectFileHandle = p;
-    this.titleService.setTitle(`${p?.name || '(unsaved project)'} - Vigilant Lamp`);
+    this.#projectName$.next(p?.name);
   }
 
   get hasProject(): boolean { return !!this.project.project }
@@ -98,6 +110,7 @@ export class AppComponent {
     try {
       const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' })
       await this.project.fromBlob(projectFile)
+      this.project.markSaved();
       this.projectFileHandle = projectFile.handle
       this.vizTimeMin = 0
       this.vizTimeMax = audioSamplesDuration(this.project.project!.audio)
@@ -119,6 +132,7 @@ export class AppComponent {
         saveAs ? null : this.projectFileHandle,
         true,
       ) || undefined
+      this.project.markSaved();
     } catch (e) {
       console.log("error save project:", e);
       if (!isUserAbortException(e)) {
@@ -229,3 +243,6 @@ export class AppComponent {
 }
 
 const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
+
+// https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event
+const beforeUnloadListener = (ev: BeforeUnloadEvent) => { ev.preventDefault(); return (ev.returnValue = "");}
