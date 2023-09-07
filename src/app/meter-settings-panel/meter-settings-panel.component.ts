@@ -140,7 +140,7 @@ const bindProjectCtrl =
   <U>(lens: Lens<Project, U>, fusionTag?: string): (this: { project: ProjectService; }, formCtrl: FormControl<U>) => FormControl<U> =>
     function (formCtrl: FormControl<U>) {
       this.project.project$.forEach(prj => formCtrl.setValue(lens.get(prj), { emitEvent: false }));
-      formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid)).forEach(x => this.project.modify(lens.set(x), fusionTag));
+      formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid), rxjs.distinctUntilChanged()).forEach(x => this.project.modify(lens.set(x), fusionTag));
       return formCtrl;
     }
 
