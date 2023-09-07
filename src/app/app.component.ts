@@ -72,6 +72,7 @@ export class AppComponent {
 
   playheadPos: number = 0;
 
+  visCursor = "auto";
   /** offset space of `visElem` */
   visMouseX = new rxjs.BehaviorSubject<number | undefined>(undefined);
   userShowCrosshair: boolean = true;
@@ -182,21 +183,27 @@ export class AppComponent {
       const onInputSub = rxjs.merge(
         rxjs.fromEvent(this.visElem.nativeElement, 'mousemove').pipe(rxjs.map(this.event2time), rxjs.map(v => accept(v) ? v : undefined), rxjs.distinctUntilChanged()),
         rxjs.fromEvent(this.visElem.nativeElement, 'mouseleave').pipe(rxjs.map(() => undefined)),
-      ).subscribe(onInput);
+      ).subscribe(v => {
+        this.visCursor = v !== undefined ? "pointer" : "auto";
+        onInput(v);
+      });
       const donePromise = rxjs.firstValueFrom(rxjs.fromEvent(this.visElem.nativeElement, 'click').pipe(rxjs.map(this.event2time), rxjs.filter(accept)));
       try {
         return await this._doModal(drawerContents, openedVia, donePromise, {});
       } finally {
         onInputSub.unsubscribe();
+        this.visCursor = "auto";
       }
     },
 
     drag: async (
       drawerContents: Portal<any>,
       openedVia: FocusOrigin | undefined,
+      cursorStyle: 'grab' | 'resize',
       interpretDrag: (start: number, end: number) => number | undefined,
       onInput: (v: number) => void
     ): Promise<number | undefined> => {
+      if (cursorStyle === 'grab') this.visCursor = 'grab';
       let accumDrag = 0;
       let dragStart: number | undefined;
       let mouseInbounds = false;
@@ -209,10 +216,20 @@ export class AppComponent {
         switch (ev.type) {
           case 'mousedown':
             if (dragStart === undefined) dragStart = this.event2time(ev);
+            if (cursorStyle === 'grab') this.visCursor = 'grabbing';
             mouseInbounds = true;
             break;
           case 'mousemove':
-            if (dragStart !== undefined) onInput(accumDrag + (interpretDrag(dragStart, this.event2time(ev)) ?? 0));
+            const v = this.event2time(ev);
+            let cursorOk: boolean;
+            if (dragStart !== undefined) {
+              const drag = interpretDrag(dragStart, v);
+              onInput(accumDrag + (drag ?? 0));
+              cursorOk = drag !== undefined;
+            } else {
+              cursorOk = interpretDrag(v, v) !== undefined;
+            }
+            if (cursorStyle === 'resize') this.visCursor = cursorOk ? 'ew-resize' : 'auto';
             mouseInbounds = true;
             break;
           case 'mouseleave':
@@ -222,6 +239,7 @@ export class AppComponent {
           case 'mouseup':
             if (dragStart !== undefined && mouseInbounds) accumDrag += interpretDrag(dragStart, this.event2time(ev)) ?? 0;
             dragStart = undefined;
+            if (cursorStyle === 'grab') this.visCursor = 'grab';
             mouseInbounds = false;
             break;
         }
@@ -232,6 +250,7 @@ export class AppComponent {
         return await this._doModal(drawerContents, openedVia, doneClicked.then(() => accumDrag), { doneClick: resolveDone })
       } finally {
         onInputSub.unsubscribe();
+        this.visCursor = "auto";
       }
     },
   }
@@ -245,4 +264,4 @@ export class AppComponent {
 const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
 
 // https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event
-const beforeUnloadListener = (ev: BeforeUnloadEvent) => { ev.preventDefault(); return (ev.returnValue = "");}
+const beforeUnloadListener = (ev: BeforeUnloadEvent) => { ev.preventDefault(); return (ev.returnValue = ""); }

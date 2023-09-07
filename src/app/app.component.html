@@ -15,7 +15,7 @@
           <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
-            (wheel)="specElem.onWheel($event)" #visElem></app-spectrogram-grids>
+            (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor" #visElem></app-spectrogram-grids>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
           [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>

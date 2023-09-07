@@ -84,6 +84,7 @@ export class MeterSettingsPanelComponent {
       const offsetOffset = await this.modalEdit.drag(
         this.portalHelpOffsetEdit,
         'mouse',
+        'grab',
         (start, end) => end - start,
         v => this.liveMeter.emit({ ...initMeter, startOffset: initMeter.startOffset + v })
       );
@@ -108,6 +109,7 @@ export class MeterSettingsPanelComponent {
       const tempoScaleLn = await this.modalEdit.drag(
         this.portalHelpTempoEdit,
         'mouse',
+        'resize',
         (start, end) => start > initMeter.startOffset && end > initMeter.startOffset ? Math.log((start - initMeter.startOffset) / (end - initMeter.startOffset)) : undefined,
         v => this.liveMeter.emit({ ...initMeter, bpm: initMeter.bpm * Math.exp(v) }),
       );

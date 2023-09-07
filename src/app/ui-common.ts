@@ -125,6 +125,7 @@ export interface ModalSpectrogramEdit {
   drag: (
     drawerContents: Portal<any>,
     openedVia: FocusOrigin | undefined,
+    cursorStyle: 'grab' | 'resize',
     interpretDrag: (start: number, end: number) => number | undefined,
     onInput: (v: number) => void,
   ) => Promise<number | undefined>;
