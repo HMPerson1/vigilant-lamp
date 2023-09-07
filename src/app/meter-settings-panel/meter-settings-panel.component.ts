@@ -2,7 +2,7 @@ import { CdkPortal } from '@angular/cdk/portal';
 import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { flow } from 'fp-ts/function';
-import { Iso, Lens } from 'monocle-ts';
+import { Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
 import { Meter, ModalSpectrogramEdit, Project, ProjectLens } from '../ui-common';
@@ -152,15 +152,11 @@ const bindProjectMeterCtrl = <Name extends keyof Meter>(useFusionTag: boolean = 
   const fieldName: Name = ctxt.name;
   return bindProjectCtrl(ProjectLens(['meter', fieldName]), useFusionTag ? fieldName : undefined)
 }
-const bindProjectMeterCtrlWithIso = <Name extends keyof Meter, U>(useFusionTag: boolean = false, iso: Iso<Meter[Name], U>) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<U>> & { name: Name }) => {
-  const fieldName: Name = ctxt.name;
-  return bindProjectCtrl(ProjectLens(['meter', fieldName]).composeIso(iso), useFusionTag ? fieldName : undefined)
-}
 
 class ProjectMeterCtrls {
   constructor(readonly project: ProjectService) { }
 
-  @bindProjectMeterCtrlWithIso(true, new Iso(x => x * 1000, x => x / 1000))
+  @bindProjectMeterCtrl(true)
   startOffset = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
 
   @bindProjectMeterCtrl(true)
