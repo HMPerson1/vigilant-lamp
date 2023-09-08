@@ -4,6 +4,11 @@
   gap: 16px;
 }
 
+.big-button-row {
+  display: flex;
+  justify-content: space-between;
+}
+
 .input-row {
   display: flex;
   gap: 8px;

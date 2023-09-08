@@ -1,6 +1,12 @@
 <div class="container">
-  <div>
-    <button mat-raised-button color="primary" (click)="onPickAllClick()"><mat-icon>edit</mat-icon>SET ALL</button>
+  <div class="big-button-row">
+    <button mat-raised-button color="primary" (click)="onPickAllClick()" [disabled]="isMeterLocked">
+      <mat-icon>edit</mat-icon>SET ALL
+    </button>
+    <button mat-stroked-button (click)="onToggleLockClick()" [disabled]="!isMeterSet">
+      <mat-icon fontSet="material-icons-outlined">{{ isMeterLocked ? 'lock_open' : 'lock'}}</mat-icon>
+      {{ isMeterLocked ? 'UNLOCK' : 'LOCK'}}
+    </button>
   </div>
   <div class="input-row">
     <mat-form-field hideRequiredMarker>
@@ -8,14 +14,18 @@
       <input matInput type="number" [formControl]="projectMeterCtrls.startOffset" step="0.001">
       <mat-hint>Seconds</mat-hint>
       <button mat-icon-button matSuffix matTooltip="Set by mouse" (click)="onOffsetEditClick($event)"
-        [disabled]="!isMeterSet"><mat-icon>edit</mat-icon></button>
+        [disabled]="!isMeterActive">
+        <mat-icon>edit</mat-icon>
+      </button>
     </mat-form-field>
     <mat-form-field hideRequiredMarker>
       <mat-label>Tempo</mat-label>
       <input matInput type="number" [formControl]="projectMeterCtrls.bpm" min="0" step="1">
       <mat-hint>Beats per minute</mat-hint>
       <button mat-icon-button matSuffix matTooltip="Set by mouse" (click)="onTempoEditClick($event)"
-        [disabled]="!isMeterSet"><mat-icon>edit</mat-icon></button>
+        [disabled]="!isMeterActive">
+        <mat-icon>edit</mat-icon>
+      </button>
     </mat-form-field>
   </div>
   <div class="input-row">
@@ -25,16 +35,19 @@
     </mat-form-field>
     <mat-form-field hideRequiredMarker>
       <mat-label>Beat subdivision</mat-label>
-      <input matInput type="number" [formControl]="projectMeterCtrls.subdivision" min="1" [max]="PULSES_PER_BEAT" step="1">
+      <input matInput type="number" [formControl]="projectMeterCtrls.subdivision" min="1" [max]="PULSES_PER_BEAT"
+        step="1">
     </mat-form-field>
   </div>
   <div>
     <div>Adjust meter while keeping notes</div>
     <div class="icon-button-row">
-      <button mat-icon-button (click)="onOffsetBumpBeat(-1)" matTooltip="Back one beat"
-        [disabled]="!isMeterSet"><mat-icon>keyboard_arrow_left</mat-icon></button>
-      <button mat-icon-button (click)="onOffsetBumpBeat(+1)" matTooltip="Forward one beat"
-        [disabled]="!isMeterSet"><mat-icon>keyboard_arrow_right</mat-icon></button>
+      <button mat-icon-button (click)="onOffsetBumpBeat(-1)" matTooltip="Back one beat" [disabled]="!isMeterSet">
+        <mat-icon>keyboard_arrow_left</mat-icon>
+      </button>
+      <button mat-icon-button (click)="onOffsetBumpBeat(+1)" matTooltip="Forward one beat" [disabled]="!isMeterSet">
+        <mat-icon>keyboard_arrow_right</mat-icon>
+      </button>
       <button mat-icon-button (click)="onTempoMult(2, 1)" matTooltip="Double tempo" [disabled]="!isMeterSet">
         <div class="fake-icon"><span>&times;2</span></div>
       </button>
@@ -69,4 +82,15 @@
 <ng-template cdkPortal #portalHelpTempoEdit="cdkPortal">
   <h1>Editing Tempo</h1>
   <span style="font-size: medium;">Click <em> and drag</em> on the spectrogram change the tempo</span>
+</ng-template>
+
+<ng-template #meterUnlockDialog>
+  <h1 mat-dialog-title>Warning</h1>
+  <mat-dialog-content>
+    The timing of the notes you have placed will change if you change the meter.
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>CANCEL</button>
+    <button mat-button mat-dialog-close="okay">CONTINUE</button>
+  </mat-dialog-actions>
 </ng-template>

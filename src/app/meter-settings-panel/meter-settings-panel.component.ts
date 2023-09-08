@@ -1,6 +1,7 @@
 import { CdkPortal } from '@angular/cdk/portal';
-import { Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { Component, EventEmitter, Input, Output, TemplateRef, ViewChild } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
+import { MatDialog } from '@angular/material/dialog';
 import { flow } from 'fp-ts/function';
 import { Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
@@ -22,7 +23,7 @@ export class MeterSettingsPanelComponent {
   @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
   @ViewChild("portalHelpTempoEdit") portalHelpTempoEdit!: CdkPortal;
 
-  constructor(private project: ProjectService) {
+  constructor(private project: ProjectService, private dialog: MatDialog) {
     project.project$.pipe(rxjs.map((prj) => prj.meter.state === 'active'), rxjs.distinctUntilChanged()).forEach((isSet) => {
       if (isSet) {
         this.projectMeterCtrls.bpm.enable({ emitEvent: false })
@@ -37,7 +38,9 @@ export class MeterSettingsPanelComponent {
 
   projectMeterCtrls = new ProjectMeterCtrls(this.project);
 
-  get isMeterSet() { return this.project.project?.meter?.state !== 'unset' }
+  get isMeterSet() { return this.project.project?.meter.state !== 'unset' }
+  get isMeterActive() { return this.project.project?.meter.state === 'active' }
+  get isMeterLocked() { return this.project.project?.meter.state === 'locked' }
 
   async onPickAllClick() {
     const initMeter0 = this.project.project?.meter;
@@ -135,6 +138,22 @@ export class MeterSettingsPanelComponent {
       ProjectLens(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : x % factor === 0 ? x / factor : x),
     ))
     // TODO: this should adjust the representation of notes so that the real time stays constant
+  }
+
+  @ViewChild('meterUnlockDialog') meterUnlockDialog!: TemplateRef<this>;
+
+  onToggleLockClick() {
+    if (!this.isMeterSet) return;
+    if (this.isMeterLocked) {
+      this.dialog.open(this.meterUnlockDialog).afterClosed().subscribe(v => {
+        console.log(v);
+        if (v) {
+          this.project.modify(ProjectLens(['meter', 'state']).set('active'));
+        }
+      });
+    } else {
+      this.project.modify(ProjectLens(['meter', 'state']).set('locked'));
+    }
   }
 
   readonly PULSES_PER_BEAT = PULSES_PER_BEAT;
