@@ -5,7 +5,7 @@ import { flow } from 'fp-ts/function';
 import { Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
-import { Meter, ModalSpectrogramEdit, Project, ProjectLens } from '../ui-common';
+import { Meter, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectLens } from '../ui-common';
 
 @Component({
   selector: 'app-meter-settings-panel',
@@ -136,6 +136,8 @@ export class MeterSettingsPanelComponent {
     ))
     // TODO: this should adjust the representation of notes so that the real time stays constant
   }
+
+  readonly PULSES_PER_BEAT = PULSES_PER_BEAT;
 }
 
 const bindProjectCtrl =
@@ -166,7 +168,8 @@ class ProjectMeterCtrls {
   measureLength = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
 
   @bindProjectMeterCtrl()
-  subdivision = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
+  subdivision = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral, validSubdivision] });
 }
 
 const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });
+const validSubdivision: ValidatorFn = (x) => (96 % x.value == 0 ? null : { 'validSubdivision': x.value });

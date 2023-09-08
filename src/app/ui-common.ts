@@ -6,14 +6,15 @@ import { Lens } from 'monocle-ts';
 import { Observable } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
-// TODO: pulses per quarter? beat?
 // TODO: tempo changes? time sig changes?
+
+export const PULSES_PER_BEAT = 96;
 
 export interface Note extends t.TypeOf<typeof Note> { }
 export const Note = t.readonly(t.type({
-  /** in MIDI pulses at 96 ppq */
+  /** in pulses */
   start: t.number,
-  /** in MIDI pulses at 96 ppq */
+  /** in pulses */
   length: t.number,
   /** in MIDI pitch */
   pitch: t.number,

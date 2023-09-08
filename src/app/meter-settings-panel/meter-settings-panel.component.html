@@ -25,7 +25,7 @@
     </mat-form-field>
     <mat-form-field hideRequiredMarker>
       <mat-label>Beat subdivision</mat-label>
-      <input matInput type="number" [formControl]="projectMeterCtrls.subdivision" min="1" step="1">
+      <input matInput type="number" [formControl]="projectMeterCtrls.subdivision" min="1" [max]="PULSES_PER_BEAT" step="1">
     </mat-form-field>
   </div>
   <div>
