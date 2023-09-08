@@ -74,7 +74,7 @@ export class AppComponent {
 
   visCursor = "auto";
   /** offset space of `visElem` */
-  visMouseX = new rxjs.BehaviorSubject<number | undefined>(undefined);
+  visMouseX?: number;
   userShowCrosshair: boolean = true;
   get showCrosshair(): boolean { return this.modalState !== undefined ? false : this.userShowCrosshair }
   showOvertones: boolean = false;
@@ -132,7 +132,7 @@ export class AppComponent {
         { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
         saveAs ? null : this.projectFileHandle,
         true,
-      ) || undefined
+      ) ?? undefined
       this.project.markSaved();
     } catch (e) {
       console.log("error save project:", e);
