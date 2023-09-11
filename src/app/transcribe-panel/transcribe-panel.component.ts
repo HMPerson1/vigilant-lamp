@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { flow } from 'fp-ts/lib/function';
 import { ProjectService } from '../project.service';
 import { ProjectLens, indexReadonlyArray } from '../ui-common';
 
@@ -11,11 +12,10 @@ export class TranscribePanelComponent {
   constructor(readonly project: ProjectService) { }
 
   onAddPartClick() {
-    this.project.modify(ProjectLens(['parts']).modify(parts => {
-      const ret = [...parts];
-      ret.push({ notes: [], name: "New Part", instrument: undefined });
-      return ret;
-    }));
+    this.project.modify(flow(
+      ProjectLens(['meter', 'state']).set('locked'),
+      ProjectLens(['parts']).modify(parts => [...parts, { notes: [], name: "New Part", instrument: undefined }]),
+    ));
   }
 
   onDeletePartClick(idx: number) {
@@ -27,6 +27,7 @@ export class TranscribePanelComponent {
   }
 
   onPartEditClick(idx: any) {
+    // TODO: dialog
     this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(idx)).modify(x => {
       console.log('edit', idx, x);
       return x;
