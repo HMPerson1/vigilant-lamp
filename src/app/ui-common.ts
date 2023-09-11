@@ -24,6 +24,8 @@ export const Note = t.readonly(t.type({
 export interface Part extends t.TypeOf<typeof Part> { }
 export const Part = t.readonly(t.type({
   notes: t.readonlyArray(Note),
+  name: t.union([t.undefined, t.null, t.string]),
+  instrument: t.union([t.undefined, t.null, t.string]),
 }));
 
 export interface Meter extends t.TypeOf<typeof Meter> { }
@@ -131,3 +133,15 @@ export interface ModalSpectrogramEdit {
     onInput: (v: number) => void,
   ) => Promise<number | undefined>;
 }
+
+// love too have an extremely normal fp ecosystem
+export const indexReadonlyArray: <T>(i: number) => Lens<ReadonlyArray<T>, T> =
+  i => new Lens(
+    s => s[i],
+    a => s => {
+      if (a === s[i]) return s;
+      const s2 = [...s];
+      s2[i] = a;
+      return s2;
+    },
+  )

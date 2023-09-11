@@ -1,0 +1,23 @@
+<div class="container">
+  <mat-card *ngFor="let part of project.project?.parts; index as idx">
+    <mat-card-header>
+      <div mat-card-avatar class="part-card-avatar"></div>
+      <mat-card-title>{{ part.name }}</mat-card-title>
+      <mat-card-subtitle>{{ part.instrument }}</mat-card-subtitle>
+      <div style="flex: 1"></div>
+      <button mat-icon-button class="hack-small-icon-button card-overflow-menu" [matMenuTriggerFor]="partCardMenu"
+        [matMenuTriggerData]="{idx}"><mat-icon>more_vert</mat-icon></button>
+    </mat-card-header>
+    <mat-card-content>
+      <button mat-raised-button class="full-width" color="primary"><mat-icon>edit</mat-icon>TRANSCRIBE</button>
+    </mat-card-content>
+  </mat-card>
+  <button mat-stroked-button class="full-width" (click)="onAddPartClick()"><mat-icon>add</mat-icon>ADD PART</button>
+</div>
+
+<mat-menu #partCardMenu="matMenu">
+  <ng-template matMenuContent let-idx="idx">
+    <button mat-menu-item (click)="onPartEditClick(idx)">Edit</button>
+    <button mat-menu-item (click)="onDeletePartClick(idx)">Delete</button>
+  </ng-template>
+</mat-menu>

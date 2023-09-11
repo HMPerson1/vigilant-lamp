@@ -85,8 +85,9 @@ export class AppComponent {
   get displayedMeter(): Partial<Meter> | undefined { return this.meterPanelExpanded ? this.liveMeter : this.userShowBeatGrid ? this.project.project?.meter : undefined }
   liveMeter?: Partial<Meter>;
 
+  transcribePanelExpanded: boolean = false;
+
   async newProject() {
-    // TODO: track if modified; warn if losing data
     this.loading = 'new'
     try {
       const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })

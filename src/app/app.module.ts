@@ -3,12 +3,14 @@ import { NgModule } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatCardModule } from '@angular/material/card';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
@@ -25,6 +27,7 @@ import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
 import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
 import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
+import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
 
 @NgModule({
   declarations: [
@@ -33,7 +36,8 @@ import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids
     AudioSpectrogramComponent,
     AudioPlayerComponent,
     MeterSettingsPanelComponent,
-    SpectrogramGridsComponent
+    SpectrogramGridsComponent,
+    TranscribePanelComponent
   ],
   imports: [
     FormsModule,
@@ -52,6 +56,8 @@ import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids
     MatSnackBarModule,
     MatExpansionModule,
     MatSidenavModule,
+    MatCardModule,
+    MatMenuModule,
     PortalModule,
     BrowserModule,
     BrowserAnimationsModule

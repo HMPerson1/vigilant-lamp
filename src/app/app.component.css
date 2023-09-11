@@ -11,7 +11,7 @@
 
 .settings-panel {
   padding: 8px;
-  overflow: auto;
+  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   gap: 16px;

@@ -1,0 +1,19 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.part-card-avatar {
+  background-color: blue;
+}
+
+.card-overflow-menu {
+  margin-inline-end: -10px;
+  margin-block-start: 4px;
+}
+
+button.full-width {
+  display: block;
+  width: 100%;
+}

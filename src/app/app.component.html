@@ -137,6 +137,14 @@
           <app-meter-settings-panel [modalEdit]="modalSpectrogramEdit"
             (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
         </mat-expansion-panel>
+        <mat-expansion-panel [disabled]="!hasProject" [(expanded)]="transcribePanelExpanded">
+          <mat-expansion-panel-header>
+            <mat-panel-title>
+              Transcribe
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <app-transcribe-panel></app-transcribe-panel>
+        </mat-expansion-panel>
       </mat-accordion>
       <div style="margin-top: auto;">
         <div> Secure context: {{ secCtx }} </div>
