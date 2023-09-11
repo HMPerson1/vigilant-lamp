@@ -31,7 +31,7 @@ export class SpectrogramGridsComponent {
   pitchLabelFontSize = 0;
   overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
 
-  beatGrid: Array<{ x: number, m: boolean }> = [];
+  beatGrid: Array<{ x: number, m: boolean, s: boolean }> = [];
   @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
   #meter$ = new Subject<Partial<Meter> | undefined>();
 
@@ -95,27 +95,48 @@ export class SpectrogramGridsComponent {
       this.beatGrid = [];
       return;
     } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
-      this.beatGrid = [{ x: Math.round(render.time2x(meter.startOffset)), m: false }];
+      this.beatGrid = [{ x: Math.round(render.time2x(meter.startOffset)), m: false, s: false }];
       return;
     } else if (!Meter.is(meter)) {
       this.beatGrid = [];
       return;
     }
     const secPerBeat = 60 / meter.bpm;
-    const beatsPerMeasure = meter.measureLength;
-    const firstBeat = Math.max(Math.ceil(time2beat(meter, render.timeMin)), 0);
-    if (secPerBeat / render.timePerPixel < 10) {
-      const secPerMeasure = secPerBeat * beatsPerMeasure;
-      const firstMeasure = Math.ceil(firstBeat / beatsPerMeasure);
-      const firstMeasureTime = beat2time(meter, firstMeasure * beatsPerMeasure);
+    const pixelsPerBeat = secPerBeat / render.timePerPixel;
+    const windowLeftBeat = time2beat(meter, render.timeMin);
+    if (pixelsPerBeat < 10) {
+      const firstMeasure = Math.max(Math.ceil(windowLeftBeat / meter.measureLength), 0);
+      const firstMeasureTime = beat2time(meter, firstMeasure * meter.measureLength);
+      const secPerMeasure = secPerBeat * meter.measureLength;
       const length = Math.ceil((render.timeMax - firstMeasureTime) / secPerMeasure);
       if (length > 2000) { this.beatGrid = []; throw new Error("too many beats"); }
-      this.beatGrid = Array.from({ length }, (_x, i) => ({ x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)), m: true }))
-    } else {
+      this.beatGrid = Array.from({ length }, (_x, i) => ({
+        x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)),
+        m: true,
+        s: false,
+      }))
+    } else if (pixelsPerBeat < 100) {
+      const firstBeat = Math.max(Math.ceil(windowLeftBeat), 0);
       const firstBeatTime = beat2time(meter, firstBeat);
       const length = Math.ceil((render.timeMax - firstBeatTime) / secPerBeat);
       if (length > 2000) { this.beatGrid = []; throw new Error("too many beats"); }
-      this.beatGrid = Array.from({ length }, (_x, i) => ({ x: Math.round(render.time2x(firstBeatTime + i * secPerBeat)), m: (firstBeat + i) % beatsPerMeasure == 0 }))
+      this.beatGrid = Array.from({ length }, (_x, i) => ({
+        x: Math.round(render.time2x(firstBeatTime + i * secPerBeat)),
+        m: (firstBeat + i) % meter.measureLength === 0,
+        s: false
+      }))
+    } else {
+      const firstSubdiv = Math.max(Math.ceil(windowLeftBeat * meter.subdivision), 0);
+      const firstSubdivTime = beat2time(meter, firstSubdiv / meter.subdivision);
+      const secPerSubdiv = secPerBeat / meter.subdivision;
+      const subdivsPerMeasure = meter.measureLength * meter.subdivision;
+      const length = Math.ceil((render.timeMax - firstSubdivTime) / secPerSubdiv);
+      if (length > 2000) { this.beatGrid = []; throw new Error("too many beats"); }
+      this.beatGrid = Array.from({ length }, (_x, i) => ({
+        x: Math.round(render.time2x(firstSubdivTime + i * secPerSubdiv)),
+        m: (firstSubdiv + i) % subdivsPerMeasure === 0,
+        s: (firstSubdiv + i) % meter.subdivision !== 0,
+      }))
     }
   }
 

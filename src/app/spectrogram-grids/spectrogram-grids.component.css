@@ -49,3 +49,7 @@
 .beat-grid-measure {
   opacity: 100%;
 }
+
+.beat-grid-subdiv {
+  border-left-style: dotted;
+}
