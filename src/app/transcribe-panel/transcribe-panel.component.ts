@@ -1,7 +1,10 @@
 import { Component } from '@angular/core';
-import { flow } from 'fp-ts/lib/function';
+import { MatDialog } from '@angular/material/dialog';
+import { flow } from 'fp-ts/function';
+import * as rxjs from 'rxjs';
+import { PartDialogComponent } from '../part-dialog/part-dialog.component';
 import { ProjectService } from '../project.service';
-import { ProjectLens, indexReadonlyArray } from '../ui-common';
+import { ProjectLens, defaultPart, indexReadonlyArray } from '../ui-common';
 
 @Component({
   selector: 'app-transcribe-panel',
@@ -9,13 +12,18 @@ import { ProjectLens, indexReadonlyArray } from '../ui-common';
   styleUrls: ['./transcribe-panel.component.css']
 })
 export class TranscribePanelComponent {
-  constructor(readonly project: ProjectService) { }
+  constructor(readonly project: ProjectService, private dialog: MatDialog) { }
 
-  onAddPartClick() {
-    this.project.modify(flow(
-      ProjectLens(['meter', 'state']).set('locked'),
-      ProjectLens(['parts']).modify(parts => [...parts, { notes: [], name: "New Part", instrument: undefined }]),
-    ));
+  async onAddPartClick() {
+    const res = await rxjs.firstValueFrom(
+      this.dialog.open(PartDialogComponent, { data: { add: true, part: defaultPart } }).afterClosed()
+    );
+    if (res !== undefined) {
+      this.project.modify(flow(
+        ProjectLens(['meter', 'state']).set('locked'),
+        ProjectLens(['parts']).modify(parts => [...parts, res]),
+      ));
+    }
   }
 
   onDeletePartClick(idx: number) {
@@ -26,11 +34,13 @@ export class TranscribePanelComponent {
     }));
   }
 
-  onPartEditClick(idx: any) {
-    // TODO: dialog
-    this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(idx)).modify(x => {
-      console.log('edit', idx, x);
-      return x;
-    }));
+  async onPartEditClick(idx: any) {
+    if (!this.project.project) return;
+    const res = await rxjs.firstValueFrom(
+      this.dialog.open(PartDialogComponent, { data: { add: false, part: this.project.project.parts[idx] } }).afterClosed()
+    );
+    if (res !== undefined) {
+      this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(idx)).set(res));
+    }
   }
 }

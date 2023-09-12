@@ -1,0 +1,23 @@
+<form method="dialog">
+  <h1 mat-dialog-title>{{ add ? 'Add' : 'Edit' }} Part</h1>
+  <div mat-dialog-content>
+    <mat-form-field>
+      <mat-label>Name</mat-label>
+      <input matInput [(ngModel)]="part.name" [ngModelOptions]="{standalone: true}">
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Color</mat-label>
+      <input matInput type="color" [(ngModel)]="part.color" [ngModelOptions]="{standalone: true}">
+    </mat-form-field>
+    <mat-form-field>
+      <mat-label>Instrument</mat-label>
+      <mat-select [(ngModel)]="part.instrument" [ngModelOptions]="{standalone: true}">
+        <mat-option *ngFor="let inst of Instruments" [value]="inst">{{ inst }}</mat-option>
+      </mat-select>
+    </mat-form-field>
+  </div>
+  <div mat-dialog-actions align="end">
+    <button mat-button [mat-dialog-close]="undefined">CANCEL</button>
+    <button mat-button [mat-dialog-close]="part" type="submit">OKAY</button>
+  </div>
+</form>

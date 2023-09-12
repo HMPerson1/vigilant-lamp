@@ -12,6 +12,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
@@ -26,6 +27,7 @@ import { AudioPlayerComponent } from './audio-player/audio-player.component';
 import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
 import { AudioWaveformComponent } from './audio-waveform/audio-waveform.component';
 import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
+import { PartDialogComponent } from './part-dialog/part-dialog.component';
 import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
 import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
 
@@ -37,7 +39,8 @@ import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.co
     AudioPlayerComponent,
     MeterSettingsPanelComponent,
     SpectrogramGridsComponent,
-    TranscribePanelComponent
+    TranscribePanelComponent,
+    PartDialogComponent
   ],
   imports: [
     FormsModule,
@@ -58,6 +61,7 @@ import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.co
     MatSidenavModule,
     MatCardModule,
     MatMenuModule,
+    MatSelectModule,
     PortalModule,
     BrowserModule,
     BrowserAnimationsModule

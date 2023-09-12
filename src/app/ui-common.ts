@@ -21,12 +21,29 @@ export const Note = t.readonly(t.type({
   notation: t.undefined, // TODO
 }));
 
+export enum Instruments {
+  DEFAULT = 'default_synth',
+}
+
 export interface Part extends t.TypeOf<typeof Part> { }
 export const Part = t.readonly(t.type({
   notes: t.readonlyArray(Note),
-  name: t.union([t.undefined, t.null, t.string]),
-  instrument: t.union([t.undefined, t.null, t.string]),
+  name: t.string,
+  instrument: t.literal(Instruments.DEFAULT), // TODO: instruments?
+  /// #ff0000
+  color: t.string,
+  /// 0...1
+  gain: t.number,
+  visible: t.boolean,
 }));
+export const defaultPart: Part = {
+  notes: [],
+  name: 'New Part',
+  instrument: Instruments.DEFAULT,
+  color: '#0000ff',
+  gain: 1,
+  visible: true,
+};
 
 export interface Meter extends t.TypeOf<typeof Meter> { }
 export const Meter = t.readonly(t.type({

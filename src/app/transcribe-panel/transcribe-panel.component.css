@@ -4,8 +4,10 @@
   gap: 16px;
 }
 
-.part-card-avatar {
-  background-color: blue;
+mat-card-title {
+  overflow: hidden;
+  text-wrap: nowrap;
+  text-overflow: ellipsis;
 }
 
 .card-overflow-menu {
