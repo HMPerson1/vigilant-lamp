@@ -1,11 +1,11 @@
 import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { flow } from 'fp-ts/function';
 import * as rxjs from 'rxjs';
 import { PartDialogComponent } from '../part-dialog/part-dialog.component';
 import { ProjectService } from '../project.service';
-import { ProjectLens, defaultPart, indexReadonlyArray } from '../ui-common';
+import { ProjectLens, StartTranscribing, defaultPart, indexReadonlyArray } from '../ui-common';
 
 @Component({
   selector: 'app-transcribe-panel',
@@ -15,7 +15,10 @@ import { ProjectLens, defaultPart, indexReadonlyArray } from '../ui-common';
 export class TranscribePanelComponent {
   constructor(readonly project: ProjectService, private dialog: MatDialog) { }
 
+  @Input() startTranscribing?: StartTranscribing;
+
   async onAddPartClick() {
+    if (this.project.project?.meter.state === 'unset') return;
     const res = await rxjs.firstValueFrom(
       this.dialog.open(PartDialogComponent, { data: { add: true, part: defaultPart } }).afterClosed()
     );

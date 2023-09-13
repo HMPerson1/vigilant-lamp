@@ -6,7 +6,7 @@ import { flow } from 'fp-ts/function';
 import { Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../project.service';
-import { Meter, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectLens } from '../ui-common';
+import { Meter, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectLens, defaultMeter } from '../ui-common';
 
 @Component({
   selector: 'app-meter-settings-panel',
@@ -178,16 +178,16 @@ class ProjectMeterCtrls {
   constructor(readonly project: ProjectService) { }
 
   @bindProjectMeterCtrl(true)
-  startOffset = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
+  startOffset = new FormControl<number>(defaultMeter.startOffset, { nonNullable: true, validators: [Validators.required] });
 
   @bindProjectMeterCtrl(true)
-  bpm = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required] });
+  bpm = new FormControl<number>(defaultMeter.bpm, { nonNullable: true, validators: [Validators.required] });
 
   @bindProjectMeterCtrl()
-  measureLength = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral] });
+  measureLength = new FormControl<number>(defaultMeter.measureLength, { nonNullable: true, validators: [Validators.required, integral] });
 
   @bindProjectMeterCtrl()
-  subdivision = new FormControl<number>(NaN, { nonNullable: true, validators: [Validators.required, integral, validSubdivision] });
+  subdivision = new FormControl<number>(defaultMeter.subdivision, { nonNullable: true, validators: [Validators.required, integral, validSubdivision] });
 }
 
 const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });

@@ -150,6 +150,9 @@ export interface ModalSpectrogramEdit {
     onInput: (v: number) => void,
   ) => Promise<number | undefined>;
 }
+export interface StartTranscribing {
+  (partIdx: number): void;
+}
 
 // love too have an extremely normal fp ecosystem
 export const indexReadonlyArray: <T>(i: number) => Lens<ReadonlyArray<T>, T> =

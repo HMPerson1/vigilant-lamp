@@ -32,6 +32,7 @@ import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settin
 import { PartDialogComponent } from './part-dialog/part-dialog.component';
 import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
 import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
+import { PianoRollEditorComponent } from './piano-roll-editor/piano-roll-editor.component';
 
 @NgModule({
   declarations: [
@@ -42,7 +43,8 @@ import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.co
     MeterSettingsPanelComponent,
     SpectrogramGridsComponent,
     TranscribePanelComponent,
-    PartDialogComponent
+    PartDialogComponent,
+    PianoRollEditorComponent
   ],
   imports: [
     FormsModule,

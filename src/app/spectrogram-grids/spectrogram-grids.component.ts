@@ -20,7 +20,7 @@ export class SpectrogramGridsComponent {
   @Input() showPitchGrid: boolean = false;
   @Input() pitchLabelType: PitchLabelType = 'sharp';
 
-  cursorY?: number;
+  @Input() mouseY?: number;
   @Input() showCrosshair: boolean = true;
   @Input() showOvertones: boolean = false;
 
@@ -66,11 +66,6 @@ export class SpectrogramGridsComponent {
       this.updateBeatGrid(new GenSpecTile(params, hostElem.getBoundingClientRect()), params.meter);
     })
   }
-
-  @HostListener('mousemove', ['$event'])
-  onMouseMove(event: MouseEvent) { this.cursorY = event.offsetY }
-  @HostListener('mouseleave')
-  onMouseLeave() { this.cursorY = undefined }
 
   updatePitchGrid(winParams: GenSpecTile<DOMRect>, label: PitchLabelType) {
     for (const o of this.overtoneYOffsets) {

@@ -11,7 +11,7 @@ import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './project.service';
-import { Meter, ModalSpectrogramEdit, PitchLabelType } from './ui-common';
+import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
 
 @Component({
   selector: 'app-root',
@@ -55,7 +55,7 @@ export class AppComponent {
   userShowBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
 
-  #projectName$ = new rxjs.Subject<String | undefined>();
+  #projectName$ = new rxjs.Subject<string | undefined>();
   #projectFileHandle?: FileSystemFileHandle;
   get projectFileHandle() { return this.#projectFileHandle }
   set projectFileHandle(p) {
@@ -75,8 +75,10 @@ export class AppComponent {
   visCursor = "auto";
   /** offset space of `visElem` */
   visMouseX?: number;
+  /** offset space of `visElem` */
+  visMouseY?: number;
   userShowCrosshair: boolean = true;
-  get showCrosshair(): boolean { return this.modalState !== undefined ? false : this.userShowCrosshair }
+  get showCrosshair(): boolean { return this.uiMode?.mode !== 'timing' && this.userShowCrosshair }
   showOvertones: boolean = false;
 
   debug_downsample: number = 0;
@@ -86,6 +88,8 @@ export class AppComponent {
   liveMeter?: Partial<Meter>;
 
   transcribePanelExpanded: boolean = false;
+
+  uiMode: UiMode;
 
   async newProject() {
     this.loading = 'new'
@@ -155,21 +159,20 @@ export class AppComponent {
   @ViewChild('drawer') drawer!: MatDrawer;
   @ViewChild('drawer', { read: ElementRef }) drawerElem!: ElementRef<HTMLElement>;
   @ViewChild('portalOutlet') portalOutlet!: CdkPortalOutlet;
-  modalState?: { doneClick?: () => void };
 
-  private async _doModal<T>(drawerContents: Portal<any>, openedVia: FocusOrigin | undefined, donePromise: Promise<T>, newModalState: { doneClick?: () => void }): Promise<T | undefined> {
+  private async _doModal<T>(drawerContents: Portal<any>, openedVia: FocusOrigin | undefined, donePromise: Promise<T>, doneClick?: () => void): Promise<T | undefined> {
     if (this.drawer.opened) throw new Error('already modal picking');
     try {
       this.portalOutlet.portal = drawerContents;
       this.drawer.open(openedVia);
       this.drawerElem.nativeElement.focus();
-      this.modalState = newModalState;
+      this.uiMode = { mode: 'timing', doneClick };
       return await Promise.race([
         donePromise,
         rxjs.firstValueFrom(this.drawer.closedStart, { defaultValue: undefined }).then(() => undefined),
       ]);
     } finally {
-      this.modalState = undefined;
+      this.uiMode = undefined;
       this.drawer.close().then(v => { if (v === 'close') this.portalOutlet.detach() });
     }
   }
@@ -190,7 +193,7 @@ export class AppComponent {
       });
       const donePromise = rxjs.firstValueFrom(rxjs.fromEvent(this.visElem.nativeElement, 'click').pipe(rxjs.map(this.event2time), rxjs.filter(accept)));
       try {
-        return await this._doModal(drawerContents, openedVia, donePromise, {});
+        return await this._doModal(drawerContents, openedVia, donePromise);
       } finally {
         onInputSub.unsubscribe();
         this.visCursor = "auto";
@@ -248,7 +251,7 @@ export class AppComponent {
       let resolveDone!: () => void;
       const doneClicked = new Promise<void>(resolve => resolveDone = resolve);
       try {
-        return await this._doModal(drawerContents, openedVia, doneClicked.then(() => accumDrag), { doneClick: resolveDone })
+        return await this._doModal(drawerContents, openedVia, doneClicked.then(() => accumDrag), resolveDone)
       } finally {
         onInputSub.unsubscribe();
         this.visCursor = "auto";
@@ -260,9 +263,18 @@ export class AppComponent {
     const visBounds = this.visElem.nativeElement.getBoundingClientRect();
     return ((event as MouseEvent).clientX - visBounds.x) / visBounds.width * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
   }
+
+  readonly startTranscribing: StartTranscribing = (partIdx: number) => {
+    this.uiMode = { mode: 'noting', partIdx };
+  }
 }
 
 const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
 
 // https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event
 const beforeUnloadListener = (ev: BeforeUnloadEvent) => { ev.preventDefault(); return (ev.returnValue = ""); }
+
+type UiMode
+  = undefined
+  | { mode: 'timing'; doneClick?: () => void }
+  | { mode: 'noting'; partIdx: number };

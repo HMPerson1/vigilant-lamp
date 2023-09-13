@@ -1,0 +1,10 @@
+:host {
+  contain: strict;
+}
+
+.note-preview {
+  position: absolute;
+  will-change: transform;
+  background-color: blue;
+  border: 2px solid purple;
+}

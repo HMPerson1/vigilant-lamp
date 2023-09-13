@@ -16,13 +16,16 @@
               [matMenuTriggerData]="{idx}"><mat-icon>more_vert</mat-icon></button>
           </mat-card-header>
           <mat-card-content>
-            <button mat-flat-button class="full-width" color="primary"><mat-icon>edit</mat-icon>TRANSCRIBE</button>
+            <button mat-flat-button class="full-width" color="primary" (click)="startTranscribing?.(idx)">
+              <mat-icon>edit</mat-icon>TRANSCRIBE
+            </button>
           </mat-card-content>
         </div>
       </div>
     </mat-card>
   </div>
-  <button mat-stroked-button class="full-width" (click)="onAddPartClick()"><mat-icon>add</mat-icon>ADD PART</button>
+  <button mat-stroked-button class="full-width" (click)="onAddPartClick()"
+    [disabled]="project.project?.meter?.state === 'unset'"><mat-icon>add</mat-icon>ADD PART</button>
 </div>
 
 <mat-menu #partCardMenu="matMenu">

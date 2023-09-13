@@ -3,19 +3,24 @@
     <div class="groove-border" style="background-color: #000;" (wheel)="$event.preventDefault()">
       <div
         style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
-        (mousemove)="visMouseX= $event.offsetX" (mouseleave)="visMouseX = undefined">
+        (mousemove)="visMouseX = $event.offsetX" (mouseleave)="visMouseX = undefined">
         <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
           (click)="onWaveformClick($event)"></app-audio-waveform>
         <mat-divider style="border-color: gray;"></mat-divider>
         <div style="flex: 1" class="stacking">
-          <app-audio-spectrogram style="width: 100%; height: 100%;" [audioData]="audioData" [(timeMin)]="vizTimeMin"
-            [(timeMax)]="vizTimeMax" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin"
-            [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep"
-            [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
+          <app-audio-spectrogram [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
+            [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
+            [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
+            [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
           <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
-            (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor" #visElem></app-spectrogram-grids>
+            [mouseY]="visMouseY"></app-spectrogram-grids>
+          <app-piano-roll-editor *ngIf="uiMode && uiMode.mode === 'noting'" [partIdx]="uiMode.partIdx"
+            [mouseX]="visMouseX" [mouseY]="visMouseY" [timeMin]="vizTimeMin" [timeMax]="vizTimeMax"
+            [pitchMin]="specPitchMin" [pitchMax]="specPitchMax"></app-piano-roll-editor>
+          <div class="interaction-target" (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor"
+            (mousemove)="visMouseY = $event.offsetY" (mouseleave)="visMouseY = undefined" #visElem></div>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
           [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>
@@ -137,13 +142,14 @@
           <app-meter-settings-panel [modalEdit]="modalSpectrogramEdit"
             (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
         </mat-expansion-panel>
-        <mat-expansion-panel [disabled]="!hasProject" [(expanded)]="transcribePanelExpanded">
+        <mat-expansion-panel [disabled]="!hasProject || project.project?.meter?.state === 'unset' "
+          [(expanded)]="transcribePanelExpanded">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Transcribe
             </mat-panel-title>
           </mat-expansion-panel-header>
-          <app-transcribe-panel></app-transcribe-panel>
+          <app-transcribe-panel [startTranscribing]="startTranscribing"></app-transcribe-panel>
         </mat-expansion-panel>
       </mat-accordion>
       <div style="margin-top: auto;">
@@ -158,8 +164,9 @@
     <div class="drawer-contents">
       <div style="width: 100%;">
         <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
-        <button mat-raised-button color="primary" class="drawer-done" [hidden]="modalState?.doneClick === undefined"
-          (click)="modalState?.doneClick!()">DONE</button>
+        <ng-container *ngIf="uiMode && uiMode.mode === 'timing' && uiMode.doneClick">
+          <button mat-raised-button color="primary" class="drawer-done" (click)="uiMode.doneClick()">DONE</button>
+        </ng-container>
       </div>
       <button mat-stroked-button (click)="drawer.close()">CANCEL</button>
     </div>
