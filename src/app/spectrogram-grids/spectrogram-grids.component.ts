@@ -86,6 +86,7 @@ export class SpectrogramGridsComponent {
   }
 
   updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
+    // TODO: this could be rendered more efficiently because of vertical translational symmetry
     if (meter === undefined || meter.state === 'unset') {
       this.beatGrid = [];
       return;

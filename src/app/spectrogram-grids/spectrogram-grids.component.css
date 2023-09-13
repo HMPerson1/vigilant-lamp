@@ -1,4 +1,5 @@
-.grids-container {
+.grids-container,
+.grids-container>* {
   pointer-events: none;
   contain: strict;
   /* apparently this makes Chrome's compositor behave better */
@@ -9,21 +10,17 @@
   right: 0;
 }
 
-.grids-container>* {
-  isolation: isolate;
-}
-
 .pitch-grid-borders {
   position: absolute;
-  border-top: 1px solid green;
+  border-top: 1px solid gray;
   width: 100%;
 }
 
 .pitch-grid-centers {
   position: absolute;
   border-top: 1px dashed gray;
-  height: 1px;
   width: 100%;
+  opacity: 50%;
 }
 
 .pitch-label {
@@ -42,7 +39,7 @@
   position: absolute;
   height: 100%;
   width: 1px;
-  border-left: 1px solid yellow;
+  border-left: 1px solid #0c0;
   opacity: 50%;
 }
 
