@@ -38,16 +38,6 @@ body {
   font-family: Roboto, "Helvetica Neue", sans-serif;
 }
 
-button.hack-small-icon-button.mat-mdc-icon-button.mat-mdc-button-base {
-  padding: 4px;
-}
-
-button.hack-small-icon-button.mat-mdc-icon-button.mat-mdc-button-base,
-button.hack-small-icon-button.mat-mdc-icon-button.mat-mdc-button-base .mat-mdc-button-touch-target {
-  width: 32px;
-  height: 32px;
-}
-
 mat-card-header * {
   min-width: 0;
 }

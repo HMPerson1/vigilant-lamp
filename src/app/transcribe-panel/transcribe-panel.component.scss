@@ -6,6 +6,10 @@
   gap: 16px;
 }
 
+mat-card {
+  contain: content;
+}
+
 .card-inside {
   display: flex;
   flex-direction: column;
@@ -19,6 +23,10 @@
 
 .cdk-drop-list-dragging .drag-handle {
   cursor: initial;
+}
+
+mat-card-header {
+  @include mat.icon-button-density(-4);
 }
 
 mat-card-header:not(:first-child) {
