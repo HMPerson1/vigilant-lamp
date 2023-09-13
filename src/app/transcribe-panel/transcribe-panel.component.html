@@ -1,17 +1,27 @@
 <div class="container">
-  <mat-card *ngFor="let part of project.project?.parts; index as idx">
-    <mat-card-header>
-      <div mat-card-avatar [style.background-color]="part.color"></div>
-      <mat-card-title>{{ part.name }}</mat-card-title>
-      <mat-card-subtitle>{{ part.instrument }}</mat-card-subtitle>
-      <div style="flex: 1"></div>
-      <button mat-icon-button class="hack-small-icon-button card-overflow-menu" [matMenuTriggerFor]="partCardMenu"
-        [matMenuTriggerData]="{idx}"><mat-icon>more_vert</mat-icon></button>
-    </mat-card-header>
-    <mat-card-content>
-      <button mat-raised-button class="full-width" color="primary"><mat-icon>edit</mat-icon>TRANSCRIBE</button>
-    </mat-card-content>
-  </mat-card>
+  <div class="container" *ngIf="project.project?.parts?.length ?? 0 !== 0" cdkDropList
+    (cdkDropListDropped)="drop($event)">
+    <mat-card *ngFor="let part of project.project?.parts; index as idx" cdkDrag cdkDragLockAxis="y"
+      cdkDragBoundary=".container">
+      <div matRipple [matRippleTrigger]="drag_handle">
+        <!-- extra div so that the ripple doesn't break :nth-child styles -->
+        <div class="card-inside">
+          <mat-icon class="drag-handle"><span #drag_handle cdkDragHandle>drag_handle</span></mat-icon>
+          <mat-card-header>
+            <div mat-card-avatar [style.background-color]="part.color"></div>
+            <mat-card-title>{{ part.name }}</mat-card-title>
+            <mat-card-subtitle>{{ part.instrument }}</mat-card-subtitle>
+            <div style="flex: 1"></div>
+            <button mat-icon-button class="hack-small-icon-button card-overflow-menu" [matMenuTriggerFor]="partCardMenu"
+              [matMenuTriggerData]="{idx}"><mat-icon>more_vert</mat-icon></button>
+          </mat-card-header>
+          <mat-card-content>
+            <button mat-flat-button class="full-width" color="primary"><mat-icon>edit</mat-icon>TRANSCRIBE</button>
+          </mat-card-content>
+        </div>
+      </div>
+    </mat-card>
+  </div>
   <button mat-stroked-button class="full-width" (click)="onAddPartClick()"><mat-icon>add</mat-icon>ADD PART</button>
 </div>
 

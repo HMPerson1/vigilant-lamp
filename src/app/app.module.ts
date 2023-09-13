@@ -1,9 +1,11 @@
+import { DragDropModule } from '@angular/cdk/drag-drop';
 import { PortalModule } from '@angular/cdk/portal';
 import { NgModule } from '@angular/core';
 import { FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatCardModule } from '@angular/material/card';
+import { MatRippleModule } from '@angular/material/core';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -62,7 +64,9 @@ import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.co
     MatCardModule,
     MatMenuModule,
     MatSelectModule,
+    MatRippleModule,
     PortalModule,
+    DragDropModule,
     BrowserModule,
     BrowserAnimationsModule
   ],

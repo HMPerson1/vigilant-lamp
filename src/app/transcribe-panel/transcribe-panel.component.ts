@@ -1,3 +1,4 @@
+import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
 import { Component } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { flow } from 'fp-ts/function';
@@ -9,7 +10,7 @@ import { ProjectLens, defaultPart, indexReadonlyArray } from '../ui-common';
 @Component({
   selector: 'app-transcribe-panel',
   templateUrl: './transcribe-panel.component.html',
-  styleUrls: ['./transcribe-panel.component.css']
+  styleUrls: ['./transcribe-panel.component.scss']
 })
 export class TranscribePanelComponent {
   constructor(readonly project: ProjectService, private dialog: MatDialog) { }
@@ -34,13 +35,23 @@ export class TranscribePanelComponent {
     }));
   }
 
-  async onPartEditClick(idx: any) {
+  async onPartEditClick(idx: number) {
     if (!this.project.project) return;
     const res = await rxjs.firstValueFrom(
       this.dialog.open(PartDialogComponent, { data: { add: false, part: this.project.project.parts[idx] } }).afterClosed()
     );
     if (res !== undefined) {
       this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(idx)).set(res));
+    }
+  }
+
+  drop(event: CdkDragDrop<any>) {
+    if (event.currentIndex !== event.previousIndex) {
+      this.project.modify(ProjectLens(['parts']).modify(parts => {
+        const ret = [...parts];
+        moveItemInArray(ret, event.previousIndex, event.currentIndex);
+        return ret;
+      }));
     }
   }
 }
