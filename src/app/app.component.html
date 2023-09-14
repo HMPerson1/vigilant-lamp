@@ -16,11 +16,12 @@
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
             [mouseY]="visMouseY"></app-spectrogram-grids>
-          <app-piano-roll-editor *ngIf="uiMode && uiMode.mode === 'noting'" [partIdx]="uiMode.partIdx"
-            [mouseX]="visMouseX" [mouseY]="visMouseY" [timeMin]="vizTimeMin" [timeMax]="vizTimeMax"
-            [pitchMin]="specPitchMin" [pitchMax]="specPitchMax"></app-piano-roll-editor>
+          <app-piano-roll-editor [partIdx]="activePartIdx" [mouseX]="visMouseX" [mouseY]="visMouseY"
+            [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin" [pitchMax]="specPitchMax"
+            #pianoRollEditor></app-piano-roll-editor>
           <div class="interaction-target" (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor"
-            (mousemove)="visMouseY = $event.offsetY" (mouseleave)="visMouseY = undefined" #visElem></div>
+            (mousemove)="visMouseY = $event.offsetY" (mouseleave)="visMouseY = undefined"
+            (click)="activePartIdx !== undefined ? pianoRollEditor.onClick($event) : undefined" #visElem></div>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
           [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>

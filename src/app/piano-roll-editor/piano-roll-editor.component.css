@@ -2,9 +2,17 @@
   contain: strict;
 }
 
-.note-preview {
+.part-container {
   position: absolute;
+  width: 100%;
+  height: 100%;
+}
+
+.note {
+  position: absolute;
+}
+
+.note-preview {
   will-change: transform;
-  background-color: blue;
-  border: 2px solid purple;
+  opacity: .5;
 }

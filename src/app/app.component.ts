@@ -90,6 +90,7 @@ export class AppComponent {
   transcribePanelExpanded: boolean = false;
 
   uiMode: UiMode;
+  get activePartIdx() { return this.uiMode && this.uiMode.mode === 'noting' ? this.uiMode.partIdx : undefined; }
 
   async newProject() {
     this.loading = 'new'
