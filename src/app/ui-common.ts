@@ -18,7 +18,7 @@ export const Note = t.readonly(t.type({
   length: t.number,
   /** in MIDI pitch */
   pitch: t.number,
-  notation: t.undefined, // TODO
+  notation: t.union([t.undefined, t.null]), // TODO
 }));
 
 export enum Instruments {

@@ -1,6 +1,9 @@
 <div class="part-container" *ngFor="let part of project.project?.parts">
-  <div class="note" *ngFor="let note of part.notes" [style]="noteStyle(note)" [style.background-color]="part.color"></div>
+  <div class="note" *ngFor="let note of part.notes" [style]="noteStyle(note)" [style.background-color]="part.color">
+  </div>
 </div>
 
 
-<div class="note note-preview" [style]="notePreviewStyle ?? 'display: none'"></div>
+<div class="note note-preview" [style]="notePreviewStyle ?? 'display: none'" [style.background-color]="activePartColor">
+</div>
+<div class="note" [style]="activeNoteStyle ?? 'display: none'" [style.background-color]="activePartColor"></div>

@@ -1,4 +1,6 @@
 import { Component, ElementRef, Input, OnChanges, SimpleChanges } from '@angular/core';
+import * as rxjs from 'rxjs';
+import { Writable } from 'type-fest';
 import { GenSpecTile } from '../common';
 import { ProjectService } from '../project.service';
 import { Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat } from '../ui-common';
@@ -9,7 +11,7 @@ import { Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray,
   styleUrls: ['./piano-roll-editor.component.css']
 })
 export class PianoRollEditorComponent implements OnChanges {
-  constructor(readonly project: ProjectService, private readonly elemRef: ElementRef<HTMLElement>) {
+  constructor(readonly project: ProjectService, elemRef: ElementRef<HTMLElement>) {
     this.elemContentRect = elemRef.nativeElement.getBoundingClientRect();
     this.tile = new GenSpecTile(this, this.elemContentRect);
     new ResizeObserver(
@@ -29,12 +31,13 @@ export class PianoRollEditorComponent implements OnChanges {
   @Input() pitchMax: number = 108;
   @Input() mouseX?: number;
   @Input() mouseY?: number;
-  @Input() partIdx?: number;
+  @Input() activePartIdx?: number;
 
   private elemContentRect: DOMRect;
   private tile: GenSpecTile<DOMRect>;
 
-  get part(): Part | undefined { return this.partIdx !== undefined ? this.project.project?.parts?.[this.partIdx] : undefined }
+  get activePart(): Part | undefined { return this.activePartIdx !== undefined ? this.project.project?.parts?.[this.activePartIdx] : undefined }
+  get activePartColor() { return this.activePart?.color }
 
   hoveredNote(): Note | undefined {
     const meter = this.project.project?.meter;
@@ -52,11 +55,10 @@ export class PianoRollEditorComponent implements OnChanges {
   }
 
   get notePreviewStyle() {
-    const part = this.part;
-    if (!part) return;
+    if (this.activePartIdx === undefined) return;
     const hoveredNote = this.hoveredNote();
     if (!hoveredNote) return;
-    return this.noteStyle(hoveredNote) + ` background-color: ${part.color};`;
+    return this.noteStyle(hoveredNote);
   }
 
   noteStyle(note: Note) {
@@ -69,13 +71,43 @@ export class PianoRollEditorComponent implements OnChanges {
     return `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`
   }
 
-  onClick(_event: MouseEvent) {
-    const part = this.part;
-    if (!part) return;
+  clickStartNote?: Writable<Note>;
+
+  async onMouseDown(event: MouseEvent) {
+    const activePartIdx = this.activePartIdx;
+    if (activePartIdx === undefined) return;
+    const hoveredNoteStart = this.hoveredNote();
+    if (!hoveredNoteStart) return;
+
+    event.preventDefault();
+
+    this.clickStartNote = hoveredNoteStart;
+    try {
+      await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+      const hoveredNoteEnd = this.hoveredNote();
+      if (!hoveredNoteEnd) return;
+      const clickedNote = clickDragNote(hoveredNoteStart, hoveredNoteEnd);
+      if (!clickedNote) return;
+      this.project.modify(
+        ProjectLens(['parts']).compose(indexReadonlyArray(activePartIdx)).compose(PartLens('notes')).modify(
+          notes => [...notes, clickedNote]
+        )
+      )
+    } finally {
+      this.clickStartNote = undefined;
+    }
+  }
+
+  get activeNoteStyle() {
+    if (!this.clickStartNote) return;
     const hoveredNote = this.hoveredNote();
     if (!hoveredNote) return;
-    this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(this.partIdx!)).compose(PartLens('notes')).modify(
-      notes => [...notes, hoveredNote]
-    ))
+    const activeNote = clickDragNote(this.clickStartNote, hoveredNote);
+    return activeNote ? this.noteStyle(activeNote) : undefined;
   }
 }
+
+const clickDragNote = (start: Note, end: Note): Note | undefined => {
+  const length = end.start + end.length - start.start;
+  return length > 0 ? { ...start, length, pitch: end.pitch } : undefined;
+};
