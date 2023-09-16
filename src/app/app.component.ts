@@ -1,11 +1,12 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
-import { Component, ElementRef, ViewChild } from '@angular/core';
+import { Component, ElementRef, NgZone, ViewChild } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as lodash from 'lodash-es';
+import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
 import { AudioContextService } from './audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
@@ -19,7 +20,13 @@ import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from '
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  constructor(private snackBar: MatSnackBar, readonly project: ProjectService, private audioContextSvc: AudioContextService, titleService: Title) {
+  constructor(
+    private readonly snackBar: MatSnackBar,
+    readonly project: ProjectService,
+    private readonly audioContextSvc: AudioContextService,
+    titleService: Title,
+    ngZone: NgZone,
+  ) {
     rxjs.combineLatest({ unsaved: project.isUnsaved$, name: this.#projectName$ }).forEach(({ unsaved, name }) =>
       titleService.setTitle(`${name ?? '(unsaved project)'}${unsaved ? '*' : ''} - Vigilant Lamp`)
     );
@@ -30,6 +37,11 @@ export class AppComponent {
         removeEventListener('beforeunload', beforeUnloadListener);
       }
     })
+
+    Mousetrap.bind('esc', () => ngZone.run(() => { this.uiMode?.cancel() }));
+    Mousetrap.bind('mod+s', () => ngZone.run(() => { if (this.project.project) { this.saveProject() } return false }));
+    Mousetrap.bind('mod+z', () => ngZone.run(() => { project.undo() }));
+    Mousetrap.bind('mod+shift+z', () => ngZone.run(() => { project.redo() }));
   }
 
   readonly TIME_STEP_INPUT_MAX = 5
@@ -167,7 +179,7 @@ export class AppComponent {
       this.portalOutlet.portal = drawerContents;
       this.drawer.open(openedVia);
       this.drawerElem.nativeElement.focus();
-      this.uiMode = { mode: 'timing', doneClick };
+      this.uiMode = { mode: 'timing', doneClick, cancel: () => { this.drawer.close() }, };
       return await Promise.race([
         donePromise,
         rxjs.firstValueFrom(this.drawer.closedStart, { defaultValue: undefined }).then(() => undefined),
@@ -280,7 +292,7 @@ export class AppComponent {
   }
 
   readonly startTranscribing: StartTranscribing = (partIdx: number) => {
-    this.uiMode = { mode: 'noting', partIdx };
+    this.uiMode = { mode: 'noting', partIdx, cancel: () => { this.uiMode = undefined }, };
   }
 }
 
@@ -291,5 +303,5 @@ const beforeUnloadListener = (ev: BeforeUnloadEvent) => { ev.preventDefault(); r
 
 type UiMode
   = undefined
-  | { mode: 'timing'; doneClick?: () => void }
-  | { mode: 'noting'; partIdx: number };
+  | { mode: 'timing'; doneClick?: () => void; cancel: () => void; }
+  | { mode: 'noting'; partIdx: number; cancel: () => void; };
