@@ -75,6 +75,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
   @HostListener('mousedown', ['$event'])
   async onMouseDown(event: MouseEvent) {
+    if (event.button !== 0) return;
     const activePartIdx = this.activePartIdx;
     if (activePartIdx === undefined) return;
     const hoveredNoteStart = this.hoveredNote();

@@ -232,6 +232,7 @@ export class AppComponent {
       ).subscribe(ev => {
         switch (ev.type) {
           case 'mousedown':
+            if ((ev as MouseEvent).button !== 0) break;
             if (dragStart === undefined) dragStart = this.event2time(ev);
             if (cursorStyle === 'grab') this.visCursor = 'grabbing';
             mouseInbounds = true;
