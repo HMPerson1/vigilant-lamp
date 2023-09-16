@@ -265,6 +265,20 @@ export class AppComponent {
     return ((event as MouseEvent).clientX - visBounds.x) / visBounds.width * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
   }
 
+  onMouse(event: MouseEvent) {
+    const visBounds = this.visElem.nativeElement.getBoundingClientRect();
+    switch (event.type) {
+      case 'mouseleave':
+        this.visMouseX = undefined;
+        this.visMouseY = undefined;
+        break;
+      case 'mousemove':
+        this.visMouseX = event.clientX - visBounds.x;
+        this.visMouseY = event.clientY > visBounds.y ? event.clientY - visBounds.y : undefined;
+        break;
+    }
+  }
+
   readonly startTranscribing: StartTranscribing = (partIdx: number) => {
     this.uiMode = { mode: 'noting', partIdx };
   }

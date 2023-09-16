@@ -10,6 +10,8 @@
 
 .note {
   position: absolute;
+  border: 2px outset #fff8;
+  border-inline-width: 4px;
 }
 
 .note-preview {

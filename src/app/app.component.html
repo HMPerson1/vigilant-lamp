@@ -3,25 +3,22 @@
     <div class="groove-border" style="background-color: #000;" (wheel)="$event.preventDefault()">
       <div
         style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
-        (mousemove)="visMouseX = $event.offsetX" (mouseleave)="visMouseX = undefined">
+        (mousemove)="onMouse($event)" (mouseleave)="onMouse($event)">
         <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
           (click)="onWaveformClick($event)"></app-audio-waveform>
         <mat-divider style="border-color: gray;"></mat-divider>
-        <div style="flex: 1" class="stacking">
+        <div style="flex: 1" class="stacking" (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor" #visElem>
           <app-audio-spectrogram [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
             [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
             [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
             [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
+          <app-piano-roll-editor [activePartIdx]="activePartIdx" [mouseX]="visMouseX" [mouseY]="visMouseY"
+            [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin" [pitchMax]="specPitchMax"
+            #pianoRollEditor></app-piano-roll-editor>
           <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
             [mouseY]="visMouseY"></app-spectrogram-grids>
-          <app-piano-roll-editor [activePartIdx]="activePartIdx" [mouseX]="visMouseX" [mouseY]="visMouseY"
-            [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin" [pitchMax]="specPitchMax"
-            #pianoRollEditor></app-piano-roll-editor>
-          <div class="interaction-target" (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor"
-            (mousemove)="visMouseY = $event.offsetY" (mouseleave)="visMouseY = undefined"
-            (mousedown)="activePartIdx !== undefined ? pianoRollEditor.onMouseDown($event) : undefined" #visElem></div>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
           [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>

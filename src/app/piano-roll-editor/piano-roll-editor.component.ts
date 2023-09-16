@@ -1,4 +1,4 @@
-import { Component, ElementRef, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { Component, ElementRef, HostListener, Input, OnChanges, SimpleChanges } from '@angular/core';
 import * as rxjs from 'rxjs';
 import { Writable } from 'type-fest';
 import { GenSpecTile } from '../common';
@@ -73,6 +73,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
   clickStartNote?: Writable<Note>;
 
+  @HostListener('mousedown', ['$event'])
   async onMouseDown(event: MouseEvent) {
     const activePartIdx = this.activePartIdx;
     if (activePartIdx === undefined) return;
