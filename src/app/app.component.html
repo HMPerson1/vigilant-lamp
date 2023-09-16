@@ -7,7 +7,7 @@
         <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
           (click)="onWaveformClick($event)"></app-audio-waveform>
         <mat-divider style="border-color: gray;"></mat-divider>
-        <div style="flex: 1" class="stacking" (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor" #visElem>
+        <div style="flex: 1" class="stacking" (wheel)="specElem.onWheel($event)" [style.cursor]="visCursor">
           <app-audio-spectrogram [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
             [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
             [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
@@ -19,6 +19,7 @@
             [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
             [mouseY]="visMouseY"></app-spectrogram-grids>
+          <div [class.pointer-events-none]="!uiMode || uiMode.mode !== 'timing'" #visElem></div>
         </div>
         <div class="crosshair" style="width: 1px; background-color: red;"
           [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>

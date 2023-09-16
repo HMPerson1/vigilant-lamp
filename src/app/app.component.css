@@ -4,6 +4,10 @@
   overflow: hidden;
 }
 
+.pointer-events-none {
+  pointer-events: none;
+}
+
 .groove-border {
   border: 4px;
   border-style: groove;
