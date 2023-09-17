@@ -1,8 +1,7 @@
 <div class="part-container" *ngFor="let part of project.project?.parts; let pIdx = index">
   <div class="note" *ngFor="let note of part.notes; let nIdx = index"
     [class.note-selected]="selection.get(pIdx)?.has(nIdx)" [style]="noteStyle(note)"
-    [style.background-color]="part.color" (click)="onNoteClicked(pIdx, nIdx, $event)"
-    [hidden]="resizeNote && resizeNote[0] === pIdx && resizeNote[1] === nIdx">
+    [style.background-color]="part.color" [hidden]="resizeNote && resizeNote[0] === pIdx && resizeNote[1] === nIdx">
   </div>
 </div>
 
@@ -19,3 +18,5 @@
   <div class="note note-selected" [style]="resizeNoteStyle ?? 'display: none'"
     [style.background-color]="project.project?.parts?.[singleSelection[0]]?.color"></div>
 </div>
+
+<div class="selection-start-rect" [style]="selectionStartRectStyle ?? 'display: none'"></div>

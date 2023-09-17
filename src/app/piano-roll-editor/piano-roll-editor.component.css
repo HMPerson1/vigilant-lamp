@@ -2,8 +2,11 @@
   contain: strict;
 }
 
-.part-container {
+* {
   position: absolute;
+}
+
+.part-container {
   top: 0;
   left: 0;
   width: 0;
@@ -11,7 +14,6 @@
 }
 
 .note {
-  position: absolute;
   border: 2px outset #0008;
   border-inline-width: 4px;
 }
@@ -26,6 +28,11 @@
 }
 
 .selection-resize-handle {
-  position: absolute;
   cursor: ew-resize;
+}
+
+.selection-start-rect {
+  pointer-events: none;
+  background-color: #fff3;
+  border: 1px dashed #fff;
 }

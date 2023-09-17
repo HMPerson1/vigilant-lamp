@@ -1,6 +1,6 @@
 import { Component, ElementRef, HostListener, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { fromInput } from 'observable-from-input';
 import * as rxjs from 'rxjs';
-import { Writable } from 'type-fest';
 import { GenSpecTile } from '../common';
 import { ProjectService } from '../project.service';
 import { Meter, Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
@@ -12,6 +12,10 @@ import { Meter, Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonl
 })
 export class PianoRollEditorComponent implements OnChanges {
   constructor(readonly project: ProjectService, elemRef: ElementRef<HTMLElement>) {
+    const toObs = fromInput(this);
+    this.mousePos$ = rxjs.combineLatest([toObs('mouseX'), toObs('mouseY')])
+      .pipe(rxjs.map(([x, y]) => x !== undefined && y !== undefined ? [x, y] : undefined));
+
     this.elemContentRect = elemRef.nativeElement.getBoundingClientRect();
     this.tile = new GenSpecTile(this, this.elemContentRect);
     new ResizeObserver(
@@ -31,6 +35,7 @@ export class PianoRollEditorComponent implements OnChanges {
   @Input() pitchMax: number = 108;
   @Input() mouseX?: number;
   @Input() mouseY?: number;
+  private mousePos$: rxjs.Observable<[number, number] | undefined>;
   @Input() activePartIdx?: number;
 
   private elemContentRect: DOMRect;
@@ -80,11 +85,19 @@ export class PianoRollEditorComponent implements OnChanges {
     return r ? rect2style(r) : undefined;
   }
 
-  clickStartNote?: Writable<Note>;
-
   @HostListener('mousedown', ['$event'])
-  async onMouseDown(event: MouseEvent) {
+  onMouseDown(event: MouseEvent) {
     if (event.button !== 0) return;
+    if (this.activePartIdx !== undefined) {
+      this.startAddNote(event);
+    } else {
+      this.startSelection(event);
+    }
+  }
+
+  private clickStartNote?: Note;
+
+  async startAddNote(event: MouseEvent) {
     const activePartIdx = this.activePartIdx;
     if (activePartIdx === undefined) return;
     const hoveredNoteStart = this.hoveredNote();
@@ -120,12 +133,73 @@ export class PianoRollEditorComponent implements OnChanges {
   selection: Map<number, Set<number>> = new Map();
   singleSelection?: [number, number];
 
-  onNoteClicked(partIdx: number, noteIdx: number, event: MouseEvent) {
-    if (event.shiftKey) {
-    } else {
-      this.selection = new Map([[partIdx, new Set([noteIdx])]]);
-      this.singleSelection = [partIdx, noteIdx];
+  private selectionStart?: readonly [number, number];
+
+  async startSelection(event: MouseEvent) {
+    if (this.activePartIdx !== undefined || this.mouseX === undefined || this.mouseY === undefined) return;
+    const project = this.project.project;
+    if (project === undefined) return;
+
+    event.preventDefault();
+
+    if (event.shiftKey || event.ctrlKey) {
+      // TODO
     }
+
+    this.singleSelection = undefined;
+    const selStart = [this.mouseX, this.mouseY] as const;
+    this.selectionStart = selStart;
+    const onMoveSub = this.mousePos$.pipe(rxjs.map(mousePos => {
+      if (!mousePos) return;
+      const time0 = time2pulse(project.meter, this.tile.x2time(selStart[0]));
+      const time1 = time2pulse(project.meter, this.tile.x2time(mousePos[0]));
+      const pitch0 = this.tile.y2pitch(selStart[1]);
+      const pitch1 = this.tile.y2pitch(mousePos[1]);
+      const selRect = {
+        timeMin: Math.min(time0, time1),
+        timeMax: Math.max(time0, time1),
+        pitchMin: Math.min(pitch0, pitch1) - .5,
+        pitchMax: Math.max(pitch0, pitch1) + .5,
+      }
+      return new Map(function* () {
+        for (const [partIdx, part] of project.parts.entries()) {
+          const partSeld = new Set(function* () {
+            for (const [noteIdx, note] of part.notes.entries()) {
+              if (isNoteInRect(selRect, note)) {
+                yield noteIdx;
+              }
+            }
+            return;
+          }());
+          if (partSeld.size > 0) yield [partIdx, partSeld];
+        }
+        return;
+      }());
+    })).subscribe(x => this.selection = x ?? new Map());
+    try {
+      await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+      if (this.selection.size === 1) {
+        const p = this.selection.entries().next();
+        if (!p.done && p.value[1].size === 1) {
+          const n = p.value[1].values().next();
+          if (!n.done) {
+            this.singleSelection = [p.value[0], n.value];
+          }
+        }
+      }
+    } finally {
+      this.selectionStart = undefined;
+      onMoveSub.unsubscribe();
+    }
+  }
+
+  get selectionStartRectStyle() {
+    if (this.selectionStart === undefined || this.mouseX === undefined || this.mouseY === undefined) return;
+    const x = Math.min(this.mouseX, this.selectionStart[0]);
+    const xMax = Math.max(this.mouseX, this.selectionStart[0]);
+    const y = Math.min(this.mouseY, this.selectionStart[1]);
+    const yMax = Math.max(this.mouseY, this.selectionStart[1]);
+    return rect2style({ x, y, width: xMax - x, height: yMax - y });
   }
 
   selectionResizeHandleStyle(which: 0 | 1) {
@@ -146,6 +220,7 @@ export class PianoRollEditorComponent implements OnChanges {
   async startNoteResize(which: 0 | 1, event: MouseEvent) {
     if (!this.singleSelection || event.button !== 0) return;
     event.preventDefault();
+    event.stopPropagation();
     const [partIdx, noteIdx] = this.singleSelection;
     this.resizeNote = [partIdx, noteIdx, which];
     try {
@@ -200,3 +275,7 @@ const rect2style = ({ x, y, width, height }: Rect) =>
   `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;` + (width < 8 ? `border-inline-width: ${width / 2}px` : '');
 
 const RESIZE_HANDLE_WIDTH = 8;
+
+const isNoteInRect = (rect: Record<'timeMin' | 'timeMax' | 'pitchMin' | 'pitchMax', number>, note: Note) =>
+  (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
+  && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
