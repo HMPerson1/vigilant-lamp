@@ -144,7 +144,7 @@ export class PianoRollEditorComponent implements OnChanges {
   resizeNote?: [number, number, 0 | 1];
 
   async startNoteResize(which: 0 | 1, event: MouseEvent) {
-    if (!this.singleSelection) return;
+    if (!this.singleSelection || event.button !== 0) return;
     event.preventDefault();
     const [partIdx, noteIdx] = this.singleSelection;
     this.resizeNote = [partIdx, noteIdx, which];
@@ -196,6 +196,7 @@ const resizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): N
 }
 
 type Rect = { x: number; y: number; width: number; height: number; };
-const rect2style = ({ x, y, width, height }: Rect) => `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`
+const rect2style = ({ x, y, width, height }: Rect) =>
+  `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;` + (width < 8 ? `border-inline-width: ${width / 2}px` : '');
 
 const RESIZE_HANDLE_WIDTH = 8;
