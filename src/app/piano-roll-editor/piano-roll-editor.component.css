@@ -22,6 +22,10 @@
   border-color: #fff;
 }
 
+.hide-selected-notes .note-selected {
+  display: none;
+}
+
 .note-preview {
   will-change: transform;
   opacity: .5;

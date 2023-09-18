@@ -1,7 +1,9 @@
-<div class="part-container" *ngFor="let part of project.project?.parts; let pIdx = index">
-  <div class="note" *ngFor="let note of part.notes; let nIdx = index"
-    [class.note-selected]="selection.get(pIdx)?.has(nIdx)" [style]="noteStyle(note)"
-    [style.background-color]="part.color" [hidden]="resizeNote && resizeNote[0] === pIdx && resizeNote[1] === nIdx">
+<div class="part-container" [class.hide-selected-notes]="hideSelectedNotes">
+  <div class="part-container" *ngFor="let part of project.project?.parts; trackBy: trackIdx; let pIdx = index">
+    <div class="note" *ngFor="let note of part.notes; trackBy: trackIdx; let nIdx = index"
+      [class.note-selected]="selection.get(pIdx)?.has(nIdx)" [style]="noteStyle(note)"
+      [style.background-color]="part.color">
+    </div>
   </div>
 </div>
 

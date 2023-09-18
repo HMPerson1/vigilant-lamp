@@ -1,4 +1,5 @@
 import { Component, ElementRef, HostListener, Input, OnChanges, SimpleChanges } from '@angular/core';
+import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
@@ -43,6 +44,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
   get activePart(): Part | undefined { return this.activePartIdx !== undefined ? this.project.project?.parts?.[this.activePartIdx] : undefined }
   get activePartColor() { return this.activePart?.color }
+  get hideSelectedNotes() { return this.resizeNote !== undefined; }
 
   hoveredNote(): Note | undefined {
     const meter = this.project.project?.meter;
@@ -226,12 +228,15 @@ export class PianoRollEditorComponent implements OnChanges {
     try {
       await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
       if (!this.mouseX || !this.project.project) return;
-      this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).modify(n => resizeNote(
-        this.project.project!.meter,
-        n,
+      const origNote = this.project.project.parts[partIdx].notes[noteIdx];
+      const newNote = resizeNote(
+        this.project.project.meter,
+        origNote,
         which,
-        this.tile.x2time(this.mouseX!),
-      )));
+        this.tile.x2time(this.mouseX),
+      );
+      if (lodash.isEqual(origNote, newNote)) return;
+      this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
     } finally {
       this.resizeNote = undefined;
     }
@@ -241,14 +246,15 @@ export class PianoRollEditorComponent implements OnChanges {
     if (!this.resizeNote || !this.project.project || !this.tile) return;
     const origNote = this.project.project.parts[this.resizeNote[0]].notes[this.resizeNote[1]];
     if (!this.mouseX) return this.noteStyle(origNote);
-    const meter = this.project.project.meter;
     return this.noteStyle(resizeNote(
-      meter,
+      this.project.project.meter,
       origNote,
       this.resizeNote[2],
       this.tile.x2time(this.mouseX),
     ));
   }
+
+  trackIdx(idx: number, _item: any) { return idx }
 }
 
 const clickDragNote = (start: Note, end: Note): Note | undefined => {
