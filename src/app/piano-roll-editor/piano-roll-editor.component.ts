@@ -84,7 +84,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
   noteStyle(note: Note) {
     const r = this.note2rect(note);
-    return r ? rect2style(r) : undefined;
+    return r ? rect2style(r) + (r.width < 8 ? `border-inline-width: ${r.width / 2}px` : '') : undefined;
   }
 
   @HostListener('mousedown', ['$event'])
@@ -278,7 +278,7 @@ const resizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): N
 
 type Rect = { x: number; y: number; width: number; height: number; };
 const rect2style = ({ x, y, width, height }: Rect) =>
-  `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;` + (width < 8 ? `border-inline-width: ${width / 2}px` : '');
+  `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`;
 
 const RESIZE_HANDLE_WIDTH = 8;
 
