@@ -16,10 +16,12 @@
 .note {
   border: 2px outset #0008;
   border-inline-width: 4px;
+  pointer-events: none;
 }
 
 .note-selected {
   border-color: #fff;
+  pointer-events: all;
 }
 
 .hide-selected-notes .note-selected {

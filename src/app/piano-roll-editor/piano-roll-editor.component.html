@@ -2,11 +2,18 @@
   <div class="part-container" *ngFor="let part of project.project?.parts; trackBy: trackIdx; let pIdx = index">
     <div class="note" *ngFor="let note of part.notes; trackBy: trackIdx; let nIdx = index"
       [class.note-selected]="selection.get(pIdx)?.has(nIdx)" [style]="noteStyle(note)"
-      [style.background-color]="part.color">
+      [style.background-color]="part.color" (mousedown)="onSelectedNoteMouseDown(pIdx, nIdx, $event)">
     </div>
   </div>
 </div>
 
+<div class="part-container" *ngIf="draggedNotes">
+  <div class="part-container" *ngFor="let partEnt of draggedNotes; trackBy: trackIdx">
+    <div class="note note-selected" *ngFor="let note of partEnt[1]; trackBy: trackIdx" [style]="noteStyle(note)"
+      [style.background-color]="project.project?.parts?.[partEnt[0]]?.color">
+    </div>
+  </div>
+</div>
 
 <div class="note note-preview" [style]="notePreviewStyle ?? 'display: none'" [style.background-color]="activePartColor">
 </div>

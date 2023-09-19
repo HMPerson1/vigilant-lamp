@@ -1,4 +1,5 @@
 import { Component, ElementRef, HostListener, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { identity } from 'fp-ts/function';
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import * as rxjs from 'rxjs';
@@ -44,7 +45,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
   get activePart(): Part | undefined { return this.activePartIdx !== undefined ? this.project.project?.parts?.[this.activePartIdx] : undefined }
   get activePartColor() { return this.activePart?.color }
-  get hideSelectedNotes() { return this.resizeNote !== undefined; }
+  get hideSelectedNotes() { return this.resizeNote !== undefined || this.draggedNotes !== undefined; }
 
   hoveredNote(): Note | undefined {
     const meter = this.project.project?.meter;
@@ -254,7 +255,55 @@ export class PianoRollEditorComponent implements OnChanges {
     ));
   }
 
-  trackIdx(idx: number, _item: any) { return idx }
+  draggedNotes?: ReadonlyArray<readonly [number, ReadonlyArray<Note>]>;
+
+  async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
+    const project = this.project.project;
+    if (!project || event.button !== 0 || this.mouseX === undefined || this.mouseY === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+
+    const dragStartX = this.mouseX;
+    const dragStartY = this.mouseY;
+
+    const nextMouseMove = rxjs.firstValueFrom(this.mousePos$.pipe(rxjs.filter(v => !v || v[0] !== dragStartX || v[1] !== dragStartY)));
+    const nextMouseUp = rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+    if (await Promise.race([nextMouseUp.then(() => true), nextMouseMove.then(() => false)])) {
+      // single click: just select the note
+      this.selection = new Map([[partIdx, new Set([noteIdx])]]);
+      this.singleSelection = [partIdx, noteIdx];
+      return;
+    }
+
+    const thisMoveNote = moveNote(project.meter, time2pulse(project.meter, this.tile.x2time(dragStartX)), this.tile.y2pitch(dragStartY))
+
+    const onMoveSub = this.mousePos$.pipe(rxjs.map(pos => {
+      if (!pos) return;
+      const thisMoveNote2 = thisMoveNote(this.tile, pos[0], pos[1]);
+      return Array.from(this.selection, ([partIdx, noteIdxSet]) => [partIdx, Array.from(noteIdxSet, noteIdx =>
+        thisMoveNote2(project.parts[partIdx].notes[noteIdx])
+      )] as const);
+    }
+    )).subscribe(x => this.draggedNotes = x);
+    try {
+      await nextMouseUp;
+      if (this.mouseX === undefined || this.mouseY === undefined) return;
+      const thisMoveNote2 = thisMoveNote(this.tile, this.mouseX, this.mouseY);
+      if (thisMoveNote2 === identity) return;
+      this.project.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
+        const selPart = this.selection.get(partIdx);
+        return !selPart ? part : {
+          ...part,
+          notes: part.notes.map((note, noteIdx) => !selPart.has(noteIdx) ? note : thisMoveNote2(note))
+        };
+      })));
+    } finally {
+      this.draggedNotes = undefined;
+      onMoveSub.unsubscribe();
+    }
+  }
+
+  trackIdx(idx: number, _item: unknown) { return idx }
 }
 
 const clickDragNote = (start: Note, end: Note): Note | undefined => {
@@ -274,6 +323,19 @@ const resizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): N
   return newNoteT2 >= newNoteT1
     ? { ...origNote, start: newNoteT1, length: newNoteT2 - newNoteT1 }
     : { ...origNote, start: newNoteT2, length: newNoteT1 - newNoteT2 };
+}
+
+const moveNote = (meter: Meter, startPulse: number, startPitch: number) => {
+  const ppsd = PULSES_PER_BEAT / meter.subdivision;
+  return (tile: GenSpecTile<DOMRect>, endX: number, endY: number) => {
+    const deltaPulse = Math.round((time2pulse(meter, tile.x2time(endX)) - startPulse) / ppsd) * ppsd;
+    const deltaPitch = Math.round(tile.y2pitch(endY) - startPitch);
+    return deltaPulse === 0 && deltaPitch === 0 ? identity : (note: Note): Note => ({
+      ...note,
+      start: note.start + deltaPulse,
+      pitch: note.pitch + deltaPitch,
+    });
+  };
 }
 
 type Rect = { x: number; y: number; width: number; height: number; };
