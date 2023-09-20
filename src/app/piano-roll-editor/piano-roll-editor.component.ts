@@ -234,6 +234,7 @@ export class PianoRollEditorComponent implements OnChanges {
         which,
         this.tile.x2time(this.mouseX),
       );
+      // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (lodash.isEqual(origNote, newNote)) return;
       this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
     } finally {
@@ -291,6 +292,7 @@ export class PianoRollEditorComponent implements OnChanges {
       await nextMouseUp;
       if (this.mouseX === undefined || this.mouseY === undefined) return;
       const thisMoveNote2 = thisMoveNote(this.tile, this.mouseX, this.mouseY);
+      // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (thisMoveNote2 === identity) return;
       this.project.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
         const selPart = this.selection.get(partIdx);
