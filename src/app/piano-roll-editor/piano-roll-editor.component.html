@@ -20,12 +20,12 @@
 <div class="note" [style]="activeNoteStyle ?? 'display: none'" [style.background-color]="activePartColor"></div>
 
 <div *ngIf="singleSelection">
-  <div class="selection-resize-handle" [style]="selectionResizeHandleStyle(0)" (mousedown)="startNoteResize(0, $event)">
-  </div>
-  <div class="selection-resize-handle" [style]="selectionResizeHandleStyle(1)" (mousedown)="startNoteResize(1, $event)">
-  </div>
   <div class="note note-selected" [style]="resizeNoteStyle ?? 'display: none'"
     [style.background-color]="project.project?.parts?.[singleSelection[0]]?.color"></div>
+  <div class="selection-resize-indicator" [style]="selectionResizeIndicatorStyle">
+    <div class="selection-resize-handle handle-left" (mousedown)="startNoteResize(0, $event)"></div>
+    <div class="selection-resize-handle handle-right" (mousedown)="startNoteResize(1, $event)"></div>
+  </div>
 </div>
 
 <div class="selection-start-rect" [style]="selectionStartRectStyle ?? 'display: none'"></div>

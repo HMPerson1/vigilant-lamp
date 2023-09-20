@@ -20,7 +20,7 @@
 }
 
 .note-selected {
-  border-color: #fff;
+  border-color: #eeec;
   pointer-events: all;
 }
 
@@ -33,8 +33,25 @@
   opacity: .5;
 }
 
+.selection-resize-indicator::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-inline: 2px solid white;
+}
+
 .selection-resize-handle {
+  width: 8px;
+  height: 100%;
   cursor: ew-resize;
+}
+
+.selection-resize-handle.handle-left {
+  left: -4px;
+}
+
+.selection-resize-handle.handle-right {
+  right: -4px;
 }
 
 .selection-start-rect {

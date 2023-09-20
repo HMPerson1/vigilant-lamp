@@ -45,7 +45,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
   get activePart(): Part | undefined { return this.activePartIdx !== undefined ? this.project.project?.parts?.[this.activePartIdx] : undefined }
   get activePartColor() { return this.activePart?.color }
-  get hideSelectedNotes() { return this.resizeNote !== undefined || this.draggedNotes !== undefined; }
+  get hideSelectedNotes() { return this.resizeNoteState !== undefined || this.draggedNotes !== undefined; }
 
   hoveredNote(): Note | undefined {
     const meter = this.project.project?.meter;
@@ -205,32 +205,30 @@ export class PianoRollEditorComponent implements OnChanges {
     return rect2style({ x, y, width: xMax - x, height: yMax - y });
   }
 
-  selectionResizeHandleStyle(which: 0 | 1) {
-    if (!this.singleSelection || !this.project.project) return;
-    const [partIdx, noteIdx] = this.singleSelection;
-    const noteRect = this.note2rect(this.project.project.parts[partIdx].notes[noteIdx]);
-    if (!noteRect) return;
-    return rect2style({
-      x: noteRect.x - (RESIZE_HANDLE_WIDTH / 2) + which * noteRect.width,
-      y: noteRect.y,
-      width: RESIZE_HANDLE_WIDTH,
-      height: noteRect.height,
-    });
+  get selectionResizeIndicatorStyle() {
+    if (!this.project.project) return;
+    let note = this.resizeNote;
+    if (this.singleSelection && !note) {
+      const [partIdx, noteIdx] = this.singleSelection;
+      note = this.project.project.parts[partIdx].notes[noteIdx];
+    }
+    const noteRect = note && this.note2rect(note);
+    return noteRect && rect2style(noteRect);
   }
 
-  resizeNote?: [number, number, 0 | 1];
+  resizeNoteState?: [number, number, 0 | 1];
 
   async startNoteResize(which: 0 | 1, event: MouseEvent) {
     if (!this.singleSelection || event.button !== 0) return;
     event.preventDefault();
     event.stopPropagation();
     const [partIdx, noteIdx] = this.singleSelection;
-    this.resizeNote = [partIdx, noteIdx, which];
+    this.resizeNoteState = [partIdx, noteIdx, which];
     try {
       await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
       if (!this.mouseX || !this.project.project) return;
       const origNote = this.project.project.parts[partIdx].notes[noteIdx];
-      const newNote = resizeNote(
+      const newNote = doResizeNote(
         this.project.project.meter,
         origNote,
         which,
@@ -239,20 +237,24 @@ export class PianoRollEditorComponent implements OnChanges {
       if (lodash.isEqual(origNote, newNote)) return;
       this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
     } finally {
-      this.resizeNote = undefined;
+      this.resizeNoteState = undefined;
     }
   }
 
-  get resizeNoteStyle() {
-    if (!this.resizeNote || !this.project.project || !this.tile) return;
-    const origNote = this.project.project.parts[this.resizeNote[0]].notes[this.resizeNote[1]];
-    if (!this.mouseX) return this.noteStyle(origNote);
-    return this.noteStyle(resizeNote(
+  get resizeNote() {
+    if (!this.resizeNoteState || !this.project.project || !this.tile) return;
+    const origNote = this.project.project.parts[this.resizeNoteState[0]].notes[this.resizeNoteState[1]];
+    return !this.mouseX ? origNote : doResizeNote(
       this.project.project.meter,
       origNote,
-      this.resizeNote[2],
+      this.resizeNoteState[2],
       this.tile.x2time(this.mouseX),
-    ));
+    );
+  }
+
+  get resizeNoteStyle() {
+    const n = this.resizeNote;
+    return n && this.noteStyle(n);
   }
 
   draggedNotes?: ReadonlyArray<readonly [number, ReadonlyArray<Note>]>;
@@ -311,7 +313,7 @@ const clickDragNote = (start: Note, end: Note): Note | undefined => {
   return length > 0 ? { ...start, length, pitch: end.pitch } : undefined;
 };
 
-const resizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): Note => {
+const doResizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): Note => {
   const ppsd = PULSES_PER_BEAT / meter.subdivision;
 
   const mousePulseRaw = time2pulse(meter, time);
@@ -341,8 +343,6 @@ const moveNote = (meter: Meter, startPulse: number, startPitch: number) => {
 type Rect = { x: number; y: number; width: number; height: number; };
 const rect2style = ({ x, y, width, height }: Rect) =>
   `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`;
-
-const RESIZE_HANDLE_WIDTH = 8;
 
 const isNoteInRect = (rect: Record<'timeMin' | 'timeMax' | 'pitchMin' | 'pitchMax', number>, note: Note) =>
   (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
