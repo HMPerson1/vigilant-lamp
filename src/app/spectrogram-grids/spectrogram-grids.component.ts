@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, Input } from '@angular/core';
+import { Component, ElementRef, Input } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
@@ -30,6 +30,8 @@ export class SpectrogramGridsComponent {
   pitchLabels = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0, txt: "" }))
   pitchLabelFontSize = 0;
   overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
+
+  gridYOffset = 0;
 
   beatGrid: Array<{ x: number, m: boolean, s: boolean }> = [];
   @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
@@ -68,21 +70,22 @@ export class SpectrogramGridsComponent {
   }
 
   updatePitchGrid(winParams: GenSpecTile<DOMRect>, label: PitchLabelType) {
+    this.gridYOffset = Math.round(winParams.pitch2y(0))
     for (const o of this.overtoneYOffsets) {
-      o.y = Math.round(Math.log2(o.i) * 12 / winParams.pitchPerPixel)
+      o.y = Math.round(Math.log2(o.i) * 12 * winParams.pixelsPerPitch) - this.gridYOffset
     }
     for (const o of this.pitchGridBorders) {
-      o.y = Math.round(winParams.pitch2y(o.p - 0.5))
+      o.y = Math.round(winParams.pitch2y(o.p - 0.5)) - this.gridYOffset
     }
     for (const o of this.pitchGridCenters) {
-      o.y = Math.round(winParams.pitch2y(o.p))
+      o.y = Math.round(winParams.pitch2y(o.p)) - this.gridYOffset
     }
-    this.showPitchGridCenters = 1 / winParams.pitchPerPixel > 30
+    this.showPitchGridCenters = winParams.pixelsPerPitch > 30
     for (const o of this.pitchLabels) {
-      o.y = winParams.pitch2y(o.p)
+      o.y = Math.round(winParams.pitch2y(o.p)) - this.gridYOffset
       o.txt = pitchLabel(label, o.p)
     }
-    this.pitchLabelFontSize = lodash.clamp(Math.round(.8 / winParams.pitchPerPixel), 12, 20)
+    this.pitchLabelFontSize = lodash.clamp(Math.round(.8 * winParams.pixelsPerPitch), 12, 20)
   }
 
   updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
@@ -98,7 +101,7 @@ export class SpectrogramGridsComponent {
       return;
     }
     const secPerBeat = 60 / meter.bpm;
-    const pixelsPerBeat = secPerBeat / render.timePerPixel;
+    const pixelsPerBeat = secPerBeat * render.pixelsPerTime;
     const windowLeftBeat = time2beat(meter, render.timeMin);
     if (pixelsPerBeat < 10) {
       const firstMeasure = Math.max(Math.ceil(windowLeftBeat / meter.measureLength), 0);

@@ -1,6 +1,5 @@
 :host,
-.grids-container,
-.grids-container>* {
+.grids-container {
   pointer-events: none;
   contain: strict;
   /* apparently this makes Chrome's compositor behave better */

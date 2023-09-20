@@ -31,10 +31,10 @@ export class AudioWaveformComponent {
     this.timeMax$ = toObs('timeMax')
 
     const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
-    const wasmAudioBuffer$ = audioDataDef$.pipe(scan<AudioSamples, wasm_module.AudioBuffer, undefined>(
+    const wasmWaveRenderer$ = audioDataDef$.pipe(scan<AudioSamples, wasm_module.WaveformRenderer, undefined>(
       (last, audioData) => {
         last?.free();
-        return new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+        return new wasm_module.WaveformRenderer(new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate));
       }, undefined));
 
     const waveCanvasDef$ = this.waveformCanvas$.pipe(filter(isNotUndefined))
@@ -43,19 +43,19 @@ export class AudioWaveformComponent {
     const canvasHeight$ = waveCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize));
 
     combineLatest({
-      wasmAudioBuffer: wasmAudioBuffer$,
+      wasmWaveRenderer: wasmWaveRenderer$,
       timeMin: this.timeMin$,
       timeMax: this.timeMax$,
       canvasWidth: canvasWidth$,
       canvasHeight: canvasHeight$,
-    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(({ wasmAudioBuffer, timeMin, timeMax, canvasWidth, canvasHeight }) => {
+    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(({ wasmWaveRenderer, timeMin, timeMax, canvasWidth, canvasHeight }) => {
       if (!this.waveformCanvas) return;
       const waveCanvas = this.waveformCanvas.nativeElement;
       waveCanvas.width = canvasWidth
       waveCanvas.height = canvasHeight
       const waveCanvasCtx = waveCanvas.getContext('2d')!
 
-      const imageData = wasm_module.render_waveform(wasmAudioBuffer, timeMin, timeMax, waveCanvas.width, waveCanvas.height);
+      const imageData = wasmWaveRenderer.render(timeMin, timeMax, waveCanvas.width, waveCanvas.height);
       waveCanvasCtx.putImageData(imageData, 0, 0);
     })
   }

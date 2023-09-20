@@ -3,15 +3,16 @@
     <div class="beat-grid" *ngFor="let i of beatGrid; trackBy: trackIdx" [style.transform]="'translateX('+i.x+'px)'"
       [class.beat-grid-measure]="i.m" [class.beat-grid-subdiv]="i.s"></div>
   </div>
-  <div *ngIf="showPitchGrid && showPitchGridCenters">
+  <div *ngIf="showPitchGrid && showPitchGridCenters" [style.transform]="'translateY('+gridYOffset+'px)'">
     <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters" [style.transform]="'translateY('+p.y+'px)'">
     </div>
   </div>
-  <div *ngIf="showPitchGrid">
+  <div *ngIf="showPitchGrid" [style.transform]="'translateY('+gridYOffset+'px)'">
     <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders" [style.transform]="'translateY('+p.y+'px)'">
     </div>
   </div>
-  <div *ngIf="pitchLabelType !== 'none'" [style.font-size.px]="pitchLabelFontSize">
+  <div *ngIf="pitchLabelType !== 'none'" [style.font-size.px]="pitchLabelFontSize"
+    [style.transform]="'translateY('+gridYOffset+'px)'">
     <div class="pitch-label" *ngFor="let p of pitchLabels" [style.transform]="'translateY('+p.y+'px)'">
       <span>{{p.txt}}</span>
     </div>

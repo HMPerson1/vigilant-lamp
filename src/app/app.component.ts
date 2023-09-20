@@ -104,6 +104,13 @@ export class AppComponent {
   uiMode: UiMode;
   get activePartIdx() { return this.uiMode && this.uiMode.mode === 'noting' ? this.uiMode.partIdx : undefined; }
 
+  sidenavWidth = 360;
+  private settingsPanelResizeObserver = new ResizeObserver(([{ borderBoxSize }]) => { this.sidenavWidth = borderBoxSize[0].inlineSize });
+  @ViewChild('settings_panel') set settingsPanel(elemRef: ElementRef<HTMLElement>) {
+    this.settingsPanelResizeObserver.disconnect();
+    this.settingsPanelResizeObserver.observe(elemRef.nativeElement);
+  }
+
   async newProject() {
     this.loading = 'new'
     try {

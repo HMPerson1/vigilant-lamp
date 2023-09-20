@@ -134,7 +134,7 @@ export class AudioSpectrogramComponent {
     ).pipe(toWasm)
 
     const tileWasmToBmp = mergeMap(({ tile, specDbMin, specDbMax }) => from((async () => {
-      return new GenSpecTile(tile, await createImageBitmap(tile.tile.render(specDbMin, specDbMax), { imageOrientation: 'flipY' }));
+      return new GenSpecTile(tile, await createImageBitmap(tile.tile.render(specDbMin, specDbMax)));
     })()));
     const hiresTileBmp$: Observable<SpecTileBitmap> = combineLatest({
       tile: hiresTile$,
@@ -235,9 +235,9 @@ export class AudioSpectrogramComponent {
 }
 
 function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {
-  const xScale = tile.timePerPixel / render.timePerPixel;
-  const xOffset = render.time2x(tile.timeMin - tile.timePerPixel / 2);
-  const yScale = tile.pitchPerPixel / render.pitchPerPixel;
+  const xScale = render.pixelsPerTime / tile.pixelsPerTime;
+  const xOffset = render.time2x(tile.timeMin) - .5 * xScale;
+  const yScale = render.pixelsPerPitch / tile.pixelsPerPitch;
   const yOffset = render.pitch2y(tile.pitchMax);
   specCanvasCtx.drawImage(tile.inner, xOffset, yOffset, tile.width * xScale, tile.height * yScale);
 }

@@ -35,38 +35,101 @@ impl AudioBuffer {
     }
 }
 
+const CHUNK_SIZE: usize = 128;
+const CHUNK_SIZE_F: f32 = CHUNK_SIZE as f32;
+
 #[wasm_bindgen]
-pub fn render_waveform(
-    audio: &AudioBuffer,
-    time_start: f32,
-    time_end: f32,
-    width: u32,
-    height: u32,
-) -> Result<ImageData, JsValue> {
-    let audio_samples = &*audio.0.samples;
-    assert!(audio_samples.len() > 1);
-    assert!(height > 1);
-    let mut pixel_data = vec![0xff000000_u32; width as usize * height as usize];
-    let sample_start = time_start * audio.0.sample_rate;
-    let x_to_sample = (time_end - time_start) / width as f32 * audio.0.sample_rate;
-    let hheightf = height as f32 / 2.;
-    for x in 0..width {
-        let chunk_start = (x as f32 * x_to_sample + sample_start) as usize;
-        let chunk_start = chunk_start.clamp(0, audio_samples.len() - 1);
-        let chunk_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
-        let chunk_end = chunk_end.clamp(chunk_start, audio_samples.len());
-        let chunk = &audio_samples[chunk_start..chunk_end];
-        if let Some((min, max)) = chunk.iter().copied().minmax().into_option() {
-            let y0 = (min * hheightf + hheightf) as u32;
-            let y0 = y0.clamp(0, height as u32 - 1);
-            let y1 = (max * hheightf + hheightf) as u32;
-            let y1 = y1.clamp(y0, height as u32 - 1);
-            for y in y0..=y1 {
-                pixel_data[(y * width + x) as usize] = 0xffffffff;
-            }
+pub struct WaveformRenderer {
+    audio: AudioBuffer,
+    chuncked: Box<[(f32, f32)]>,
+}
+
+#[wasm_bindgen]
+impl WaveformRenderer {
+    #[wasm_bindgen(constructor)]
+    pub fn new(audio: &AudioBuffer) -> Self {
+        let audio_samples = &*audio.0.samples;
+        let chunk_iter = audio_samples.chunks_exact(CHUNK_SIZE);
+        let remainder = chunk_iter.remainder();
+        let last = remainder.iter().copied().minmax().into_option();
+        let chuncked: Box<[_]> = chunk_iter
+            .map(|chunk| chunk.iter().copied().minmax().into_option().unwrap())
+            .chain(last)
+            .collect();
+        Self {
+            audio: audio.clone(),
+            chuncked,
         }
     }
-    ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), width)
+
+    #[wasm_bindgen]
+    pub fn render(
+        &self,
+        time_start: f32,
+        time_end: f32,
+        width: u32,
+        height: u32,
+    ) -> Result<ImageData, JsValue> {
+        assert!(height > 1);
+        let mut pixel_data = vec![0xff000000_u32; width as usize * height as usize];
+        let sample_start = time_start * self.audio.0.sample_rate;
+        let hheightf = height as f32 / 2.;
+        let x_to_sample = (time_end - time_start) / width as f32 * self.audio.0.sample_rate;
+        if x_to_sample > (2 * CHUNK_SIZE) as f32 {
+            let chunks = &*self.chuncked;
+            for x in 0..width {
+                let pixel_start_chunk =
+                    ((x as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize;
+                let pixel_start_chunk = pixel_start_chunk.clamp(0, chunks.len() - 1);
+                let pixel_end_chunk =
+                    (((x + 1) as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize + 1;
+                let pixel_end_chunk = pixel_end_chunk.clamp(pixel_start_chunk, chunks.len());
+                let pixel_chunks = &chunks[pixel_start_chunk..pixel_end_chunk];
+                if let Some((min, max)) = aggregate_minmax(pixel_chunks) {
+                    let y0 = (min * hheightf + hheightf) as u32;
+                    let y0 = y0.clamp(0, height as u32 - 1);
+                    let y1 = (max * hheightf + hheightf) as u32;
+                    let y1 = y1.clamp(y0, height as u32 - 1);
+                    for y in y0..=y1 {
+                        pixel_data[(y * width + x) as usize] = 0xffffffff;
+                    }
+                }
+            }
+        } else {
+            let audio_samples = &*self.audio.0.samples;
+            assert!(audio_samples.len() > 1);
+            for x in 0..width {
+                let pixel_start = (x as f32 * x_to_sample + sample_start) as usize;
+                let pixel_start = pixel_start.clamp(0, audio_samples.len() - 1);
+                let pixel_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
+                let pixel_end = pixel_end.clamp(pixel_start, audio_samples.len());
+                let pixel_samples = &audio_samples[pixel_start..pixel_end];
+                if let Some((min, max)) = pixel_samples.iter().copied().minmax().into_option() {
+                    let y0 = (min * hheightf + hheightf) as u32;
+                    let y0 = y0.clamp(0, height as u32 - 1);
+                    let y1 = (max * hheightf + hheightf) as u32;
+                    let y1 = y1.clamp(y0, height as u32 - 1);
+                    for y in y0..=y1 {
+                        pixel_data[(y * width + x) as usize] = 0xffffffff;
+                    }
+                }
+            }
+        }
+        ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), width)
+    }
+}
+
+fn aggregate_minmax(pixel_chunks: &[(f32, f32)]) -> Option<(f32, f32)> {
+    if pixel_chunks.len() == 0 {
+        return None;
+    }
+    let mut min = f32::INFINITY;
+    let mut max = f32::NEG_INFINITY;
+    for &(cmin, cmax) in pixel_chunks {
+        min = min.min(cmin);
+        max = max.max(cmax);
+    }
+    Some((min, max))
 }
 
 #[wasm_bindgen]
@@ -287,8 +350,8 @@ impl SpectrogramRendererOne {
 
         let freq_min_ln = pitch2freq(pitch_min).ln();
         let freq_max_ln = pitch2freq(pitch_max).ln();
-        let y_to_freq_ln_mul = ((freq_max_ln - freq_min_ln) / (canvas_height as f64)) as f32;
-        let y_to_freq_ln_add = (freq_min_ln
+        let y_to_freq_ln_mul = ((freq_min_ln - freq_max_ln) / (canvas_height as f64)) as f32;
+        let y_to_freq_ln_add = (freq_max_ln
             + ((self.fft_out.len() - 1) as f64 / (audio_sample_rate / 2.)).ln())
             as f32;
 

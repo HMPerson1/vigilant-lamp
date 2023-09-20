@@ -9,7 +9,7 @@ export const t_Float32Array = new t.Type<Float32Array, Uint8Array, Uint8Array>(
   (a) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength),
 );
 
-export interface AudioSamples extends t.TypeOf<typeof AudioSamples> {}
+export interface AudioSamples extends t.TypeOf<typeof AudioSamples> { }
 export const AudioSamples = t.readonly(t.type({
   sampleRate: t.number,
   samples: t_Uint8Array.pipe(t_Float32Array),
@@ -52,8 +52,8 @@ export class SpecTileWindowExt implements SpecTileWindow {
 export class GenSpecTile<T extends { width: number, height: number }> extends SpecTileWindowExt {
   get width() { return this.inner.width; }
   get height() { return this.inner.height; }
-  get timePerPixel() { return this.timeRange / this.width; }
-  get pitchPerPixel() { return this.pitchRange / this.height; }
+  get pixelsPerTime() { return this.width / this.timeRange; }
+  get pixelsPerPitch() { return this.height / this.pitchRange; }
 
   constructor(window: SpecTileWindow, public readonly inner: T) {
     super(window);
