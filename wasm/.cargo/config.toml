@@ -1,2 +1,6 @@
 [build]
-rustflags = ["-Ctarget-feature=+nontrapping-fptoint"]
+target = "wasm32-unknown-unknown"
+rustflags = ["-Ctarget-feature=+bulk-memory,+nontrapping-fptoint,+simd128,+sign-ext"]
+
+[unstable]
+build-std = ["panic_abort", "std"]

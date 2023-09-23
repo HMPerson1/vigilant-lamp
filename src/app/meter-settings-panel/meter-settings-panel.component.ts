@@ -146,7 +146,6 @@ export class MeterSettingsPanelComponent {
     if (!this.isMeterSet) return;
     if (this.isMeterLocked) {
       this.dialog.open(this.meterUnlockDialog).afterClosed().subscribe(v => {
-        console.log(v);
         if (v) {
           this.project.modify(ProjectLens(['meter', 'state']).set('active'));
         }

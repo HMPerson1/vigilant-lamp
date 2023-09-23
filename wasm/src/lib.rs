@@ -1,7 +1,7 @@
 mod colormap;
 mod utils;
 
-use std::rc::Rc;
+use std::{ops::Range, rc::Rc};
 
 use js_sys::Float32Array;
 use realfft::{
@@ -71,27 +71,25 @@ impl WaveformRenderer {
         height: u32,
     ) -> Result<ImageData, JsValue> {
         assert!(height > 1);
-        let mut pixel_data = vec![0xff000000_u32; width as usize * height as usize];
+        let mut pixel_data = vec![0_u32; width as usize * height as usize];
         let sample_start = time_start * self.audio.0.sample_rate;
         let hheightf = height as f32 / 2.;
         let x_to_sample = (time_end - time_start) / width as f32 * self.audio.0.sample_rate;
-        if x_to_sample > (2 * CHUNK_SIZE) as f32 {
+        if x_to_sample > 2. * CHUNK_SIZE_F {
             let chunks = &*self.chuncked;
+            assert!(chunks.len() > 1);
             for x in 0..width {
                 let pixel_start_chunk =
                     ((x as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize;
-                let pixel_start_chunk = pixel_start_chunk.clamp(0, chunks.len() - 1);
                 let pixel_end_chunk =
                     (((x + 1) as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize + 1;
-                let pixel_end_chunk = pixel_end_chunk.clamp(pixel_start_chunk, chunks.len());
-                let pixel_chunks = &chunks[pixel_start_chunk..pixel_end_chunk];
+                let pixel_chunks =
+                    &chunks[clamp_range(pixel_start_chunk, pixel_end_chunk, chunks.len())];
                 if let Some((min, max)) = aggregate_minmax(pixel_chunks) {
-                    let y0 = (min * hheightf + hheightf) as u32;
-                    let y0 = y0.clamp(0, height as u32 - 1);
-                    let y1 = (max * hheightf + hheightf) as u32;
-                    let y1 = y1.clamp(y0, height as u32 - 1);
-                    for y in y0..=y1 {
-                        pixel_data[(y * width + x) as usize] = 0xffffffff;
+                    let y0 = (min * hheightf + hheightf) as usize;
+                    let y1 = (max * hheightf + hheightf) as usize;
+                    for y in clamp_range(y0, y1, height as usize) {
+                        pixel_data[y * width as usize + x as usize] = 0xffffffff;
                     }
                 }
             }
@@ -100,23 +98,25 @@ impl WaveformRenderer {
             assert!(audio_samples.len() > 1);
             for x in 0..width {
                 let pixel_start = (x as f32 * x_to_sample + sample_start) as usize;
-                let pixel_start = pixel_start.clamp(0, audio_samples.len() - 1);
                 let pixel_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
-                let pixel_end = pixel_end.clamp(pixel_start, audio_samples.len());
-                let pixel_samples = &audio_samples[pixel_start..pixel_end];
+                let pixel_samples =
+                    &audio_samples[clamp_range(pixel_start, pixel_end, audio_samples.len())];
                 if let Some((min, max)) = pixel_samples.iter().copied().minmax().into_option() {
-                    let y0 = (min * hheightf + hheightf) as u32;
-                    let y0 = y0.clamp(0, height as u32 - 1);
-                    let y1 = (max * hheightf + hheightf) as u32;
-                    let y1 = y1.clamp(y0, height as u32 - 1);
-                    for y in y0..=y1 {
-                        pixel_data[(y * width + x) as usize] = 0xffffffff;
+                    let y0 = (min * hheightf + hheightf) as usize;
+                    let y1 = (max * hheightf + hheightf) as usize;
+                    for y in clamp_range(y0, y1, height as usize) {
+                        pixel_data[y * width as usize + x as usize] = 0xffffffff;
                     }
                 }
             }
         }
-        ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), width)
+        ImageData::new_with_u8_clamped_array(Clamped(bytemuck::must_cast_slice(&pixel_data)), width)
     }
+}
+
+fn clamp_range(start: usize, end: usize, max: usize) -> Range<usize> {
+    let start = start.min(max - 1);
+    start..end.clamp(start, max)
 }
 
 fn aggregate_minmax(pixel_chunks: &[(f32, f32)]) -> Option<(f32, f32)> {
@@ -347,6 +347,7 @@ impl SpectrogramRendererOne {
     ) -> SpectrogramTile {
         assert!(self.window.len() == self.fft_in.len());
         let audio_sample_rate = self.audio.0.sample_rate as f64;
+        let audio_sample_len = self.audio.0.samples.len();
 
         let freq_min_ln = pitch2freq(pitch_min).ln();
         let freq_max_ln = pitch2freq(pitch_max).ln();
@@ -354,6 +355,7 @@ impl SpectrogramRendererOne {
         let y_to_freq_ln_add = (freq_max_ln
             + ((self.fft_out.len() - 1) as f64 / (audio_sample_rate / 2.)).ln())
             as f32;
+        let sample_len_log10 = (audio_sample_len as f32).log10();
 
         let time_len = time_end - time_start;
         let x_to_time = time_len / canvas_width as f64;
@@ -361,21 +363,24 @@ impl SpectrogramRendererOne {
         let mut tile = SpectrogramTile::new(canvas_width, canvas_height);
         for x in 0..canvas_width {
             let sample = ((time_start + x as f64 * x_to_time) * audio_sample_rate).round() as isize;
-            if sample < 0 {
+            if sample < 0 || sample as usize >= audio_sample_len {
+                tile.set_column(x, f32::NEG_INFINITY);
                 continue;
             }
-            let sample = sample as usize;
-            if sample >= self.audio.0.samples.len() {
-                break;
-            }
-            self.do_fft_at(sample);
+            self.do_fft_at(sample as usize);
 
             for y in 0..canvas_height {
-                // TODO: anti-alias?
-                let bucket = ((y as f32 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
-                if let Some(db) = self.db_at_freq_bucket(bucket.round() as usize) {
-                    tile.set_pixel(x, y, db as f32);
-                }
+                let power = {
+                    // TODO: anti-alias?
+                    let bucket = ((y as f32 * y_to_freq_ln_mul) + y_to_freq_ln_add).exp();
+                    if let Some(power_raw) = self.fft_out.get(bucket.round() as usize) {
+                        // TODO(perf): faster approximation of log10
+                        (power_raw.norm_sqr().log10() - sample_len_log10) * 10_f32
+                    } else {
+                        f32::NEG_INFINITY
+                    }
+                };
+                tile.set_pixel(x, y, power);
             }
         }
 
@@ -385,20 +390,13 @@ impl SpectrogramRendererOne {
     fn do_fft_at(&mut self, sample: usize) {
         copy_centered_window(sample, &self.audio.0.samples, &mut self.fft_in);
 
-        for (x, w) in self.fft_in.iter_mut().zip(self.window.iter()) {
+        for (x, &w) in self.fft_in.iter_mut().zip(&*self.window) {
             *x *= w;
         }
 
         self.fft
             .process_with_scratch(&mut self.fft_in, &mut self.fft_out, &mut self.fft_scratch)
             .unwrap();
-    }
-
-    fn db_at_freq_bucket(&self, bucket: usize) -> Option<f32> {
-        let power =
-            self.fft_out.get(bucket)?.norm() as f32 / (self.audio.0.samples.len() as f32).sqrt();
-        // TODO(perf): faster approximation of log10
-        Some(power.log10() * 20.)
     }
 }
 
@@ -414,8 +412,12 @@ impl SpectrogramTile {
     fn new(width: u32, height: u32) -> Self {
         Self {
             width,
-            pixels: vec![f32::NAN; width as usize * height as usize].into(),
+            pixels: vec![0_f32; width as usize * height as usize].into(),
         }
+    }
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> u32 {
+        (self.pixels.len() / self.width as usize) as u32
     }
     pub fn into_inner(self) -> Box<[f32]> {
         self.pixels
@@ -430,11 +432,19 @@ impl SpectrogramTile {
             .iter()
             .map(|db| colormap::eval((db - db_min) / db_range))
             .collect();
-        ImageData::new_with_u8_clamped_array(Clamped(bytemuck::cast_slice(&pixel_data)), self.width)
+        ImageData::new_with_u8_clamped_array(
+            Clamped(bytemuck::must_cast_slice(&pixel_data)),
+            self.width,
+        )
     }
     fn set_pixel(&mut self, x: u32, y: u32, val: f32) {
         let i = y as usize * self.width as usize + x as usize;
         self.pixels[i] = val;
+    }
+    fn set_column(&mut self, x: u32, val: f32) {
+        for y in 0..self.height() {
+            self.set_pixel(x, y, val);
+        }
     }
 }
 

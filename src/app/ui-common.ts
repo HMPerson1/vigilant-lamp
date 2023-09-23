@@ -166,3 +166,6 @@ export const indexReadonlyArray: <T>(i: number) => Lens<ReadonlyArray<T>, T> =
       return s2;
     },
   )
+
+export const imageDataToBitmapFast = (image: ImageData, canvasComposite: boolean = false): Promise<ImageBitmap> =>
+  createImageBitmap(image, { colorSpaceConversion: 'none', premultiplyAlpha: canvasComposite ? 'none' : undefined })

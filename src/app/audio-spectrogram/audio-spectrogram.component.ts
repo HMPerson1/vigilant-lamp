@@ -5,7 +5,7 @@ import { fromWorker } from 'observable-webworker';
 import { Observable, animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, firstValueFrom, from, fromEvent, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
-import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, resizeObservable } from '../ui-common';
+import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, imageDataToBitmapFast, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -134,7 +134,7 @@ export class AudioSpectrogramComponent {
     ).pipe(toWasm)
 
     const tileWasmToBmp = mergeMap(({ tile, specDbMin, specDbMax }) => from((async () => {
-      return new GenSpecTile(tile, await createImageBitmap(tile.tile.render(specDbMin, specDbMax)));
+      return new GenSpecTile(tile, await imageDataToBitmapFast(tile.tile.render(specDbMin, specDbMax), true));
     })()));
     const hiresTileBmp$: Observable<SpecTileBitmap> = combineLatest({
       tile: hiresTile$,
@@ -157,7 +157,7 @@ export class AudioSpectrogramComponent {
       const specCanvas = this.spectrogramCanvas.nativeElement
       specCanvas.width = winParams.canvasWidth
       specCanvas.height = winParams.canvasHeight
-      const specCanvasCtx = specCanvas.getContext('2d')!
+      const specCanvasCtx = specCanvas.getContext('2d', { alpha: false })!
       specCanvasCtx.imageSmoothingEnabled = false
       specCanvasCtx.fillStyle = 'gray'
       specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
