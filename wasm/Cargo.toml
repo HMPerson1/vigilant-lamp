@@ -19,7 +19,7 @@ wasm-bindgen = "0.2.63"
 # serde_closure = "*"
 # serde = "*"
 # wasm-mt-pool = "0.1.2"
-rustfft = "*"
+rustfft = { version = "*", features = ["wasm_simd"] }
 realfft = "3.2.0"
 # colorous = "1.0.9"
 bytemuck = { version = "1.14.0", features = ["must_cast"] }
@@ -35,6 +35,10 @@ console_error_panic_hook = { version = "0.1.6", optional = true }
 # compared to the default allocator's ~10K. It is slower than the default
 # allocator, however.
 wee_alloc = { version = "0.4.5", optional = true }
+
+[patch.crates-io.rustfft]
+git = "https://github.com/ejmahler/RustFFT.git"
+rev = "147364419743caecb5b88334e44df04fc5c1bf89"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
