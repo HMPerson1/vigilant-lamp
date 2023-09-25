@@ -2,9 +2,9 @@ import { Component, ElementRef, Input } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
-import { Subject, animationFrameScheduler, combineLatest, debounceTime } from 'rxjs';
+import { Subject, asapScheduler,  combineLatest, debounceTime, map } from 'rxjs';
 import { GenSpecTile } from '../common';
-import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-common';
+import { Meter, PITCH_MAX, PitchLabelType, beat2time, resizeObservable, time2beat } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-grids',
@@ -45,7 +45,7 @@ export class SpectrogramGridsComponent {
     const pitchMax$ = toObs('pitchMax')
     const pitchLabelType$ = toObs('pitchLabelType')
 
-    const hostElem = elemRef.nativeElement;
+    const hostElemBox$ = resizeObservable(elemRef.nativeElement, { box: 'content-box' }).pipe(map(x => x.contentRect));
 
     const renderWinParam$s = {
       timeMin: timeMin$,
@@ -56,16 +56,18 @@ export class SpectrogramGridsComponent {
 
     combineLatest({
       pitchLabelType: pitchLabelType$,
+      hostElemBox: hostElemBox$,
       ...renderWinParam$s
-    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(params => {
-      this.updatePitchGrid(new GenSpecTile(params, hostElem.getBoundingClientRect()), params.pitchLabelType);
+    }).pipe(debounceTime(0, asapScheduler)).subscribe(params => {
+      this.updatePitchGrid(new GenSpecTile(params, params.hostElemBox), params.pitchLabelType);
     })
 
     combineLatest({
       meter: this.#meter$,
+      hostElemBox: hostElemBox$,
       ...renderWinParam$s
-    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(params => {
-      this.updateBeatGrid(new GenSpecTile(params, hostElem.getBoundingClientRect()), params.meter);
+    }).pipe(debounceTime(0, asapScheduler)).subscribe(params => {
+      this.updateBeatGrid(new GenSpecTile(params, params.hostElemBox), params.meter);
     })
   }
 

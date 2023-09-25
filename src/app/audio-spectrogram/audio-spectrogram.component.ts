@@ -2,7 +2,7 @@ import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@
 import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
-import { Observable, animationFrameScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, firstValueFrom, from, fromEvent, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
+import { Observable, asapScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, firstValueFrom, from, fromEvent, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
 import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, imageDataToBitmapFast, resizeObservable } from '../ui-common';
@@ -151,7 +151,7 @@ export class AudioSpectrogramComponent {
       hiresTileBmp: hiresTileBmp$,
       loresTileBmp: loresTileBmp$,
       ...renderWinParam$s
-    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(winParams => {
+    }).pipe(debounceTime(0, asapScheduler)).subscribe(winParams => {
       if (!this.spectrogramCanvas) return
 
       const specCanvas = this.spectrogramCanvas.nativeElement

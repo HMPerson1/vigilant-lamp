@@ -1,6 +1,6 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { fromInput } from 'observable-from-input';
-import { Observable, animationFrameScheduler, combineLatest, debounceTime, filter, map, scan, switchMap } from 'rxjs';
+import { Observable, asapScheduler,  combineLatest, debounceTime, filter, map, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, audioSamplesDuration, isNotUndefined } from '../common';
 import { doScrollZoomTime, imageDataToBitmapFast, resizeObservable } from '../ui-common';
@@ -48,7 +48,7 @@ export class AudioWaveformComponent {
       timeMax: this.timeMax$,
       canvasWidth: canvasWidth$,
       canvasHeight: canvasHeight$,
-    }).pipe(debounceTime(0, animationFrameScheduler)).subscribe(async ({ wasmWaveRenderer, timeMin, timeMax, canvasWidth, canvasHeight }) => {
+    }).pipe(debounceTime(0, asapScheduler)).subscribe(async ({ wasmWaveRenderer, timeMin, timeMax, canvasWidth, canvasHeight }) => {
       if (!this.waveformCanvas) return;
       const waveCanvas = this.waveformCanvas.nativeElement;
       waveCanvas.width = canvasWidth
