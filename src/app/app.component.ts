@@ -8,10 +8,10 @@ import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-
 import * as lodash from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
-import { AudioContextService } from './audio-context.service';
+import { AudioContextService } from './services/audio-context.service';
 import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
-import { ProjectService } from './project.service';
+import { ProjectService } from './services/project.service';
 import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
 
 @Component({

@@ -4,7 +4,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { flow } from 'fp-ts/function';
 import * as rxjs from 'rxjs';
 import { PartDialogComponent } from '../part-dialog/part-dialog.component';
-import { ProjectService } from '../project.service';
+import { ProjectService } from '../services/project.service';
 import { ProjectLens, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray } from '../ui-common';
 
 @Component({

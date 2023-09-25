@@ -1,7 +1,7 @@
 import { Component, EventEmitter, Input, NgZone, Output } from '@angular/core';
 import * as Mousetrap from 'mousetrap';
 import { Subscription, animationFrames } from 'rxjs';
-import { AudioContextService } from '../audio-context.service';
+import { AudioContextService } from '../services/audio-context.service';
 
 @Component({
   selector: 'app-audio-player',

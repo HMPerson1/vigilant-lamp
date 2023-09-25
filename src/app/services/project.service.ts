@@ -3,8 +3,8 @@ import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
 import { Observable, Subject, distinctUntilChanged } from 'rxjs';
-import { AudioSamples } from './common';
-import { Project, defaultMeter } from './ui-common';
+import { AudioSamples } from '../common';
+import { Project, defaultMeter } from '../ui-common';
 
 @Injectable({
   providedIn: 'root'

@@ -5,7 +5,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { flow } from 'fp-ts/function';
 import { Lens } from 'monocle-ts';
 import * as rxjs from 'rxjs';
-import { ProjectService } from '../project.service';
+import { ProjectService } from '../services/project.service';
 import { Meter, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectLens, defaultMeter } from '../ui-common';
 
 @Component({

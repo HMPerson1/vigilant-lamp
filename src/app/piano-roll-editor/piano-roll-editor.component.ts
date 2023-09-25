@@ -4,7 +4,7 @@ import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
-import { ProjectService } from '../project.service';
+import { ProjectService } from '../services/project.service';
 import { Meter, Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 
 @Component({
