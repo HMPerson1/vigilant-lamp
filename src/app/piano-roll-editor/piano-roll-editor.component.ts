@@ -206,7 +206,7 @@ export class PianoRollEditorComponent implements OnChanges {
   }
 
   get selectionResizeIndicatorStyle() {
-    if (!this.project.project) return;
+    if (!this.project.project || this.draggedNotes !== undefined) return;
     let note = this.resizeNote;
     if (this.singleSelection && !note) {
       const [partIdx, noteIdx] = this.singleSelection;

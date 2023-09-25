@@ -33,6 +33,10 @@
   opacity: .5;
 }
 
+.selection-resize-indicator {
+  pointer-events: none;
+}
+
 .selection-resize-indicator::before {
   content: "";
   position: absolute;

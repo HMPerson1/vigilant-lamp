@@ -22,7 +22,7 @@
 <div *ngIf="singleSelection">
   <div class="note note-selected" [style]="resizeNoteStyle ?? 'display: none'"
     [style.background-color]="project.project?.parts?.[singleSelection[0]]?.color"></div>
-  <div class="selection-resize-indicator" [style]="selectionResizeIndicatorStyle">
+  <div class="selection-resize-indicator" [style]="selectionResizeIndicatorStyle ?? 'display: none'">
     <div class="selection-resize-handle handle-left" (mousedown)="startNoteResize(0, $event)"></div>
     <div class="selection-resize-handle handle-right" (mousedown)="startNoteResize(1, $event)"></div>
   </div>
