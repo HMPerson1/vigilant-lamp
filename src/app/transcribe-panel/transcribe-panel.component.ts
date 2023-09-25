@@ -5,7 +5,7 @@ import { flow } from 'fp-ts/function';
 import * as rxjs from 'rxjs';
 import { PartDialogComponent } from '../part-dialog/part-dialog.component';
 import { ProjectService } from '../project.service';
-import { ProjectLens, StartTranscribing, defaultPart, indexReadonlyArray } from '../ui-common';
+import { ProjectLens, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray } from '../ui-common';
 
 @Component({
   selector: 'app-transcribe-panel',
@@ -16,6 +16,7 @@ export class TranscribePanelComponent {
   constructor(readonly project: ProjectService, private dialog: MatDialog) { }
 
   @Input() startTranscribing?: StartTranscribing;
+  @Input() transcribeModeState?: TranscribeModeState;
 
   async onAddPartClick() {
     if (this.project.project?.meter.state === 'unset') return;
@@ -48,11 +49,20 @@ export class TranscribePanelComponent {
     }
   }
 
+  onPartButtonClick(idx: number) {
+    if (this.transcribeModeState?.partIdx === idx) {
+      this.transcribeModeState.cancel();
+    } else {
+      this.startTranscribing?.(idx);
+    }
+  }
+
   drop(event: CdkDragDrop<any>) {
     if (event.currentIndex !== event.previousIndex) {
       this.project.modify(ProjectLens(['parts']).modify(parts => {
         const ret = [...parts];
-        moveItemInArray(ret, event.previousIndex, event.currentIndex);
+        // cdkDropList doesn't handle column-reverse well
+        moveItemInArray(ret, ret.length - 1 - event.previousIndex, ret.length - 1 - event.currentIndex);
         return ret;
       }));
     }

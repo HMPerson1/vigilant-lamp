@@ -149,7 +149,8 @@
               Transcribe
             </mat-panel-title>
           </mat-expansion-panel-header>
-          <app-transcribe-panel [startTranscribing]="startTranscribing"></app-transcribe-panel>
+          <app-transcribe-panel [startTranscribing]="startTranscribing"
+            [transcribeModeState]="uiMode && uiMode.mode === 'noting' ? uiMode : undefined"></app-transcribe-panel>
         </mat-expansion-panel>
       </mat-accordion>
       <div style="margin-top: auto;">

@@ -16,8 +16,9 @@
               [matMenuTriggerData]="{idx}"><mat-icon>more_vert</mat-icon></button>
           </mat-card-header>
           <mat-card-content>
-            <button mat-flat-button class="full-width" color="primary" (click)="startTranscribing?.(idx)">
-              <mat-icon>edit</mat-icon>TRANSCRIBE
+            <button mat-flat-button class="full-width" color="primary" (click)="onPartButtonClick(idx)">
+              <mat-icon>{{transcribeModeState?.partIdx === idx ? "done" : "edit"}}</mat-icon>
+              {{transcribeModeState?.partIdx === idx ? "DONE" : "TRANSCRIBE"}}
             </button>
           </mat-card-content>
         </div>

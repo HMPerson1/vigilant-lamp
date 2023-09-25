@@ -155,6 +155,11 @@ export interface StartTranscribing {
   (partIdx: number): void;
 }
 
+export interface TranscribeModeState {
+  partIdx: number;
+  cancel: () => void;
+}
+
 // love too have an extremely normal fp ecosystem
 export const indexReadonlyArray: <T>(i: number) => Lens<ReadonlyArray<T>, T> =
   i => new Lens(
