@@ -6,6 +6,7 @@ import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
 import { ProjectService } from '../services/project.service';
 import { Meter, Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { PairsSet } from '../utils/pairs-set';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -133,20 +134,10 @@ export class PianoRollEditorComponent implements OnChanges {
     return activeNote ? this.noteStyle(activeNote) : undefined;
   }
 
-  selection: Map<number, Set<number>> = new Map();
-  singleSelection?: [number, number];
+  selection: PairsSet<number, number> = PairsSet.empty();
+  get singleSelection() { return this.selection.asSingleton }
 
-  private commitSelection() {
-    if (this.selection.size === 1) {
-      const p = this.selection.entries().next();
-      if (!p.done && p.value[1].size === 1) {
-        const n = p.value[1].values().next();
-        if (!n.done) {
-          this.singleSelection = [p.value[0], n.value];
-        }
-      }
-    }
-  }
+  showResizeHandles = true;
 
   private selectionStart?: readonly [number, number];
 
@@ -162,7 +153,7 @@ export class PianoRollEditorComponent implements OnChanges {
         : event.shiftKey ? { t: 'or', p: this.selection } as const
           : { t: 'new' } as const;
 
-    this.singleSelection = undefined;
+    this.showResizeHandles = false;
     const selStart = [this.mouseX, this.mouseY] as const;
     this.selectionStart = selStart;
     const onMoveSub = this.mousePos$.pipe(rxjs.map(mousePos => {
@@ -177,36 +168,32 @@ export class PianoRollEditorComponent implements OnChanges {
         pitchMin: Math.min(pitch0, pitch1) - .5,
         pitchMax: Math.max(pitch0, pitch1) + .5,
       }
-      return new Map(function* () {
+      return PairsSet.fromIterable<number, number>(function* () {
         for (const [partIdx, part] of project.parts.entries()) {
-          const partSeld = new Set(function* () {
+          yield [partIdx, function* () {
             for (const [noteIdx, note] of part.notes.entries()) {
-              if (isNoteInRect(selRect, note)) {
-                yield noteIdx;
-              }
+              if (isNoteInRect(selRect, note)) yield noteIdx;
             }
-            return;
-          }());
-          if (partSeld.size > 0) yield [partIdx, partSeld];
+          }()];
         }
-        return;
       }());
     })).subscribe(curSel => {
-      if (!curSel || curSel.size === 0) {
-        this.selection = mode.p ?? new Map();
+      if (!curSel || curSel.isEmpty) {
+        this.selection = mode.p ?? PairsSet.empty();
         return;
       }
-      if (mode.t !== 'new') {
-        mergeSelections(mode.t, curSel, mode.p);
+      switch (mode.t) {
+        case 'xor': curSel.xorWith(mode.p); break;
+        case 'or': curSel.unionWith(mode.p); break;
       }
       this.selection = curSel;
     });
     try {
       await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-      this.commitSelection();
     } finally {
-      this.selectionStart = undefined;
       onMoveSub.unsubscribe();
+      this.selectionStart = undefined;
+      this.showResizeHandles = true;
     }
   }
 
@@ -272,7 +259,7 @@ export class PianoRollEditorComponent implements OnChanges {
     return n && this.noteStyle(n);
   }
 
-  draggedNotes?: ReadonlyArray<readonly [number, ReadonlyArray<Note>]>;
+  draggedNotes?: ReadonlyArray<readonly [number, Note]>;
 
   async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
     const project = this.project.project;
@@ -287,22 +274,12 @@ export class PianoRollEditorComponent implements OnChanges {
     const nextMouseUp = rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
     if (await Promise.race([nextMouseUp.then(() => true), nextMouseMove.then(() => false)])) {
       // single click: just (select/toggle selection of) the note
-      if (event.ctrlKey || event.shiftKey) {
-        const s = this.selection.get(partIdx);
-        if (s) {
-          if (event.ctrlKey && s.has(noteIdx)) {
-            s.delete(noteIdx);
-            if (s.size === 0) this.selection.delete(partIdx);
-          } else {
-            s.add(noteIdx);
-          }
-        } else {
-          this.selection.set(partIdx, new Set([noteIdx]));
-        }
-        this.commitSelection();
+      if (event.ctrlKey) {
+        this.selection.toggle([partIdx, noteIdx]);
+      } else if (event.shiftKey) {
+        this.selection.add([partIdx, noteIdx]);
       } else {
-        this.selection = new Map([[partIdx, new Set([noteIdx])]]);
-        this.singleSelection = [partIdx, noteIdx];
+        this.selection = PairsSet.singleton([partIdx, noteIdx]);
       }
       return;
     }
@@ -312,9 +289,9 @@ export class PianoRollEditorComponent implements OnChanges {
     const onMoveSub = this.mousePos$.pipe(rxjs.map(pos => {
       if (!pos) return;
       const thisMoveNote2 = thisMoveNote(this.tile, pos[0], pos[1]);
-      return Array.from(this.selection, ([partIdx, noteIdxSet]) => [partIdx, Array.from(noteIdxSet, noteIdx =>
-        thisMoveNote2(project.parts[partIdx].notes[noteIdx])
-      )] as const);
+      return Array.from(this.selection, ([partIdx, noteIdx]) =>
+        [partIdx, thisMoveNote2(project.parts[partIdx].notes[noteIdx])] as const
+      );
     }
     )).subscribe(x => this.draggedNotes = x);
     try {
@@ -324,7 +301,7 @@ export class PianoRollEditorComponent implements OnChanges {
       // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (thisMoveNote2 === identity) return;
       this.project.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
-        const selPart = this.selection.get(partIdx);
+        const selPart = this.selection.withFirst(partIdx);
         return !selPart ? part : {
           ...part,
           notes: part.notes.map((note, noteIdx) => !selPart.has(noteIdx) ? note : thisMoveNote2(note))
@@ -378,19 +355,3 @@ const rect2style = ({ x, y, width, height }: Rect) =>
 const isNoteInRect = (rect: Record<'timeMin' | 'timeMax' | 'pitchMin' | 'pitchMax', number>, note: Note) =>
   (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
   && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
-
-const mergeSelections = (mode: "xor" | "or", target: Map<number, Set<number>>, other: Map<number, Set<number>>) => {
-  for (const [partIdx, part] of other) {
-    const c = target.get(partIdx);
-    if (c) {
-      if (mode === 'xor') {
-        part.forEach(v => c.has(v) ? c.delete(v) : c.add(v));
-        if (c.size === 0) target.delete(partIdx);
-      } else {
-        part.forEach(v => c.add(v));
-      }
-    } else {
-      target.set(partIdx, part);
-    }
-  }
-}
