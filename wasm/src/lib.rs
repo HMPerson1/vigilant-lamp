@@ -1,7 +1,7 @@
 mod colormap;
 mod utils;
 
-use std::{ops::Range, rc::Rc};
+use std::{ops::RangeInclusive, rc::Rc};
 
 use js_sys::Float32Array;
 use realfft::{
@@ -82,7 +82,7 @@ impl WaveformRenderer {
                 let pixel_start_chunk =
                     ((x as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize;
                 let pixel_end_chunk =
-                    (((x + 1) as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize + 1;
+                    (((x + 1) as f32 * x_to_sample + sample_start) / CHUNK_SIZE_F) as usize;
                 let pixel_chunks =
                     &chunks[clamp_range(pixel_start_chunk, pixel_end_chunk, chunks.len())];
                 if let Some((min, max)) = aggregate_minmax(pixel_chunks) {
@@ -98,7 +98,7 @@ impl WaveformRenderer {
             assert!(audio_samples.len() > 1);
             for x in 0..width {
                 let pixel_start = (x as f32 * x_to_sample + sample_start) as usize;
-                let pixel_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize + 1;
+                let pixel_end = ((x + 1) as f32 * x_to_sample + sample_start) as usize;
                 let pixel_samples =
                     &audio_samples[clamp_range(pixel_start, pixel_end, audio_samples.len())];
                 if let Some((min, max)) = pixel_samples.iter().copied().minmax().into_option() {
@@ -114,9 +114,9 @@ impl WaveformRenderer {
     }
 }
 
-fn clamp_range(start: usize, end: usize, max: usize) -> Range<usize> {
+fn clamp_range(start: usize, end: usize, max: usize) -> RangeInclusive<usize> {
     let start = start.min(max - 1);
-    start..end.clamp(start, max)
+    start..=end.clamp(start, max - 1)
 }
 
 fn aggregate_minmax(pixel_chunks: &[(f32, f32)]) -> Option<(f32, f32)> {
