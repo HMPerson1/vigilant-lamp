@@ -7,6 +7,7 @@ import { GenSpecTile } from '../common';
 import { ProjectService } from '../services/project.service';
 import { Meter, Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
+import { KeyboardStateService } from '../services/keyboard-state.service';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -14,7 +15,11 @@ import { PairsSet } from '../utils/pairs-set';
   styleUrls: ['./piano-roll-editor.component.css']
 })
 export class PianoRollEditorComponent implements OnChanges {
-  constructor(readonly project: ProjectService, elemRef: ElementRef<HTMLElement>) {
+  constructor(
+    readonly project: ProjectService,
+    private readonly keyboardState: KeyboardStateService,
+    elemRef: ElementRef<HTMLElement>,
+  ) {
     const toObs = fromInput(this);
     this.mousePos$ = rxjs.combineLatest([toObs('mouseX'), toObs('mouseY')])
       .pipe(rxjs.map(([x, y]) => x !== undefined && y !== undefined ? [x, y] : undefined));
@@ -284,20 +289,21 @@ export class PianoRollEditorComponent implements OnChanges {
       return;
     }
 
-    const thisMoveNote = moveNote(project.meter, time2pulse(project.meter, this.tile.x2time(dragStartX)), this.tile.y2pitch(dragStartY))
+    const thisMoveNote = moveNote(project.meter, this.tile.x2time(dragStartX), this.tile.y2pitch(dragStartY))
 
-    const onMoveSub = this.mousePos$.pipe(rxjs.map(pos => {
-      if (!pos) return;
-      const thisMoveNote2 = thisMoveNote(this.tile, pos[0], pos[1]);
-      return Array.from(this.selection, ([partIdx, noteIdx]) =>
-        [partIdx, thisMoveNote2(project.parts[partIdx].notes[noteIdx])] as const
-      );
-    }
-    )).subscribe(x => this.draggedNotes = x);
+    const onInputSub = rxjs.combineLatest({ pos: this.mousePos$, shiftKey: this.keyboardState.shiftKey$ })
+      .pipe(rxjs.map(({ pos, shiftKey }) => {
+        if (!pos) return;
+        const thisMoveNote2 = thisMoveNote(this.tile, pos[0], pos[1], shiftKey);
+        return Array.from(this.selection, ([partIdx, noteIdx]) =>
+          [partIdx, thisMoveNote2(project.parts[partIdx].notes[noteIdx])] as const
+        );
+      }))
+      .subscribe(x => this.draggedNotes = x);
     try {
       await nextMouseUp;
       if (this.mouseX === undefined || this.mouseY === undefined) return;
-      const thisMoveNote2 = thisMoveNote(this.tile, this.mouseX, this.mouseY);
+      const thisMoveNote2 = thisMoveNote(this.tile, this.mouseX, this.mouseY, this.keyboardState.shiftKey);
       // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (thisMoveNote2 === identity) return;
       this.project.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
@@ -309,7 +315,7 @@ export class PianoRollEditorComponent implements OnChanges {
       })));
     } finally {
       this.draggedNotes = undefined;
-      onMoveSub.unsubscribe();
+      onInputSub.unsubscribe();
     }
   }
 
@@ -335,11 +341,18 @@ const doResizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number):
     : { ...origNote, start: newNoteT2, length: newNoteT1 - newNoteT2 };
 }
 
-const moveNote = (meter: Meter, startPulse: number, startPitch: number) => {
+const moveNote = (meter: Meter, startTime: number, startPitch: number) => {
   const ppsd = PULSES_PER_BEAT / meter.subdivision;
-  return (tile: GenSpecTile<DOMRect>, endX: number, endY: number) => {
-    const deltaPulse = Math.round((time2pulse(meter, tile.x2time(endX)) - startPulse) / ppsd) * ppsd;
-    const deltaPitch = Math.round(tile.y2pitch(endY) - startPitch);
+  const startPulse = time2pulse(meter, startTime);
+  return (tile: GenSpecTile<DOMRect>, endX: number, endY: number, lockAxis: boolean) => {
+    const deltaPulse0 = Math.round((time2pulse(meter, tile.x2time(endX)) - startPulse) / ppsd) * ppsd;
+    const deltaPitch0 = Math.round(tile.y2pitch(endY) - startPitch);
+    const [deltaPulse, deltaPitch] =
+      !lockAxis
+        ? [deltaPulse0, deltaPitch0]
+        : (Math.abs(endX - tile.time2x(startTime)) > Math.abs(endY - tile.pitch2y(startPitch))
+          ? [deltaPulse0, 0]
+          : [0, deltaPitch0]);
     return deltaPulse === 0 && deltaPitch === 0 ? identity : (note: Note): Note => ({
       ...note,
       start: note.start + deltaPulse,
