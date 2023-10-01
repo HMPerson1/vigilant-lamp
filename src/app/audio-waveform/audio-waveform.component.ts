@@ -1,83 +1,67 @@
-import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
-import { fromInput } from 'observable-from-input';
-import { Observable, asapScheduler,  combineLatest, debounceTime, filter, map, scan, switchMap } from 'rxjs';
+import { Component, DestroyRef, ElementRef, ViewChild, computed, effect } from '@angular/core';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, audioSamplesDuration, isNotUndefined } from '../common';
-import { doScrollZoomTime, imageDataToBitmapFast, resizeObservable } from '../ui-common';
+import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
+import { ProjectService } from '../services/project.service';
+import { imageDataToBitmapFast, resizeSignal } from '../ui-common';
 
 @Component({
   selector: 'app-audio-waveform',
-  templateUrl: './audio-waveform.component.html',
+  template: '<canvas #waveform_canvas></canvas>',
+  host: { class: 'canvas-box' },
 })
 export class AudioWaveformComponent {
-  @ViewChild('waveform_canvas') waveformCanvas?: ElementRef<HTMLCanvasElement>
-  waveformCanvas$: Observable<ElementRef<HTMLCanvasElement> | undefined>;
-  @Input() audioData?: AudioSamples;
-  audioData$: Observable<AudioSamples | undefined>;
-  @Input() timeMin: number = 0;
-  @Input() timeMax: number = 30;
-  @Output() timeMinChange = new EventEmitter<number>();
-  @Output() timeMaxChange = new EventEmitter<number>();
-  timeMin$: Observable<number>;
-  timeMax$: Observable<number>;
+  #waveCanvasCtx?: ImageBitmapRenderingContext;
+  @ViewChild('waveform_canvas') set waveformCanvas(canvas: ElementRef<HTMLCanvasElement>) {
+    this.#waveCanvasCtx = canvas.nativeElement.getContext('bitmaprenderer', { alpha: false })!
+    this.#waveCanvasCtx.transferFromImageBitmap(null);
+  }
 
-  @Input() cursorX?: number;
+  constructor(project: ProjectService, audioVizContainer: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>, destroyRef: DestroyRef) {
+    const wasmWaveRenderer$ = (() => {
+      let lastRenderer: wasm_module.WaveformRenderer | undefined;
+      destroyRef.onDestroy(() => {
+        lastRenderer?.free();
+        lastRenderer = undefined;
+      });
+      return computed(() => {
+        lastRenderer?.free();
+        const audioData = project.projectAudio();
+        lastRenderer = audioData && new wasm_module.WaveformRenderer(new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate));
+        return lastRenderer;
+      });
+    })();
 
-  constructor() {
-    const toObs = fromInput(this);
-    this.waveformCanvas$ = toObs('waveformCanvas')
-    this.audioData$ = toObs('audioData')
-    this.timeMin$ = toObs('timeMin')
-    this.timeMax$ = toObs('timeMax')
+    const size$ = resizeSignal(hostElem.nativeElement, { box: 'device-pixel-content-box' })
 
-    const audioDataDef$ = this.audioData$.pipe(filter(isNotUndefined));
-    const wasmWaveRenderer$ = audioDataDef$.pipe(scan<AudioSamples, wasm_module.WaveformRenderer, undefined>(
-      (last, audioData) => {
-        last?.free();
-        return new wasm_module.WaveformRenderer(new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate));
-      }, undefined));
+    effect(async () => {
+      const size = size$();
+      const wasmWaveRenderer = wasmWaveRenderer$();
+      if (!this.#waveCanvasCtx || !size || !wasmWaveRenderer) return;
 
-    const waveCanvasDef$ = this.waveformCanvas$.pipe(filter(isNotUndefined))
-    const waveCanvasSize$ = waveCanvasDef$.pipe(switchMap(canvas => resizeObservable(canvas.nativeElement, { box: 'device-pixel-content-box' })))
-    const canvasWidth$ = waveCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].inlineSize));
-    const canvasHeight$ = waveCanvasSize$.pipe(map(x => x.devicePixelContentBoxSize[0].blockSize));
-
-    combineLatest({
-      wasmWaveRenderer: wasmWaveRenderer$,
-      timeMin: this.timeMin$,
-      timeMax: this.timeMax$,
-      canvasWidth: canvasWidth$,
-      canvasHeight: canvasHeight$,
-    }).pipe(debounceTime(0, asapScheduler)).subscribe(async ({ wasmWaveRenderer, timeMin, timeMax, canvasWidth, canvasHeight }) => {
-      if (!this.waveformCanvas) return;
-      const waveCanvas = this.waveformCanvas.nativeElement;
-      waveCanvas.width = canvasWidth
-      waveCanvas.height = canvasHeight
-      const waveCanvasCtx = waveCanvas.getContext('bitmaprenderer', { alpha: false })!
-
-      const imageData = wasmWaveRenderer.render(timeMin, timeMax, waveCanvas.width, waveCanvas.height);
-      waveCanvasCtx.transferFromImageBitmap(await imageDataToBitmapFast(imageData));
-    })
+      const [{ blockSize, inlineSize }] = size.devicePixelContentBoxSize;
+      const imageData = wasmWaveRenderer.render(audioVizContainer.timeMin(), audioVizContainer.timeMax(), inlineSize, blockSize);
+      this.#waveCanvasCtx.transferFromImageBitmap(await imageDataToBitmapFast(imageData));
+    });
   }
 
 
-  onWheel(event: WheelEvent) {
-    if (!this.waveformCanvas) {
-      console.error("scroll event before view rendered???");
-      return
-    }
-    const waveCanvas = this.waveformCanvas.nativeElement;
-    event.preventDefault()
-    // TODO: scroll pixel/line/page ???
+  // onWheel(event: WheelEvent) {
+  //   if (!this.waveformCanvas) {
+  //     console.error("scroll event before view rendered???");
+  //     return
+  //   }
+  //   const waveCanvas = this.waveformCanvas.nativeElement;
+  //   event.preventDefault()
+  //   // TODO: scroll pixel/line/page ???
 
-    const delta = event.deltaX + event.deltaY
-    if (delta) {
-      doScrollZoomTime(
-        this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
-        delta, event.ctrlKey, event.offsetX / waveCanvas.clientWidth
-      )
-      this.timeMinChange.emit(this.timeMin)
-      this.timeMaxChange.emit(this.timeMax)
-    }
-  }
+  //   const delta = event.deltaX + event.deltaY
+  //   if (delta) {
+  //     doScrollZoomTime(
+  //       this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
+  //       delta, event.ctrlKey, event.offsetX / waveCanvas.clientWidth
+  //     )
+  //     this.timeMinChange.emit(this.timeMin)
+  //     this.timeMaxChange.emit(this.timeMax)
+  //   }
+  // }
 }

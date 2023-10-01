@@ -1,6 +1,6 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
-import { Component, ElementRef, NgZone, ViewChild } from '@angular/core';
+import { Component, ElementRef, NgZone, ViewChild, signal } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
@@ -13,6 +13,7 @@ import { AudioSamples, audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
 import { ProjectService } from './services/project.service';
 import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
+import { AudioVisualizationComponent } from './audio-visualization/audio-visualization.component';
 
 @Component({
   selector: 'app-root',
@@ -55,8 +56,7 @@ export class AppComponent {
 
   specPitchMin: number = 12
   specPitchMax: number = 108
-  vizTimeMin: number = 0
-  vizTimeMax: number = 30
+  // TODO: move ^^ to new component
   specDbMin: number = -60
   specDbMax: number = -20
   specLgWindowSize: number = 12
@@ -66,6 +66,8 @@ export class AppComponent {
   showPitchGrid: boolean = false;
   userShowBeatGrid: boolean = false;
   pitchLabelType: PitchLabelType = 'sharp';
+
+  @ViewChild('audioVizContainer') audioVizContainer!: AudioVisualizationComponent;
 
   #projectName$ = new rxjs.Subject<string | undefined>();
   #projectFileHandle?: FileSystemFileHandle;
@@ -82,7 +84,7 @@ export class AppComponent {
   audioBuffer?: AudioBuffer;
   loading?: 'new' | 'open'
 
-  playheadPos: number = 0;
+  playheadPos = signal(0);
 
   visCursor = "auto";
   /** offset space of `visElem` */
@@ -120,8 +122,7 @@ export class AppComponent {
       const audioData = await downsampleAudio(this.audioBuffer, this.audioContext.sampleRate)
       this.project.newProject(audioFile, audioData)
       this.projectFileHandle = undefined;
-      this.vizTimeMin = 0
-      this.vizTimeMax = this.audioBuffer.duration
+      this.audioVizContainer.resetWindowOnLoad(this.audioBuffer.duration);
     } catch (e) {
       console.log("error new project:", e);
       if (!isUserAbortException(e)) {
@@ -138,8 +139,7 @@ export class AppComponent {
       await this.project.fromBlob(projectFile)
       this.project.markSaved();
       this.projectFileHandle = projectFile.handle
-      this.vizTimeMin = 0
-      this.vizTimeMax = audioSamplesDuration(this.project.project!.audio)
+      this.audioVizContainer.resetWindowOnLoad(audioSamplesDuration(this.project.project!.audio));
       this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
     } catch (e) {
       console.log("error load project:", e);
@@ -165,14 +165,6 @@ export class AppComponent {
         this.snackBar.open(`Error saving project: ${e}`);
       }
     }
-  }
-
-  onWaveformClick(event: MouseEvent) {
-    if (!this.audioBuffer) return;
-    event.preventDefault()
-
-    const pos = event.offsetX / (event.target! as HTMLElement).clientWidth * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
-    this.playheadPos = lodash.clamp(pos, 0, this.audioBuffer.duration)
   }
 
   @ViewChild('visElem', { read: ElementRef }) visElem!: ElementRef<HTMLElement>;
@@ -282,7 +274,7 @@ export class AppComponent {
 
   private readonly event2time = (event: Event) => {
     const visBounds = this.visElem.nativeElement.getBoundingClientRect();
-    return ((event as MouseEvent).clientX - visBounds.x) / visBounds.width * (this.vizTimeMax - this.vizTimeMin) + this.vizTimeMin;
+    return this.audioVizContainer.x2time((event as MouseEvent).clientX - visBounds.x);
   }
 
   onMouse(event: MouseEvent) {

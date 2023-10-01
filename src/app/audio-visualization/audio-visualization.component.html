@@ -1,0 +1,7 @@
+<div class="container">
+  <app-audio-waveform (click)="onWaveformClick($event)"></app-audio-waveform>
+  <ng-content></ng-content>
+  <div class="crosshair" style="width: 1px; background-color: red;" [style.transform]="playheadTransform()"></div>
+  <div class="crosshair" style="width: 1px;" [style.transform]="crosshairXTransform"
+    [hidden]="!showCrosshair || visMouseX() === undefined"></div>
+</div>

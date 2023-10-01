@@ -1,32 +1,24 @@
 <mat-sidenav-container class="fill-container" hasBackdrop="false" style="user-select: none;">
   <mat-sidenav-content class="content fill-container" role="main">
     <div class="groove-border" style="background-color: #000;" (wheel)="$event.preventDefault()">
-      <div
+      <app-audio-visualization
         style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
-        (mousemove)="onMouse($event)" (mouseleave)="onMouse($event)">
-        <app-audio-waveform [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
-          (click)="onWaveformClick($event)"></app-audio-waveform>
-        <mat-divider style="border-color: gray;"></mat-divider>
-        <div style="flex: 1" class="stacking" (wheel)="specElem.onWheel($event)"
-          (mousedown)="specElem.onMouseDown($event)" [style.cursor]="visCursor">
-          <app-audio-spectrogram [audioData]="audioData" [(timeMin)]="vizTimeMin" [(timeMax)]="vizTimeMax"
-            [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
-            [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
-            [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
+        (mousemove)="onMouse($event)" (mouseleave)="onMouse($event)" [playheadPos]="playheadPos"
+        [showCrosshair]="showCrosshair" #audioVizContainer>
+        <app-spectrogram-container style="flex: 1" class="stacking" (wheel)="specElem.onWheel($event)"
+          (mousedown)="specElem.onMouseDown($event)" [style.cursor]="visCursor" #spectrogramContainer>
+          <app-audio-spectrogram [audioData]="audioData" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax"
+            [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
+            [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample"
+            #specElem></app-audio-spectrogram>
           <app-piano-roll-editor [activePartIdx]="activePartIdx" [mouseX]="visMouseX" [mouseY]="visMouseY"
-            [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin" [pitchMax]="specPitchMax"
-            #pianoRollEditor></app-piano-roll-editor>
-          <app-spectrogram-grids [timeMin]="vizTimeMin" [timeMax]="vizTimeMax" [pitchMin]="specPitchMin"
-            [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
-            [showCrosshair]="showCrosshair" [showOvertones]="showOvertones" [meter]="displayedMeter"
-            [mouseY]="visMouseY"></app-spectrogram-grids>
+            [pitchMin]="specPitchMin" [pitchMax]="specPitchMax" #pianoRollEditor></app-piano-roll-editor>
+          <app-spectrogram-grids [pitchMin]="specPitchMin" [pitchMax]="specPitchMax" [showPitchGrid]="showPitchGrid"
+            [pitchLabelType]="pitchLabelType" [showCrosshair]="showCrosshair" [showOvertones]="showOvertones"
+            [meter]="displayedMeter" [mouseY]="visMouseY"></app-spectrogram-grids>
           <div [class.pointer-events-none]="!uiMode || uiMode.mode !== 'timing'" #visElem></div>
-        </div>
-        <div class="crosshair" style="width: 1px; background-color: red;"
-          [style.left.%]="100 * (playheadPos - vizTimeMin) / (vizTimeMax - vizTimeMin)"></div>
-        <div class="crosshair" style="width: 1px;" [style.transform]="'translateX('+(visMouseX?? 0)+'px)'"
-          [hidden]="!showCrosshair || visMouseX=== undefined"></div>
-      </div>
+        </app-spectrogram-container>
+      </app-audio-visualization>
     </div>
     <div class="groove-border settings-panel" #settings_panel>
       <div class="file-toolbar">
@@ -65,7 +57,7 @@
           <mat-icon>redo</mat-icon>
         </button>
       </div>
-      <app-audio-player [(playheadPos)]="playheadPos" [audioBuffer]="audioBuffer"></app-audio-player>
+      <app-audio-player [playheadPos]="playheadPos()" [audioBuffer]="audioBuffer"></app-audio-player>
       <mat-accordion>
         <mat-expansion-panel [disabled]="!hasProject">
           <mat-expansion-panel-header>

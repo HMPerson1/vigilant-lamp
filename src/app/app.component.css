@@ -4,6 +4,11 @@
   overflow: hidden;
 }
 
+app-audio-waveform {
+  box-sizing: content-box;
+  border-bottom: 1px solid gray;
+}
+
 .pointer-events-none {
   pointer-events: none;
 }

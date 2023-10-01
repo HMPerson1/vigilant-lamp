@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
-import { Observable, Subject, distinctUntilChanged } from 'rxjs';
+import { Observable, Subject, distinctUntilChanged, map } from 'rxjs';
 import { AudioSamples } from '../common';
 import { Project, defaultMeter } from '../ui-common';
 
@@ -16,12 +17,14 @@ export class ProjectService {
   private _prevModTime?: number;
   private _project$ = new Subject<Project>();
   get project$(): Observable<Project> { return this._project$ }
+  readonly projectAudio = toSignal<AudioSamples>(this._project$.pipe(map(p => p.audio)));
   private _lastSaved?: Project;
   private _isUnsaved$ = new Subject<boolean>();
   readonly isUnsaved$: Observable<boolean> = this._isUnsaved$.pipe(distinctUntilChanged());
 
   // invariant: _project.length == 0 || 0 <= _current < _project.length
 
+  // TODO: this being optional is too annoying
   get project(): Project | undefined { return this._history.length ? this._history[this._current] : undefined }
 
   private _onChange(ft?: string, mt?: number) {

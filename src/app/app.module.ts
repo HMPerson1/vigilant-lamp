@@ -33,6 +33,8 @@ import { PartDialogComponent } from './part-dialog/part-dialog.component';
 import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
 import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
 import { PianoRollEditorComponent } from './piano-roll-editor/piano-roll-editor.component';
+import { SpectrogramContainerComponent } from './spectrogram-container/spectrogram-container.component';
+import { AudioVisualizationComponent } from './audio-visualization/audio-visualization.component';
 
 @NgModule({
   declarations: [
@@ -44,7 +46,9 @@ import { PianoRollEditorComponent } from './piano-roll-editor/piano-roll-editor.
     SpectrogramGridsComponent,
     TranscribePanelComponent,
     PartDialogComponent,
-    PianoRollEditorComponent
+    PianoRollEditorComponent,
+    SpectrogramContainerComponent,
+    AudioVisualizationComponent
   ],
   imports: [
     FormsModule,

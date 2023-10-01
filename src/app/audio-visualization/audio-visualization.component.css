@@ -1,0 +1,6 @@
+.container {
+  background-color: gray;
+  display: grid;
+  grid: 75px 1fr / 1fr;
+  row-gap: 1px;
+}

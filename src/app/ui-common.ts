@@ -3,8 +3,10 @@ import { Portal } from '@angular/cdk/portal';
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
-import { Observable } from "rxjs";
+import { Observable, combineLatest } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
+import { Signal, computed, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 
 // TODO: tempo changes? time sig changes?
 
@@ -86,6 +88,10 @@ export function resizeObservable(elem: Element, options?: ResizeObserverOptions)
     ro.observe(elem, options);
     return () => ro.unobserve(elem)
   });
+}
+
+export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Signal<ResizeObserverEntry | undefined> {
+  return toSignal(resizeObservable(elem, options));
 }
 
 export function doScrollZoom<PropMin extends string, PropMax extends string>(
@@ -174,3 +180,5 @@ export const indexReadonlyArray: <T>(i: number) => Lens<ReadonlyArray<T>, T> =
 
 export const imageDataToBitmapFast = (image: ImageData, canvasComposite: boolean = false): Promise<ImageBitmap> =>
   createImageBitmap(image, { colorSpaceConversion: 'none', premultiplyAlpha: canvasComposite ? undefined : 'none' })
+
+export const mkTranslateX = (s: Signal<number | undefined>) => computed(() => { const v = s(); return v !== undefined ? `translateX(${v}px)` : undefined; });
