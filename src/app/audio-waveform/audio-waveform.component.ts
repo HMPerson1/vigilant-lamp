@@ -43,25 +43,4 @@ export class AudioWaveformComponent {
       this.#waveCanvasCtx.transferFromImageBitmap(await imageDataToBitmapFast(imageData));
     });
   }
-
-
-  // onWheel(event: WheelEvent) {
-  //   if (!this.waveformCanvas) {
-  //     console.error("scroll event before view rendered???");
-  //     return
-  //   }
-  //   const waveCanvas = this.waveformCanvas.nativeElement;
-  //   event.preventDefault()
-  //   // TODO: scroll pixel/line/page ???
-
-  //   const delta = event.deltaX + event.deltaY
-  //   if (delta) {
-  //     doScrollZoomTime(
-  //       this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
-  //       delta, event.ctrlKey, event.offsetX / waveCanvas.clientWidth
-  //     )
-  //     this.timeMinChange.emit(this.timeMin)
-  //     this.timeMaxChange.emit(this.timeMax)
-  //   }
-  // }
 }

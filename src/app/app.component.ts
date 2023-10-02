@@ -122,7 +122,7 @@ export class AppComponent {
       const audioData = await downsampleAudio(this.audioBuffer, this.audioContext.sampleRate)
       this.project.newProject(audioFile, audioData)
       this.projectFileHandle = undefined;
-      this.audioVizContainer.resetWindowOnLoad(this.audioBuffer.duration);
+      this.audioVizContainer.onAudioLoad(this.audioBuffer.duration);
     } catch (e) {
       console.log("error new project:", e);
       if (!isUserAbortException(e)) {
@@ -139,7 +139,7 @@ export class AppComponent {
       await this.project.fromBlob(projectFile)
       this.project.markSaved();
       this.projectFileHandle = projectFile.handle
-      this.audioVizContainer.resetWindowOnLoad(audioSamplesDuration(this.project.project!.audio));
+      this.audioVizContainer.onAudioLoad(audioSamplesDuration(this.project.project!.audio));
       this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
     } catch (e) {
       console.log("error load project:", e);

@@ -5,7 +5,7 @@ import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
 import { Observable, combineLatest } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
-import { Signal, computed, signal } from '@angular/core';
+import { Signal, WritableSignal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 
 // TODO: tempo changes? time sig changes?
@@ -94,15 +94,15 @@ export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Si
   return toSignal(resizeObservable(elem, options));
 }
 
-export function doScrollZoom<PropMin extends string, PropMax extends string>(
-  obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
+export function doScrollZoom(
+  signalMin: WritableSignal<number>, signalMax: WritableSignal<number>,
   clampMin: number, clampMax: number, rangeMin: number,
   zoomRate: number, scrollRate: number,
   wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   let rangeMax = clampMax - clampMin
-  let valRange = obj[propMax] - obj[propMin]
-  let valMin = obj[propMin]
+  let valMin = signalMin()
+  let valRange = signalMax() - valMin
   if (zoom) {
     let newValRange = valRange * (2 ** (wheelDelta * zoomRate));
     newValRange = clamp(newValRange, rangeMin, rangeMax)
@@ -114,16 +114,16 @@ export function doScrollZoom<PropMin extends string, PropMax extends string>(
   }
 
   valMin = clamp(valMin, clampMin, clampMax - valRange)
-  obj[propMin] = valMin
-  obj[propMax] = valMin + valRange
+  signalMin.set(valMin)
+  signalMax.set(valMin + valRange)
 }
 
-export function doScrollZoomTime<PropMin extends string, PropMax extends string>(
-  obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
+export function doScrollZoomTime(
+  signalMin: WritableSignal<number>, signalMax: WritableSignal<number>,
   clampMax: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   doScrollZoom(
-    obj, propMin, propMax,
+    signalMin, signalMax,
     0, clampMax, 1 / 1000, 1 / 400, 1 / 1600,
     wheelDelta, zoom, centerPosFrac,
   )
@@ -131,16 +131,16 @@ export function doScrollZoomTime<PropMin extends string, PropMax extends string>
 
 export const PITCH_MAX = 136;
 
-export function doScrollZoomPitch<PropMin extends string, PropMax extends string>(
-  obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
-  aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
-) {
-  doScrollZoom(
-    obj, propMin, propMax,
-    0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
-    wheelDelta, zoom, centerPosFrac,
-  )
-}
+// export function doScrollZoomPitch<PropMin extends string, PropMax extends string>(
+//   obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
+//   aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
+// ) {
+//   doScrollZoom(
+//     obj, propMin, propMax,
+//     0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
+//     wheelDelta, zoom, centerPosFrac,
+//   )
+// }
 
 export interface ModalSpectrogramEdit {
   click: (

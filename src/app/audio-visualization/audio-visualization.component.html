@@ -1,5 +1,5 @@
 <div class="container">
-  <app-audio-waveform (click)="onWaveformClick($event)"></app-audio-waveform>
+  <app-audio-waveform (click)="onWaveformClick($event)" (wheel)="onWheel($event)"></app-audio-waveform>
   <ng-content></ng-content>
   <div class="crosshair" style="width: 1px; background-color: red;" [style.transform]="playheadTransform()"></div>
   <div class="crosshair" style="width: 1px;" [style.transform]="crosshairXTransform"

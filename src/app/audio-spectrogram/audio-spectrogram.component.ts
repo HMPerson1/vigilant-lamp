@@ -5,7 +5,7 @@ import { fromWorker } from 'observable-webworker';
 import { Observable, asapScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, firstValueFrom, from, fromEvent, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
-import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, imageDataToBitmapFast, resizeObservable } from '../ui-common';
+import { PITCH_MAX, imageDataToBitmapFast, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -170,32 +170,32 @@ export class AudioSpectrogramComponent {
 
 
   onWheel(event: WheelEvent) {
-    if (!this.spectrogramCanvas) {
-      console.error("scroll event before view rendered???");
-      return
-    }
-    if (this.isPanning) return;
-    const specCanvasBounds = this.spectrogramCanvas.nativeElement.getBoundingClientRect();
-    event.preventDefault()
-    // TODO: scroll pixel/line/page ???
+  //   if (!this.spectrogramCanvas) {
+  //     console.error("scroll event before view rendered???");
+  //     return
+  //   }
+  //   if (this.isPanning) return;
+  //   const specCanvasBounds = this.spectrogramCanvas.nativeElement.getBoundingClientRect();
+  //   event.preventDefault()
+  //   // TODO: scroll pixel/line/page ???
 
-    const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY]
-    if (deltaY) {
-      doScrollZoomPitch(
-        this, 'pitchMin', 'pitchMax', specCanvasBounds.width / specCanvasBounds.height,
-        deltaY, event.ctrlKey, 1 - (event.clientY - specCanvasBounds.y) / specCanvasBounds.height
-      )
-      this.pitchMinChange.emit(this.pitchMin)
-      this.pitchMaxChange.emit(this.pitchMax)
-    }
-    if (deltaX) {
-      doScrollZoomTime(
-        this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
-        deltaX, event.ctrlKey, (event.clientX - specCanvasBounds.x) / specCanvasBounds.width
-      )
-      this.timeMinChange.emit(this.timeMin)
-      this.timeMaxChange.emit(this.timeMax)
-    }
+  //   const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY]
+  //   if (deltaY) {
+  //     doScrollZoomPitch(
+  //       this, 'pitchMin', 'pitchMax', specCanvasBounds.width / specCanvasBounds.height,
+  //       deltaY, event.ctrlKey, 1 - (event.clientY - specCanvasBounds.y) / specCanvasBounds.height
+  //     )
+  //     this.pitchMinChange.emit(this.pitchMin)
+  //     this.pitchMaxChange.emit(this.pitchMax)
+  //   }
+  //   if (deltaX) {
+  //     doScrollZoomTime(
+  //       this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
+  //       deltaX, event.ctrlKey, (event.clientX - specCanvasBounds.x) / specCanvasBounds.width
+  //     )
+  //     this.timeMinChange.emit(this.timeMin)
+  //     this.timeMaxChange.emit(this.timeMax)
+  //   }
   }
 
   private isPanning = false;

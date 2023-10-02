@@ -1,5 +1,5 @@
 import { Component, ElementRef, Input, Signal, WritableSignal, computed, signal } from '@angular/core';
-import { mkTranslateX, resizeSignal } from '../ui-common';
+import { doScrollZoomTime, mkTranslateX, resizeSignal } from '../ui-common';
 
 @Component({
   selector: 'app-audio-visualization',
@@ -12,6 +12,8 @@ export class AudioVisualizationComponent {
   readonly timeMin = this.#timeMin.asReadonly();
   readonly timeMax = this.#timeMax.asReadonly();
   readonly timeRange = computed(() => this.timeMax() - this.timeMin());
+
+  readonly #audioDuration = signal(30);
 
   readonly #visMouseX = signal<number | undefined>(undefined);
   readonly visMouseX = this.#visMouseX.asReadonly();
@@ -29,9 +31,10 @@ export class AudioVisualizationComponent {
     this.width = computed(() => size()?.contentRect.width ?? NaN);
   }
 
-  resetWindowOnLoad(timeMax: number) {
+  onAudioLoad(duration: number) {
     this.#timeMin.set(0);
-    this.#timeMax.set(timeMax);
+    this.#timeMax.set(duration);
+    this.#audioDuration.set(duration);
   }
 
   onWaveformClick(event: MouseEvent) {
@@ -41,4 +44,17 @@ export class AudioVisualizationComponent {
 
   x2time(x: number) { return x / this.width() * this.timeRange() + this.timeMin() }
   time2x(t: number) { return (t - this.timeMin()) / this.timeRange() * this.width() }
+
+  onWheel(event: WheelEvent) {
+    event.preventDefault()
+    // TODO: scroll pixel/line/page ???
+
+    const delta = event.deltaX + event.deltaY
+    if (delta) {
+      doScrollZoomTime(
+        this.#timeMin, this.#timeMax, this.#audioDuration(),
+        delta, event.ctrlKey, event.offsetX / this.width(),
+      )
+    }
+  }
 }
