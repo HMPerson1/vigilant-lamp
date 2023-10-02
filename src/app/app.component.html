@@ -3,8 +3,8 @@
     <div class="groove-border" style="background-color: #000;" (wheel)="$event.preventDefault()">
       <app-audio-visualization
         style="display: flex; flex-direction: column; position: relative; width: 100%; height: 100%; overflow: hidden;"
-        (mousemove)="onMouse($event)" (mouseleave)="onMouse($event)" [playheadPos]="playheadPos"
-        [showCrosshair]="showCrosshair" #audioVizContainer>
+        (mousemove)="onMouse($event)" (mouseleave)="onMouse($event)" [playheadPos]="audioPlayer.playheadPos"
+        [showCrosshair]="showCrosshair" (playheadSeek)="audioPlayer.seekPlayhead($event)" #audioVizContainer>
         <app-spectrogram-container style="flex: 1" class="stacking" (wheel)="specElem.onWheel($event)"
           (mousedown)="specElem.onMouseDown($event)" [style.cursor]="visCursor" #spectrogramContainer>
           <app-audio-spectrogram [audioData]="audioData" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax"
@@ -57,7 +57,7 @@
           <mat-icon>redo</mat-icon>
         </button>
       </div>
-      <app-audio-player [playheadPos]="playheadPos()" [audioBuffer]="audioBuffer"></app-audio-player>
+      <app-audio-player [audioBuffer]="audioBuffer" #audioPlayer></app-audio-player>
       <mat-accordion>
         <mat-expansion-panel [disabled]="!hasProject">
           <mat-expansion-panel-header>

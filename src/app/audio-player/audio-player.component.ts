@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, NgZone, Output } from '@angular/core';
+import { Component, Input, NgZone, signal } from '@angular/core';
 import * as Mousetrap from 'mousetrap';
 import { Subscription, animationFrames } from 'rxjs';
 import { AudioContextService } from '../services/audio-context.service';
@@ -22,29 +22,21 @@ export class AudioPlayerComponent {
   audioBufSrcNode?: AudioBufferSourceNode;
   get isPlaying(): boolean { return !!this.audioBufSrcNode; }
 
-  #playheadPos: number = 0;
-  get internalPlayheadPos(): number { return this.#playheadPos }
-  set internalPlayheadPos(v: number) {
-    this.#playheadPos = v;
-    this.playheadPosChange.emit(this.#playheadPos);
-  }
-  @Input() set playheadPos(v: number) {
-    // exact fp equality: don't restart if this was a change initiated by us
-    if (v === this.#playheadPos) return;
-    this.#playheadPos = v;
+  playheadPos = signal(0);
+  seekPlayhead(v: number) {
+    this.playheadPos.set(v);
     if (this.isPlaying) {
       this.stopPlayback()
       this.startPlayback()
     }
   }
-  @Output() playheadPosChange = new EventEmitter<number>();
   playbackStartTime: number = 0;
   playheadUpdateSub?: Subscription;
 
   playPauseClicked() {
     if (this.isPlaying) {
       // pause
-      this.internalPlayheadPos = this.audioContext.currentTime - this.playbackStartTime
+      this.playheadPos.set(this.audioContext.currentTime - this.playbackStartTime)
       this.stopPlayback()
     } else {
       // play
@@ -52,7 +44,7 @@ export class AudioPlayerComponent {
     }
   }
   stopClicked() {
-    this.internalPlayheadPos = 0;
+    this.playheadPos.set(0)
     this.stopPlayback()
   }
 
@@ -63,10 +55,10 @@ export class AudioPlayerComponent {
     this.audioBufSrcNode.onended = () => this.ngZone.run(() => this.stopClicked())
     this.audioBufSrcNode.connect(this.audioOutput)
     this.playbackStartTime = this.audioContext.currentTime
-    this.audioBufSrcNode.start(this.playbackStartTime, this.internalPlayheadPos)
-    this.playbackStartTime -= this.internalPlayheadPos
+    this.audioBufSrcNode.start(this.playbackStartTime, this.playheadPos())
+    this.playbackStartTime -= this.playheadPos()
     this.playheadUpdateSub = animationFrames().subscribe((_x) => {
-      this.internalPlayheadPos = this.audioContext.currentTime - this.playbackStartTime
+      this.playheadPos.set(this.audioContext.currentTime - this.playbackStartTime)
     })
   }
   stopPlayback() {

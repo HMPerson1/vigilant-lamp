@@ -1,4 +1,4 @@
-import { Component, ElementRef, Input, Signal, WritableSignal, computed, signal } from '@angular/core';
+import { Component, ElementRef, EventEmitter, Input, Output, Signal, computed, signal } from '@angular/core';
 import { doScrollZoomTime, mkTranslateX, resizeSignal } from '../ui-common';
 
 @Component({
@@ -18,11 +18,12 @@ export class AudioVisualizationComponent {
   readonly #visMouseX = signal<number | undefined>(undefined);
   readonly visMouseX = this.#visMouseX.asReadonly();
 
-  @Input({ required: true }) playheadPos!: WritableSignal<number>;
+  @Input({ required: true }) playheadPos!: Signal<number>;
   readonly playheadTransform = mkTranslateX(computed(() => this.time2x(this.playheadPos())));
   readonly crosshairXTransform = mkTranslateX(this.visMouseX);
 
   @Input() showCrosshair = true;
+  @Output() playheadSeek: EventEmitter<number> = new EventEmitter();
 
   readonly width: Signal<number>;
 
@@ -39,7 +40,7 @@ export class AudioVisualizationComponent {
 
   onWaveformClick(event: MouseEvent) {
     event.preventDefault()
-    this.playheadPos.set(this.x2time(event.offsetX));
+    this.playheadSeek.emit(this.x2time(event.offsetX));
   }
 
   x2time(x: number) { return x / this.width() * this.timeRange() + this.timeMin() }
