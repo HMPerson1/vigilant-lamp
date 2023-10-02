@@ -57,8 +57,9 @@ export class AudioPlayerComponent {
     this.playbackStartTime = this.audioContext.currentTime
     this.audioBufSrcNode.start(this.playbackStartTime, this.playheadPos())
     this.playbackStartTime -= this.playheadPos()
-    this.playheadUpdateSub = animationFrames().subscribe((_x) => {
-      this.playheadPos.set(this.audioContext.currentTime - this.playbackStartTime)
+    this.playheadUpdateSub = animationFrames().subscribe(() => {
+      const ctxtOutputTs = this.audioContext.getOutputTimestamp()
+      this.playheadPos.set((performance.now() - ctxtOutputTs.performanceTime!) / 1000 + ctxtOutputTs.contextTime! - this.playbackStartTime)
     })
   }
   stopPlayback() {

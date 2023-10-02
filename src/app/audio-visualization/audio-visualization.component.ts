@@ -19,7 +19,7 @@ export class AudioVisualizationComponent {
   readonly visMouseX = this.#visMouseX.asReadonly();
 
   @Input({ required: true }) playheadPos!: Signal<number>;
-  readonly playheadTransform = mkTranslateX(computed(() => this.time2x(this.playheadPos())));
+  readonly playheadTransform = mkTranslateX(computed(() => Math.round(this.time2x(this.playheadPos()))));
   readonly crosshairXTransform = mkTranslateX(this.visMouseX);
 
   @Input() showCrosshair = true;
