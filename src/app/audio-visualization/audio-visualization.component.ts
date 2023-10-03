@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, Input, Output, Signal, computed, signal } from '@angular/core';
+import { Component, ElementRef, EventEmitter, HostListener, Input, Output, Signal, computed, signal } from '@angular/core';
 import { doScrollZoomTime, mkTranslateX, resizeSignal } from '../ui-common';
 
 @Component({
@@ -27,7 +27,7 @@ export class AudioVisualizationComponent {
 
   readonly width: Signal<number>;
 
-  constructor(hostElem: ElementRef<HTMLElement>) {
+  constructor(private readonly hostElem: ElementRef<HTMLElement>) {
     const size = resizeSignal(hostElem.nativeElement, { box: 'content-box' });
     this.width = computed(() => size()?.contentRect.width ?? NaN);
   }
@@ -57,5 +57,15 @@ export class AudioVisualizationComponent {
         delta, event.ctrlKey, event.offsetX / this.width(),
       )
     }
+  }
+
+  @HostListener('mousemove', ['$event'])
+  onMouseMove(event: MouseEvent) {
+    this.#visMouseX.set(event.clientX - this.hostElem.nativeElement.getBoundingClientRect().x)
+  }
+
+  @HostListener('mouseleave')
+  onMouseLeave() {
+    this.#visMouseX.set(undefined)
   }
 }
