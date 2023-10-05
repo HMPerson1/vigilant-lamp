@@ -1,5 +1,5 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output, Signal, computed, signal } from '@angular/core';
-import { doScrollZoomTime, mkTranslateX, resizeSignal } from '../ui-common';
+import { doScrollZoomTime, elemBoxSizeSignal, mkTranslateX } from '../ui-common';
 
 @Component({
   selector: 'app-audio-visualization',
@@ -28,8 +28,8 @@ export class AudioVisualizationComponent {
   readonly width: Signal<number>;
 
   constructor(private readonly hostElem: ElementRef<HTMLElement>) {
-    const size = resizeSignal(hostElem.nativeElement, { box: 'content-box' });
-    this.width = computed(() => size()?.contentRect.width ?? NaN);
+    const size = elemBoxSizeSignal(hostElem.nativeElement);
+    this.width = computed(() => size().inlineSize);
   }
 
   onAudioLoad(duration: number) {

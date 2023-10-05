@@ -2,7 +2,7 @@ import { Component, DestroyRef, ElementRef, ViewChild, computed, effect } from '
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { ProjectService } from '../services/project.service';
-import { imageDataToBitmapFast, resizeSignal } from '../ui-common';
+import { elemBoxSizeSignal, imageDataToBitmapFast } from '../ui-common';
 
 @Component({
   selector: 'app-audio-waveform',
@@ -31,14 +31,13 @@ export class AudioWaveformComponent {
       });
     })();
 
-    const size$ = resizeSignal(hostElem.nativeElement, { box: 'device-pixel-content-box' })
+    const size = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
 
     effect(async () => {
-      const size = size$();
       const wasmWaveRenderer = wasmWaveRenderer$();
-      if (!this.#waveCanvasCtx || !size || !wasmWaveRenderer) return;
+      if (!this.#waveCanvasCtx || !wasmWaveRenderer) return;
 
-      const [{ blockSize, inlineSize }] = size.devicePixelContentBoxSize;
+      const { blockSize, inlineSize } = size();
       const imageData = wasmWaveRenderer.render(audioVizContainer.timeMin(), audioVizContainer.timeMax(), inlineSize, blockSize);
       this.#waveCanvasCtx.transferFromImageBitmap(await imageDataToBitmapFast(imageData));
     });

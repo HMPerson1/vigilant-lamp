@@ -1,12 +1,12 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { Portal } from '@angular/cdk/portal';
+import { Signal, WritableSignal, computed } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
-import { Observable, combineLatest } from "rxjs";
+import { Observable, map } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
-import { Signal, WritableSignal, computed, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 
 // TODO: tempo changes? time sig changes?
 
@@ -88,6 +88,19 @@ export function resizeObservable(elem: Element, options?: ResizeObserverOptions)
     ro.observe(elem, options);
     return () => ro.unobserve(elem)
   });
+}
+
+export function elemBoxSizeSignal(elem: Element, box: ResizeObserverBoxOptions = 'content-box'): Signal<ResizeObserverSize> {
+  return toSignal(resizeObservable(elem, { box }).pipe(map(v => {
+    switch (box) {
+      case 'border-box':
+        return v.borderBoxSize[0];
+      case 'content-box':
+        return v.contentBoxSize[0];
+      case 'device-pixel-content-box':
+        return v.devicePixelContentBoxSize[0];
+    }
+  })), { initialValue: { blockSize: 0, inlineSize: 0 } });
 }
 
 export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Signal<ResizeObserverEntry | undefined> {
