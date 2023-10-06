@@ -144,16 +144,16 @@ export function doScrollZoomTime(
 
 export const PITCH_MAX = 136;
 
-// export function doScrollZoomPitch<PropMin extends string, PropMax extends string>(
-//   obj: { [x in PropMin | PropMax]: number }, propMin: PropMin, propMax: PropMax,
-//   aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
-// ) {
-//   doScrollZoom(
-//     obj, propMin, propMax,
-//     0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
-//     wheelDelta, zoom, centerPosFrac,
-//   )
-// }
+export function doScrollZoomPitch(
+  signalMin: WritableSignal<number>, signalMax: WritableSignal<number>,
+  aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
+) {
+  doScrollZoom(
+    signalMin, signalMax,
+    0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
+    wheelDelta, zoom, centerPosFrac,
+  )
+}
 
 export interface ModalSpectrogramEdit {
   click: (

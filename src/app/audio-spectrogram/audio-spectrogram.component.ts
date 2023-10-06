@@ -168,36 +168,6 @@ export class AudioSpectrogramComponent {
     })
   }
 
-
-  onWheel(event: WheelEvent) {
-  //   if (!this.spectrogramCanvas) {
-  //     console.error("scroll event before view rendered???");
-  //     return
-  //   }
-  //   if (this.isPanning) return;
-  //   const specCanvasBounds = this.spectrogramCanvas.nativeElement.getBoundingClientRect();
-  //   event.preventDefault()
-  //   // TODO: scroll pixel/line/page ???
-
-  //   const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY]
-  //   if (deltaY) {
-  //     doScrollZoomPitch(
-  //       this, 'pitchMin', 'pitchMax', specCanvasBounds.width / specCanvasBounds.height,
-  //       deltaY, event.ctrlKey, 1 - (event.clientY - specCanvasBounds.y) / specCanvasBounds.height
-  //     )
-  //     this.pitchMinChange.emit(this.pitchMin)
-  //     this.pitchMaxChange.emit(this.pitchMax)
-  //   }
-  //   if (deltaX) {
-  //     doScrollZoomTime(
-  //       this, 'timeMin', 'timeMax', this.audioData ? audioSamplesDuration(this.audioData) : 30,
-  //       deltaX, event.ctrlKey, (event.clientX - specCanvasBounds.x) / specCanvasBounds.width
-  //     )
-  //     this.timeMinChange.emit(this.timeMin)
-  //     this.timeMaxChange.emit(this.timeMax)
-  //   }
-  }
-
   private isPanning = false;
 
   async onMouseDown(event: MouseEvent) {

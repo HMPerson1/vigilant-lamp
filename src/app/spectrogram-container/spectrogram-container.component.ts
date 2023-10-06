@@ -1,7 +1,7 @@
-import { Component, ElementRef, Signal, computed, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, Signal, computed, signal } from '@angular/core';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile } from '../common';
-import { PITCH_MAX, elemBoxSizeSignal } from '../ui-common';
+import { PITCH_MAX, doScrollZoomPitch, elemBoxSizeSignal } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-container',
@@ -26,7 +26,7 @@ export class SpectrogramContainerComponent {
 
   readonly viewportSize: Signal<ResizeObserverSize>;
 
-  constructor(private readonly audioVizContainer: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>) {
+  constructor(private readonly audioVizContainer: AudioVisualizationComponent, private readonly hostElem: ElementRef<HTMLElement>) {
     this.viewportSize = elemBoxSizeSignal(hostElem.nativeElement);
   }
 
@@ -38,4 +38,22 @@ export class SpectrogramContainerComponent {
     return ret;
   });
   readonly offsetDivTransform = computed(() => `translate(${this.viewportOffset().inline}px,${this.viewportOffset().block}px)`);
+
+  private isPanning = false;
+
+  @HostListener('mousewheel', ['$event'])
+  onWheel(event: WheelEvent) {
+    if (this.isPanning) return;
+    event.preventDefault();
+    const bounds = this.hostElem.nativeElement.getBoundingClientRect();
+    const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY];
+    const offsetX = event.clientX - bounds.x;
+    const offsetY = event.clientY - bounds.y;
+
+    this.audioVizContainer.doWheel(deltaX, offsetX, event.ctrlKey);
+    doScrollZoomPitch(
+      this.#pitchMin, this.#pitchMax, bounds.width / bounds.height,
+      deltaY, event.ctrlKey, 1 - offsetY / bounds.height,
+    );
+  }
 }

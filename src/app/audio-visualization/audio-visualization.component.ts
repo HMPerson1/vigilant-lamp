@@ -14,6 +14,7 @@ export class AudioVisualizationComponent {
   readonly timeRange = computed(() => this.timeMax() - this.timeMin());
 
   readonly #audioDuration = signal(30);
+  readonly audioDuration = this.#audioDuration.asReadonly();
 
   readonly #visMouseX = signal<number | undefined>(undefined);
   readonly visMouseX = this.#visMouseX.asReadonly();
@@ -49,14 +50,14 @@ export class AudioVisualizationComponent {
   onWheel(event: WheelEvent) {
     event.preventDefault()
     // TODO: scroll pixel/line/page ???
+    this.doWheel(event.deltaX + event.deltaY, event.offsetX, event.ctrlKey);
+  }
 
-    const delta = event.deltaX + event.deltaY
-    if (delta) {
-      doScrollZoomTime(
-        this.#timeMin, this.#timeMax, this.#audioDuration(),
-        delta, event.ctrlKey, event.offsetX / this.width(),
-      )
-    }
+  doWheel(delta: number, offsetX: number, zoom: boolean) {
+    doScrollZoomTime(
+      this.#timeMin, this.#timeMax, this.#audioDuration(),
+      delta, zoom, offsetX / this.width(),
+    )
   }
 
   @HostListener('mousemove', ['$event'])

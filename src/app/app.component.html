@@ -4,7 +4,7 @@
       <app-audio-visualization (mousemove)="onMouse($event)" (mouseleave)="onMouse($event)"
         [playheadPos]="audioPlayer.playheadPos" [showCrosshair]="showCrosshair"
         (playheadSeek)="audioPlayer.seekPlayhead($event)" #audioVizContainer>
-        <app-spectrogram-container (wheel)="specElem.onWheel($event)" (mousedown)="specElem.onMouseDown($event)"
+        <app-spectrogram-container (mousedown)="specElem.onMouseDown($event)"
           [style.cursor]="visCursor" #spectrogramContainer>
           <div class="stacking" style="height: 100%;">
             <app-audio-spectrogram [audioData]="audioData" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax"
