@@ -1,7 +1,7 @@
 <div class="container">
   <app-audio-waveform (click)="onWaveformClick($event)" (wheel)="onWaveformWheel($event)"></app-audio-waveform>
   <div class="spectrogram-container" (wheel)="onSpecWheel($event)" #specContainer (mousemove)="onSpecMouseMove($event)"
-    (mouseleave)="onSpecMouseLeave()">
+    (mouseleave)="onSpecMouseLeave()" (mousedown)="onSpecMouseDown($event)">
     <div class="spectrogram-offset" [style.transform]="offsetDivTransform()">
       <ng-content></ng-content>
     </div>

@@ -1,11 +1,10 @@
 import { Component, ElementRef, EventEmitter, Input, Output, ViewChild } from '@angular/core';
-import * as lodash from 'lodash-es';
 import { fromInput } from 'observable-from-input';
 import { fromWorker } from 'observable-webworker';
-import { Observable, asapScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, firstValueFrom, from, fromEvent, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
+import { Observable, asapScheduler, combineLatest, debounceTime, distinctUntilChanged, filter, from, map, merge, mergeMap, of, scan, switchMap } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
-import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, audioSamplesDuration, isNotUndefined, tag } from '../common';
-import { PITCH_MAX, imageDataToBitmapFast, resizeObservable } from '../ui-common';
+import { AudioSamples, GenSpecTile, RenderWindowParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, isNotUndefined, tag } from '../common';
+import { imageDataToBitmapFast, resizeObservable } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
 
@@ -166,41 +165,6 @@ export class AudioSpectrogramComponent {
       renderTile(canvasTile, winParams.loresTileBmp, specCanvasCtx);
       renderTile(canvasTile, winParams.hiresTileBmp, specCanvasCtx);
     })
-  }
-
-  private isPanning = false;
-
-  async onMouseDown(event: MouseEvent) {
-    if (event.button !== 1 || !this.spectrogramCanvas) return;
-    event.preventDefault();
-
-    const specCanvasBounds = this.spectrogramCanvas.nativeElement.getBoundingClientRect();
-    const tile = new GenSpecTile(this, specCanvasBounds);
-    const dragStartTime = tile.x2time(event.clientX - specCanvasBounds.x);
-    const dragStartPitch = tile.y2pitch(event.clientY - specCanvasBounds.y);
-    const onMoveSub = fromEvent(document, 'mousemove').subscribe(ev_ => {
-      const ev = ev_ as MouseEvent;
-      const tile = new GenSpecTile(this, specCanvasBounds);
-
-      const deltaTime = tile.x2time(ev.clientX - specCanvasBounds.x) - dragStartTime;
-      this.timeMin = lodash.clamp(this.timeMin - deltaTime, 0, (this.audioData ? audioSamplesDuration(this.audioData) : 30) - tile.timeRange);
-      this.timeMax = this.timeMin + tile.timeRange;
-      this.timeMinChange.emit(this.timeMin);
-      this.timeMaxChange.emit(this.timeMax);
-
-      const deltaPitch = tile.y2pitch(ev.clientY - specCanvasBounds.y) - dragStartPitch;
-      this.pitchMin = lodash.clamp(this.pitchMin - deltaPitch, 0, PITCH_MAX - tile.pitchRange);
-      this.pitchMax = this.pitchMin + tile.pitchRange;
-      this.pitchMinChange.emit(this.pitchMin);
-      this.pitchMaxChange.emit(this.pitchMax);
-    });
-    this.isPanning = true;
-    try {
-      await firstValueFrom(fromEvent(document, 'mouseup').pipe(filter(ev => (ev as MouseEvent).button === 1)));
-    } finally {
-      this.isPanning = false;
-      onMoveSub.unsubscribe();
-    }
   }
 }
 

@@ -2,6 +2,7 @@ import { FocusOrigin } from '@angular/cdk/a11y';
 import { Portal } from '@angular/cdk/portal';
 import { Signal, WritableSignal, computed } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
+import { absurd } from 'fp-ts/function';
 import * as t from 'io-ts';
 import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
@@ -90,17 +91,14 @@ export function resizeObservable(elem: Element, options?: ResizeObserverOptions)
   });
 }
 
+/** is (0,0) until resize observer first fires (usually when elem is first rendered) */
 export function elemBoxSizeSignal(elem: Element, box: ResizeObserverBoxOptions = 'content-box'): Signal<ResizeObserverSize> {
-  return toSignal(resizeObservable(elem, { box }).pipe(map(v => {
-    switch (box) {
-      case 'border-box':
-        return v.borderBoxSize[0];
-      case 'content-box':
-        return v.contentBoxSize[0];
-      case 'device-pixel-content-box':
-        return v.devicePixelContentBoxSize[0];
-    }
-  })), { initialValue: { blockSize: 0, inlineSize: 0 } });
+  const mapFn: (v: ResizeObserverEntry) => ResizeObserverSize =
+    box === 'border-box' ? v => v.borderBoxSize[0] :
+      box === 'content-box' ? v => v.contentBoxSize[0] :
+        box === 'device-pixel-content-box' ? v => v.devicePixelContentBoxSize[0] :
+          absurd(box)
+  return toSignal(resizeObservable(elem, { box }).pipe(map(mapFn)), { initialValue: { blockSize: 0, inlineSize: 0 } });
 }
 
 export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Signal<ResizeObserverEntry | undefined> {
@@ -108,14 +106,14 @@ export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Si
 }
 
 export function doScrollZoom(
-  signalMin: WritableSignal<number>, signalMax: WritableSignal<number>,
+  signalMin: WritableSignal<number>, signalRange: WritableSignal<number>,
   clampMin: number, clampMax: number, rangeMin: number,
   zoomRate: number, scrollRate: number,
   wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   let rangeMax = clampMax - clampMin
   let valMin = signalMin()
-  let valRange = signalMax() - valMin
+  let valRange = signalRange()
   if (zoom) {
     let newValRange = valRange * (2 ** (wheelDelta * zoomRate));
     newValRange = clamp(newValRange, rangeMin, rangeMax)
@@ -128,15 +126,15 @@ export function doScrollZoom(
 
   valMin = clamp(valMin, clampMin, clampMax - valRange)
   signalMin.set(valMin)
-  signalMax.set(valMin + valRange)
+  signalRange.set(valRange)
 }
 
 export function doScrollZoomTime(
-  signalMin: WritableSignal<number>, signalMax: WritableSignal<number>,
+  signalMin: WritableSignal<number>, signalRange: WritableSignal<number>,
   clampMax: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   doScrollZoom(
-    signalMin, signalMax,
+    signalMin, signalRange,
     0, clampMax, 1 / 1000, 1 / 400, 1 / 1600,
     wheelDelta, zoom, centerPosFrac,
   )
@@ -145,11 +143,11 @@ export function doScrollZoomTime(
 export const PITCH_MAX = 136;
 
 export function doScrollZoomPitch(
-  signalMin: WritableSignal<number>, signalMax: WritableSignal<number>,
+  signalMin: WritableSignal<number>, signalRange: WritableSignal<number>,
   aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
 ) {
   doScrollZoom(
-    signalMin, signalMax,
+    signalMin, signalRange,
     0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
     wheelDelta, zoom, centerPosFrac,
   )
