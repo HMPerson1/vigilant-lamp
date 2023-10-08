@@ -18,7 +18,6 @@
     </div>
   </div>
   <div *ngIf="showCrosshair && mouseY !== undefined">
-    <div class="crosshair" style="height: 1px;" [style.transform]="'translateY('+mouseY+'px)'"></div>
     <div class="crosshair" *ngFor="let o of overtoneYOffsets" style="height: 1px" [style.opacity]=".8-o.i*.05"
       [style.transform]="'translateY('+(mouseY - o.y)+'px)'" [hidden]="!showOvertones"></div>
   </div>

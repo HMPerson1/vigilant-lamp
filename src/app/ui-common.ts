@@ -195,3 +195,4 @@ export const imageDataToBitmapFast = (image: ImageData, canvasComposite: boolean
   createImageBitmap(image, { colorSpaceConversion: 'none', premultiplyAlpha: canvasComposite ? undefined : 'none' })
 
 export const mkTranslateX = (s: Signal<number | undefined>) => computed(() => { const v = s(); return v !== undefined ? `translateX(${v}px)` : undefined; });
+export const mkTranslateY = (s: Signal<number | undefined>) => computed(() => { const v = s(); return v !== undefined ? `translateY(${v}px)` : undefined; });

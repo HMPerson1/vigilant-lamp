@@ -5,6 +5,8 @@
     <div class="spectrogram-offset" [style.transform]="offsetDivTransform()">
       <ng-content></ng-content>
     </div>
+    <div class="crosshair" style="height: 1px;" [style.transform]="crosshairYTransform()"
+      [hidden]="!showCrosshair || visMouseY() === undefined"></div>
   </div>
 </div>
 <div class="crosshair" style="width: 1px; background-color: red;" [style.transform]="playheadTransform()"></div>

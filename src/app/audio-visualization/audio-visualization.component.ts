@@ -1,6 +1,6 @@
 import { Component, ElementRef, EventEmitter, HostListener, Input, Output, Signal, ViewChild, computed, signal } from '@angular/core';
 import { GenSpecTile } from '../common';
-import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, elemBoxSizeSignal, mkTranslateX } from '../ui-common';
+import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-common';
 
 @Component({
   selector: 'app-audio-visualization',
@@ -31,6 +31,7 @@ export class AudioVisualizationComponent {
   @Input({ required: true }) playheadPos!: Signal<number>;
   readonly playheadTransform = mkTranslateX(computed(() => Math.round(this.time2x(this.playheadPos()))));
   readonly crosshairXTransform = mkTranslateX(this.visMouseX);
+  readonly crosshairYTransform = mkTranslateY(this.visMouseY);
 
   @Input() showCrosshair = true;
   @Output() playheadSeek: EventEmitter<number> = new EventEmitter();
