@@ -43,7 +43,7 @@ export class AudioVisualizationComponent {
   readonly pxPerTime = computed(() => this.viewportSize().inlineSize / this.timeRange());
   readonly pxPerPitch = computed(() => this.viewportSize().blockSize / this.pitchRange());
 
-  constructor(private readonly hostElem: ElementRef<HTMLElement>) {
+  constructor(hostElem: ElementRef<HTMLElement>) {
     this.viewportSize = elemBoxSizeSignal(hostElem.nativeElement);
   }
 
@@ -106,7 +106,7 @@ export class AudioVisualizationComponent {
   onSpecWheel(event: WheelEvent) {
     if (this.isPanning) return;
     event.preventDefault();
-    const bounds = this.specContainer.nativeElement.getBoundingClientRect();
+    const bounds = this.#specContainerBoundingClientRect;
     const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY];
     const offsetX = event.clientX - bounds.x;
     const offsetY = event.clientY - bounds.y;
