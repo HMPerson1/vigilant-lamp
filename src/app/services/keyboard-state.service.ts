@@ -1,34 +1,30 @@
-import { Injectable } from '@angular/core';
-import * as rxjs from 'rxjs';
+import { Injectable, NgZone, signal } from '@angular/core';
 
 @Injectable({
   providedIn: 'root'
 })
 export class KeyboardStateService {
-  readonly #ctrlKey$ = new rxjs.BehaviorSubject(false);
-  readonly #shiftKey$ = new rxjs.BehaviorSubject(false);
-  readonly #altKey$ = new rxjs.BehaviorSubject(false);
-  readonly #metaKey$ = new rxjs.BehaviorSubject(false);
+  readonly #ctrlKey = signal(false);
+  readonly #shiftKey = signal(false);
+  readonly #altKey = signal(false);
+  readonly #metaKey = signal(false);
 
-  readonly ctrlKey$ = this.#ctrlKey$.asObservable();
-  readonly shiftKey$ = this.#shiftKey$.asObservable();
-  readonly altKey$ = this.#altKey$.asObservable();
-  readonly metaKey$ = this.#metaKey$.asObservable();
+  readonly ctrlKey = this.#ctrlKey.asReadonly();
+  readonly shiftKey = this.#shiftKey.asReadonly();
+  readonly altKey = this.#altKey.asReadonly();
+  readonly metaKey = this.#metaKey.asReadonly();
 
-  get ctrlKey() { return this.#ctrlKey$.value }
-  get shiftKey() { return this.#shiftKey$.value }
-  get altKey() { return this.#altKey$.value }
-  get metaKey() { return this.#metaKey$.value }
-
-  constructor() {
+  constructor(ngZone: NgZone) {
     const listener = (ev: KeyboardEvent | MouseEvent) => {
-      if (this.#ctrlKey$.value != ev.ctrlKey) this.#ctrlKey$.next(ev.ctrlKey);
-      if (this.#shiftKey$.value != ev.shiftKey) this.#shiftKey$.next(ev.shiftKey);
-      if (this.#altKey$.value != ev.altKey) this.#altKey$.next(ev.altKey);
-      if (this.#metaKey$.value != ev.metaKey) this.#metaKey$.next(ev.metaKey);
+      this.#ctrlKey.set(ev.ctrlKey);
+      this.#shiftKey.set(ev.shiftKey);
+      this.#altKey.set(ev.altKey);
+      this.#metaKey.set(ev.metaKey);
     };
-    window.addEventListener('keydown', listener, { capture: true });
-    window.addEventListener('keyup', listener, { capture: true });
-    window.addEventListener('mousemove', listener, { capture: true });
+    ngZone.runOutsideAngular(() => {
+      window.addEventListener('keydown', listener, { capture: true });
+      window.addEventListener('keyup', listener, { capture: true });
+      window.addEventListener('mousemove', listener, { capture: true });
+    })
   }
 }

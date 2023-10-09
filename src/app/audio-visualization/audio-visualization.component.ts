@@ -1,4 +1,4 @@
-import { Component, ElementRef, EventEmitter, HostListener, Input, Output, Signal, ViewChild, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, Output, Signal, ViewChild, computed, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
@@ -8,6 +8,7 @@ import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, elemBoxSizeSignal, mkTr
   selector: 'app-audio-visualization',
   templateUrl: './audio-visualization.component.html',
   styleUrls: ['./audio-visualization.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AudioVisualizationComponent {
   readonly #timeMin = signal(0);
@@ -73,23 +74,21 @@ export class AudioVisualizationComponent {
     )
   }
 
+  #specContainerBoundingClientRect!: DOMRect;
+  @ViewChild('specContainer') set specContainer(elemRef: ElementRef<HTMLElement>) {
+    this.#specContainerBoundingClientRect = elemRef.nativeElement.getBoundingClientRect();
+  }
+
   @HostListener('mousemove', ['$event'])
   onMouseMove(event: MouseEvent) {
-    this.#visMouseX.set(event.clientX - this.hostElem.nativeElement.getBoundingClientRect().x)
+    this.#visMouseX.set(event.clientX - this.#specContainerBoundingClientRect.x)
+    const newMouseY = event.clientY - this.#specContainerBoundingClientRect.y;
+    this.#visMouseY.set(newMouseY >= 0 ? newMouseY : undefined)
   }
 
   @HostListener('mouseleave')
   onMouseLeave() {
     this.#visMouseX.set(undefined)
-  }
-
-  @ViewChild('specContainer') specContainer!: ElementRef<HTMLElement>;
-
-  onSpecMouseMove(event: MouseEvent) {
-    this.#visMouseY.set(event.clientY - this.specContainer.nativeElement.getBoundingClientRect().y)
-  }
-
-  onSpecMouseLeave() {
     this.#visMouseY.set(undefined)
   }
 

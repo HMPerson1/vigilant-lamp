@@ -8,6 +8,7 @@ import { ProjectService } from '../services/project.service';
 import { Meter, Note, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
 import { KeyboardStateService } from '../services/keyboard-state.service';
+import { toObservable } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -266,6 +267,8 @@ export class PianoRollEditorComponent implements OnChanges {
 
   draggedNotes?: ReadonlyArray<readonly [number, Note]>;
 
+  private readonly keyboardShiftKey = toObservable(this.keyboardState.shiftKey);
+
   async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
     const project = this.project.project;
     if (!project || event.button !== 0 || this.mouseX === undefined || this.mouseY === undefined) return;
@@ -291,7 +294,7 @@ export class PianoRollEditorComponent implements OnChanges {
 
     const thisMoveNote = moveNote(project.meter, this.tile.x2time(dragStartX), this.tile.y2pitch(dragStartY))
 
-    const onInputSub = rxjs.combineLatest({ pos: this.mousePos$, shiftKey: this.keyboardState.shiftKey$ })
+    const onInputSub = rxjs.combineLatest({ pos: this.mousePos$, shiftKey: this.keyboardShiftKey })
       .pipe(rxjs.map(({ pos, shiftKey }) => {
         if (!pos) return;
         const thisMoveNote2 = thisMoveNote(this.tile, pos[0], pos[1], shiftKey);
@@ -303,7 +306,7 @@ export class PianoRollEditorComponent implements OnChanges {
     try {
       await nextMouseUp;
       if (this.mouseX === undefined || this.mouseY === undefined) return;
-      const thisMoveNote2 = thisMoveNote(this.tile, this.mouseX, this.mouseY, this.keyboardState.shiftKey);
+      const thisMoveNote2 = thisMoveNote(this.tile, this.mouseX, this.mouseY, this.keyboardState.shiftKey());
       // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (thisMoveNote2 === identity) return;
       this.project.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {

@@ -5,7 +5,6 @@ import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
-import * as lodash from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
 import { AudioContextService } from './services/audio-context.service';
@@ -275,20 +274,6 @@ export class AppComponent {
   private readonly event2time = (event: Event) => {
     const visBounds = this.visElem.nativeElement.getBoundingClientRect();
     return this.audioVizContainer.x2time((event as MouseEvent).clientX - visBounds.x);
-  }
-
-  onMouse(event: MouseEvent) {
-    const visBounds = this.visElem.nativeElement.getBoundingClientRect();
-    switch (event.type) {
-      case 'mouseleave':
-        this.visMouseX = undefined;
-        this.visMouseY = undefined;
-        break;
-      case 'mousemove':
-        this.visMouseX = event.clientX - visBounds.x;
-        this.visMouseY = event.clientY > visBounds.y ? event.clientY - visBounds.y : undefined;
-        break;
-    }
   }
 
   readonly startTranscribing: StartTranscribing = (partIdx: number) => {
