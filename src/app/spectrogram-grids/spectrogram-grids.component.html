@@ -17,8 +17,8 @@
       <span>{{p.txt}}</span>
     </div>
   </div>
-  <div *ngIf="showCrosshair && mouseY !== undefined">
-    <div class="crosshair" *ngFor="let o of overtoneYOffsets" style="height: 1px" [style.opacity]=".8-o.i*.05"
-      [style.transform]="'translateY('+(mouseY - o.y)+'px)'" [hidden]="!showOvertones"></div>
+  <div *ngIf="showOvertones" class="overtone-container" [style.transform]="overtoneContainerTransform()">
+    <div class="crosshair" *ngFor="let o of overtoneYOffsets(); index as idx" style="height: 1px"
+      [style.opacity]=".7-idx*.05" [style.transform]="o"></div>
   </div>
 </div>

@@ -1,13 +1,5 @@
-:host,
-.grids-container {
+:host {
   pointer-events: none;
-  contain: strict;
-  /* apparently this makes Chrome's compositor behave better */
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
 }
 
 .pitch-grid-borders {
@@ -49,4 +41,11 @@
 
 .beat-grid-subdiv {
   border-left-style: dotted;
+}
+
+.overtone-container {
+  will-change: transform;
+  position: absolute;
+  inset: 0;
+  contain: strict;
 }

@@ -1,26 +1,21 @@
-import { Component, ElementRef, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, computed } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
-import { fromInput } from 'observable-from-input';
-import { Subject, asapScheduler,  combineLatest, debounceTime, map } from 'rxjs';
+import { Subject } from 'rxjs';
+import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile } from '../common';
-import { Meter, PITCH_MAX, PitchLabelType, beat2time, resizeObservable, time2beat } from '../ui-common';
+import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-grids',
   templateUrl: './spectrogram-grids.component.html',
-  styleUrls: ['./spectrogram-grids.component.css']
+  styleUrls: ['./spectrogram-grids.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SpectrogramGridsComponent {
-  @Input() timeMin: number = 0;
-  @Input() timeMax: number = 30;
-  @Input() pitchMin: number = 12;
-  @Input() pitchMax: number = 108;
-
   @Input() showPitchGrid: boolean = false;
   @Input() pitchLabelType: PitchLabelType = 'sharp';
 
-  @Input() mouseY?: number;
   @Input() showCrosshair: boolean = true;
   @Input() showOvertones: boolean = false;
 
@@ -29,7 +24,16 @@ export class SpectrogramGridsComponent {
   showPitchGridCenters = false;
   pitchLabels = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0, txt: "" }))
   pitchLabelFontSize = 0;
-  overtoneYOffsets = Array.from({ length: 7 }, (_x, ii) => ({ i: ii + 2, y: 0 }))
+  overtoneYOffsets = computed(() => {
+    const pxPerPitch = this.viewport.pxPerPitch();
+    const s = this.viewport.viewportSize();
+    return Array.from({ length: 7 }, (_x, i) => `translateY(${s.blockSize - Math.round(Math.log2(i + 2) * 12 * pxPerPitch)}px)`);
+  });
+  overtoneContainerTransform = computed(() => {
+    const o = this.viewport.viewportOffset();
+    const s = this.viewport.viewportSize();
+    return `translate(${-o.inline}px,${(this.viewport.visMouseY() ?? 0) - o.block - s.blockSize}px)`;
+  });
 
   gridYOffset = 0;
 
@@ -37,45 +41,14 @@ export class SpectrogramGridsComponent {
   @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
   #meter$ = new Subject<Partial<Meter> | undefined>();
 
-  constructor(elemRef: ElementRef<HTMLElement>) {
-    const toObs = fromInput(this);
-    const timeMin$ = toObs('timeMin')
-    const timeMax$ = toObs('timeMax')
-    const pitchMin$ = toObs('pitchMin')
-    const pitchMax$ = toObs('pitchMax')
-    const pitchLabelType$ = toObs('pitchLabelType')
-
-    const hostElemBox$ = resizeObservable(elemRef.nativeElement, { box: 'content-box' }).pipe(map(x => x.contentRect));
-
-    const renderWinParam$s = {
-      timeMin: timeMin$,
-      timeMax: timeMax$,
-      pitchMin: pitchMin$,
-      pitchMax: pitchMax$,
-    }
-
-    combineLatest({
-      pitchLabelType: pitchLabelType$,
-      hostElemBox: hostElemBox$,
-      ...renderWinParam$s
-    }).pipe(debounceTime(0, asapScheduler)).subscribe(params => {
-      this.updatePitchGrid(new GenSpecTile(params, params.hostElemBox), params.pitchLabelType);
-    })
-
-    combineLatest({
-      meter: this.#meter$,
-      hostElemBox: hostElemBox$,
-      ...renderWinParam$s
-    }).pipe(debounceTime(0, asapScheduler)).subscribe(params => {
-      this.updateBeatGrid(new GenSpecTile(params, params.hostElemBox), params.meter);
-    })
+  constructor(elemRef: ElementRef<HTMLElement>, private readonly viewport: AudioVisualizationComponent) {
   }
 
   updatePitchGrid(winParams: GenSpecTile<DOMRect>, label: PitchLabelType) {
     this.gridYOffset = Math.round(winParams.pitch2y(0))
-    for (const o of this.overtoneYOffsets) {
-      o.y = Math.round(Math.log2(o.i) * 12 * winParams.pixelsPerPitch) - this.gridYOffset
-    }
+    // for (const o of this.overtoneYOffsets) {
+    //   o.y = Math.round(Math.log2(o.i) * 12 * winParams.pixelsPerPitch) - this.gridYOffset
+    // }
     for (const o of this.pitchGridBorders) {
       o.y = Math.round(winParams.pitch2y(o.p - 0.5)) - this.gridYOffset
     }
