@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Input, computed } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, WritableSignal, computed, signal } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { Subject } from 'rxjs';
@@ -14,16 +14,19 @@ import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-co
 })
 export class SpectrogramGridsComponent {
   @Input() showPitchGrid: boolean = false;
-  @Input() pitchLabelType: PitchLabelType = 'sharp';
+  _pitchLabelType$: WritableSignal<PitchLabelType> = signal('sharp');
+  @Input() set pitchLabelType(v: PitchLabelType) { this._pitchLabelType$.set(v) }
 
   @Input() showCrosshair: boolean = true;
   @Input() showOvertones: boolean = false;
 
-  pitchGridBorders = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0 }))
-  pitchGridCenters = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0 }))
-  showPitchGridCenters = false;
-  pitchLabels = Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({ p: i, y: 0, txt: "" }))
-  pitchLabelFontSize = 0;
+
+  beatGrid: Array<{ x: number, m: boolean, s: boolean }> = [];
+  @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
+  #meter$ = new Subject<Partial<Meter> | undefined>();
+
+  constructor(private readonly viewport: AudioVisualizationComponent) { }
+
   overtoneYOffsets = computed(() => {
     const pxPerPitch = this.viewport.pxPerPitch();
     const s = this.viewport.viewportSize();
@@ -35,33 +38,26 @@ export class SpectrogramGridsComponent {
     return `translate(${-o.inline}px,${(this.viewport.visMouseY() ?? 0) - o.block - s.blockSize}px)`;
   });
 
-  gridYOffset = 0;
+  pitchLabels = computed(() => {
+    const pxPerPitch = this.viewport.pxPerPitch();
+    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({
+      xfm: `translateY(${Math.round((PITCH_MAX - i) * pxPerPitch)}px)`,
+      txt: pitchLabel(this._pitchLabelType$(), i),
+    }));
+  });
+  pitchLabelFontSize = computed(() => lodash.clamp(Math.round(.8 * this.viewport.pxPerPitch()), 12, 20));
 
-  beatGrid: Array<{ x: number, m: boolean, s: boolean }> = [];
-  @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
-  #meter$ = new Subject<Partial<Meter> | undefined>();
-
-  constructor(elemRef: ElementRef<HTMLElement>, private readonly viewport: AudioVisualizationComponent) {
-  }
-
-  updatePitchGrid(winParams: GenSpecTile<DOMRect>, label: PitchLabelType) {
-    this.gridYOffset = Math.round(winParams.pitch2y(0))
-    // for (const o of this.overtoneYOffsets) {
-    //   o.y = Math.round(Math.log2(o.i) * 12 * winParams.pixelsPerPitch) - this.gridYOffset
-    // }
-    for (const o of this.pitchGridBorders) {
-      o.y = Math.round(winParams.pitch2y(o.p - 0.5)) - this.gridYOffset
-    }
-    for (const o of this.pitchGridCenters) {
-      o.y = Math.round(winParams.pitch2y(o.p)) - this.gridYOffset
-    }
-    this.showPitchGridCenters = winParams.pixelsPerPitch > 30
-    for (const o of this.pitchLabels) {
-      o.y = Math.round(winParams.pitch2y(o.p)) - this.gridYOffset
-      o.txt = pitchLabel(label, o.p)
-    }
-    this.pitchLabelFontSize = lodash.clamp(Math.round(.8 * winParams.pixelsPerPitch), 12, 20)
-  }
+  pitchGridBorders = computed(() => {
+    const pxPerPitch = this.viewport.pxPerPitch();
+    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) =>
+      `translateY(${Math.round((PITCH_MAX - i + .5) * pxPerPitch)}px)`);
+  });
+  pitchGridCenters = computed(() => {
+    const pxPerPitch = this.viewport.pxPerPitch();
+    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) =>
+      `translateY(${Math.round((PITCH_MAX - i) * pxPerPitch)}px)`);
+  });
+  showPitchGridCenters = computed(() => this.viewport.pxPerPitch() > 30);
 
   updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
     // TODO: this could be rendered more efficiently because of vertical translational symmetry
