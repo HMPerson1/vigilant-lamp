@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EventEmitter, HostListener, Input, Output, Signal, ViewChild, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, computed, runInInjectionContext, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
@@ -39,12 +39,19 @@ export class AudioVisualizationComponent {
   @Input() showCrosshair = true;
   @Output() playheadSeek: EventEmitter<number> = new EventEmitter();
 
-  readonly viewportSize: Signal<ResizeObserverSize>;
+  #viewportSize = computed(() => ({ blockSize: 0, inlineSize: 0 }));
+  get viewportSize() { return this.#viewportSize }
   readonly pxPerTime = computed(() => this.viewportSize().inlineSize / this.timeRange());
   readonly pxPerPitch = computed(() => this.viewportSize().blockSize / this.pitchRange());
 
-  constructor(hostElem: ElementRef<HTMLElement>) {
-    this.viewportSize = elemBoxSizeSignal(hostElem.nativeElement);
+  constructor(private readonly environmentInjector: EnvironmentInjector) { }
+
+  #specContainerBoundingClientRect!: DOMRect;
+  @ViewChild('specContainer') set specContainer(elemRef: ElementRef<HTMLElement>) {
+    this.#specContainerBoundingClientRect = elemRef.nativeElement.getBoundingClientRect();
+    runInInjectionContext(this.environmentInjector, () => {
+      this.#viewportSize = elemBoxSizeSignal(elemRef.nativeElement);
+    })
   }
 
   onAudioLoad(duration: number) {
@@ -72,11 +79,6 @@ export class AudioVisualizationComponent {
       this.#timeMin, this.#timeRange, this.#audioDuration(),
       delta, zoom, offsetX / this.viewportSize().inlineSize,
     )
-  }
-
-  #specContainerBoundingClientRect!: DOMRect;
-  @ViewChild('specContainer') set specContainer(elemRef: ElementRef<HTMLElement>) {
-    this.#specContainerBoundingClientRect = elemRef.nativeElement.getBoundingClientRect();
   }
 
   @HostListener('mousemove', ['$event'])
@@ -111,11 +113,15 @@ export class AudioVisualizationComponent {
     const offsetX = event.clientX - bounds.x;
     const offsetY = event.clientY - bounds.y;
 
-    this.#doWheel(deltaX, offsetX, event.ctrlKey);
-    doScrollZoomPitch(
-      this.#pitchMin, this.#pitchRange, bounds.width / bounds.height,
-      deltaY, event.ctrlKey, 1 - offsetY / bounds.height,
-    );
+    if (deltaX !== 0) {
+      this.#doWheel(deltaX, offsetX, event.ctrlKey);
+    }
+    if (deltaY !== 0) {
+      doScrollZoomPitch(
+        this.#pitchMin, this.#pitchRange, bounds.width / bounds.height,
+        deltaY, event.ctrlKey, 1 - offsetY / bounds.height,
+      );
+    }
   }
 
   async onSpecMouseDown(event: MouseEvent) {
