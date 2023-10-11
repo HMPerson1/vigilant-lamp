@@ -2,6 +2,13 @@
   pointer-events: none;
 }
 
+.pitch-container {
+  will-change: transform;
+  position: absolute;
+  width: 100%;
+  contain: strict;
+}
+
 .pitch-grid-borders {
   position: absolute;
   border-top: 1px solid gray;

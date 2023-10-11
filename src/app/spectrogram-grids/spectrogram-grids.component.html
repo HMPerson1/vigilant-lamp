@@ -3,17 +3,19 @@
     <div class="beat-grid" *ngFor="let i of beatGrid; trackBy: trackIdx" [style.transform]="'translateX('+i.x+'px)'"
       [class.beat-grid-measure]="i.m" [class.beat-grid-subdiv]="i.s"></div>
   </div>
-  <div *ngIf="showPitchGrid && showPitchGridCenters()">
-    <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters(); trackBy: trackIdx" [style.transform]="p">
+  <div class="pitch-container" [style.transform]="pitchContainerTransform()" [style.height.px]="pitchContainerHeight()">
+    <div *ngIf="showPitchGrid && showPitchGridCenters()">
+      <div class="pitch-grid-centers" *ngFor="let p of pitchGridCenters(); trackBy: trackIdx" [style.transform]="p">
+      </div>
     </div>
-  </div>
-  <div *ngIf="showPitchGrid">
-    <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders(); trackBy: trackIdx" [style.transform]="p">
+    <div *ngIf="showPitchGrid">
+      <div class="pitch-grid-borders" *ngFor="let p of pitchGridBorders(); trackBy: trackIdx" [style.transform]="p">
+      </div>
     </div>
-  </div>
-  <div *ngIf="_pitchLabelType$() !== 'none'" [style.font-size.px]="pitchLabelFontSize()">
-    <div class="pitch-label" *ngFor="let p of pitchLabels(); trackBy: trackIdx" [style.transform]="p.xfm">
-      <span>{{p.txt}}</span>
+    <div *ngIf="_pitchLabelType$() !== 'none'" [style.font-size.px]="pitchLabelFontSize()">
+      <div class="pitch-label" *ngFor="let p of pitchLabels(); trackBy: trackIdx" [style.transform]="p.xfm">
+        <span>{{p.txt}}</span>
+      </div>
     </div>
   </div>
   <div *ngIf="showOvertones && showCrosshair" class="overtone-container"

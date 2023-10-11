@@ -20,12 +20,11 @@ export class SpectrogramGridsComponent {
   @Input() showCrosshair: boolean = true;
   @Input() showOvertones: boolean = false;
 
-
   beatGrid: Array<{ x: number, m: boolean, s: boolean }> = [];
   @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
   #meter$ = new Subject<Partial<Meter> | undefined>();
 
-  constructor(private readonly viewport: AudioVisualizationComponent) { }
+  constructor(readonly viewport: AudioVisualizationComponent) { }
 
   overtoneYOffsets = computed(() => {
     const pxPerPitch = this.viewport.pxPerPitch();
@@ -58,6 +57,9 @@ export class SpectrogramGridsComponent {
       `translateY(${Math.round((PITCH_MAX - i) * pxPerPitch)}px)`);
   });
   showPitchGridCenters = computed(() => this.viewport.pxPerPitch() > 30);
+
+  pitchContainerHeight = computed(() => PITCH_MAX * this.viewport.pxPerPitch());
+  pitchContainerTransform = computed(() => `translate(${-this.viewport.viewportOffset().inline}px)`);
 
   updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
     // TODO: this could be rendered more efficiently because of vertical translational symmetry
