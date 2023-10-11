@@ -32,9 +32,10 @@ export class SpectrogramGridsComponent {
     return Array.from({ length: 7 }, (_x, i) => `translateY(${s.blockSize - Math.round(Math.log2(i + 2) * 12 * pxPerPitch)}px)`);
   });
   overtoneContainerTransform = computed(() => {
-    const o = this.viewport.viewportOffset();
+    const ox = this.viewport.viewportOffsetX();
+    const oy = this.viewport.viewportOffsetY();
     const s = this.viewport.viewportSize();
-    return `translate(${-o.inline}px,${(this.viewport.visMouseY() ?? 0) - o.block - s.blockSize}px)`;
+    return `translate(${ox}px,${(this.viewport.visMouseY() ?? 0) + oy - s.blockSize}px)`;
   });
 
   pitchLabels = computed(() => {
@@ -59,7 +60,7 @@ export class SpectrogramGridsComponent {
   showPitchGridCenters = computed(() => this.viewport.pxPerPitch() > 30);
 
   pitchContainerHeight = computed(() => PITCH_MAX * this.viewport.pxPerPitch());
-  pitchContainerTransform = computed(() => `translate(${-this.viewport.viewportOffset().inline}px)`);
+  pitchContainerTransform = computed(() => `translate(${this.viewport.viewportOffsetX()}px)`);
 
   updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
     // TODO: this could be rendered more efficiently because of vertical translational symmetry

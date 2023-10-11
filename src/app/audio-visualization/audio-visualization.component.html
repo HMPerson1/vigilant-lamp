@@ -1,13 +1,13 @@
 <div class="container">
   <app-audio-waveform (click)="onWaveformClick($event)" (wheel)="onWaveformWheel($event)"></app-audio-waveform>
   <div class="spectrogram-container" (wheel)="onSpecWheel($event)" #specContainer (mousedown)="onSpecMouseDown($event)">
-    <div class="spectrogram-offset" [style.transform]="offsetDivTransform()">
+    <div class="spectrogram-offset" [style.transform]="_offsetDivTransform()">
       <ng-content></ng-content>
     </div>
-    <div class="crosshair" style="height: 1px;" [style.transform]="crosshairYTransform()"
+    <div class="crosshair" style="height: 1px;" [style.transform]="_crosshairYTransform()"
       [hidden]="!showCrosshair || visMouseY() === undefined"></div>
   </div>
 </div>
-<div class="crosshair" style="width: 1px; background-color: red;" [style.transform]="playheadTransform()"></div>
-<div class="crosshair" style="width: 1px;" [style.transform]="crosshairXTransform()"
+<div class="crosshair" style="width: 1px; background-color: red;" [style.transform]="_playheadTransform()"></div>
+<div class="crosshair" style="width: 1px;" [style.transform]="_crosshairXTransform()"
   [hidden]="!showCrosshair || visMouseX() === undefined"></div>

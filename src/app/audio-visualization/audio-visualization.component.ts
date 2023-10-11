@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, WritableSignal, computed, runInInjectionContext, signal } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, WritableSignal, computed, runInInjectionContext, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
@@ -11,20 +11,37 @@ import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, elemBoxSizeSignal, mkTr
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AudioVisualizationComponent {
-  readonly #timeMin = signal(0);
-  readonly #timeRange = signal(30);
-  readonly timeMin = this.#timeMin.asReadonly();
-  readonly timeRange = this.#timeRange.asReadonly();
-  readonly timeMax = computed(() => this.timeMin() + this.timeRange());
+  readonly #viewportWidthFrac = signal(1);
+  readonly #viewportHeightFrac = signal(88 / PITCH_MAX);
+  readonly #viewportOffsetX = signal(0); // always an exact integer
+  readonly #viewportOffsetY = signal(0); // always an exact integer
+  readonly viewportOffsetX = this.#viewportOffsetX.asReadonly();
+  readonly viewportOffsetY = this.#viewportOffsetY.asReadonly();
+
+  readonly #realViewportSize: WritableSignal<Signal<ResizeObserverSize> | undefined> = signal(undefined);
+  readonly viewportSize = computed(() => {
+    const r = this.#realViewportSize();
+    return r !== undefined ? r() : { inlineSize: 0, blockSize: 0 };
+  });
 
   readonly #audioDuration = signal(30);
   readonly audioDuration = this.#audioDuration.asReadonly();
 
-  readonly #pitchMin = signal(12);
-  readonly #pitchRange = signal(96);
-  readonly pitchMin = this.#pitchMin.asReadonly();
-  readonly pitchRange = this.#pitchRange.asReadonly();
+  readonly timeRange = computed(() => this.audioDuration() * this.#viewportWidthFrac());
+  readonly pitchRange = computed(() => PITCH_MAX * this.#viewportHeightFrac());
+  readonly pxPerTime = computed(() => this.viewportSize().inlineSize / this.timeRange());
+  readonly pxPerPitch = computed(() => this.viewportSize().blockSize / this.pitchRange());
+  readonly timePerPx = computed(() => this.timeRange() / this.viewportSize().inlineSize);
+  readonly pitchPerPx = computed(() => this.pitchRange() / this.viewportSize().blockSize);
+
+  readonly timeMin = computed(() => this.viewportOffsetX() * this.timePerPx());
+  readonly timeMax = computed(() => this.timeMin() + this.timeRange());
+  readonly pitchMin = computed(() => PITCH_MAX - ((this.viewportOffsetY() + this.viewportSize().blockSize) * this.pitchPerPx()));
   readonly pitchMax = computed(() => this.pitchMin() + this.pitchRange());
+
+  /** equivalent to `(audioDuration - timeRange) * pxPerTime` */
+  readonly #viewportOffsetXMax = computed(() => Math.ceil(((1 / this.#viewportWidthFrac()) - 1) * this.viewportSize().inlineSize));
+  readonly #viewportOffsetYMax = computed(() => Math.ceil(((1 / this.#viewportHeightFrac()) - 1) * this.viewportSize().blockSize));
 
   readonly #visMouseX = signal<number | undefined>(undefined);
   readonly #visMouseY = signal<number | undefined>(undefined);
@@ -32,34 +49,27 @@ export class AudioVisualizationComponent {
   readonly visMouseY = this.#visMouseY.asReadonly();
 
   @Input({ required: true }) playheadPos!: Signal<number>;
-  readonly playheadTransform = mkTranslateX(computed(() => Math.round(this.time2x(this.playheadPos()))));
-  readonly crosshairXTransform = mkTranslateX(this.visMouseX);
-  readonly crosshairYTransform = mkTranslateY(this.visMouseY);
+  readonly _playheadTransform = mkTranslateX(computed(() => Math.round(this.time2x(this.playheadPos()))));
+  readonly _crosshairXTransform = mkTranslateX(this.visMouseX);
+  readonly _crosshairYTransform = mkTranslateY(this.visMouseY);
 
   @Input() showCrosshair = true;
   @Output() playheadSeek: EventEmitter<number> = new EventEmitter();
 
-  readonly #realViewportSize: WritableSignal<Signal<ResizeObserverSize> | undefined> = signal(undefined);
-  readonly viewportSize = computed(() => {
-    const r = this.#realViewportSize();
-    return r !== undefined ? r() : { inlineSize: 0, blockSize: 0 };
-  });
-  readonly pxPerTime = computed(() => this.viewportSize().inlineSize / this.timeRange());
-  readonly pxPerPitch = computed(() => this.viewportSize().blockSize / this.pitchRange());
-
-  constructor(private readonly environmentInjector: EnvironmentInjector) { }
+  constructor(private readonly environmentInjector: EnvironmentInjector, private readonly changeDetectorRef: ChangeDetectorRef) { }
 
   #specContainer!: HTMLElement;
   @ViewChild('specContainer') set specContainer(elemRef: ElementRef<HTMLElement>) {
     this.#specContainer = elemRef.nativeElement;
     runInInjectionContext(this.environmentInjector, () => {
       this.#realViewportSize.set(elemBoxSizeSignal(elemRef.nativeElement));
-    })
+    });
+    // this _should_ be fine since this should only ever be called once
+    this.#viewportOffsetY.set(Math.round((PITCH_MAX - 108.5) * elemRef.nativeElement.getBoundingClientRect().height / this.pitchRange()));
+    this.changeDetectorRef.detectChanges();
   }
 
   onAudioLoad(duration: number) {
-    this.#timeMin.set(0);
-    this.#timeRange.set(duration);
     this.#audioDuration.set(duration);
   }
 
@@ -78,10 +88,10 @@ export class AudioVisualizationComponent {
   }
 
   #doWheel(delta: number, offsetX: number, zoom: boolean) {
-    doScrollZoomTime(
-      this.#timeMin, this.#timeRange, this.#audioDuration(),
-      delta, zoom, offsetX / this.viewportSize().inlineSize,
-    )
+    // doScrollZoomTime(
+    //   this.#timeMin, this.#timeRange, this.#audioDuration(),
+    //   delta, zoom, offsetX / this.viewportSize().inlineSize,
+    // )
   }
 
   @HostListener('mousemove', ['$event'])
@@ -98,14 +108,7 @@ export class AudioVisualizationComponent {
     this.#visMouseY.set(undefined)
   }
 
-  readonly viewportOffset: Signal<{ block: number, inline: number }> = computed(() => {
-    const { blockSize, inlineSize } = this.viewportSize();
-    // TODO: refactor out of tile
-    const tile = new GenSpecTile({ pitchMin: this.pitchMin(), pitchMax: this.pitchMax(), timeMin: this.timeMin(), timeMax: this.timeMax() }, { width: inlineSize, height: blockSize });
-    const ret = { block: Math.round(tile.pitch2y(PITCH_MAX)), inline: Math.round(tile.time2x(0)) };
-    return ret;
-  });
-  readonly offsetDivTransform = computed(() => `translate(${this.viewportOffset().inline}px,${this.viewportOffset().block}px)`);
+  readonly _offsetDivTransform = computed(() => `translate(${-this.viewportOffsetX()}px,${-this.viewportOffsetY()}px)`);
 
   private isPanning = false;
 
@@ -121,10 +124,10 @@ export class AudioVisualizationComponent {
       this.#doWheel(deltaX, offsetX, event.ctrlKey);
     }
     if (deltaY !== 0) {
-      doScrollZoomPitch(
-        this.#pitchMin, this.#pitchRange, bounds.width / bounds.height,
-        deltaY, event.ctrlKey, 1 - offsetY / bounds.height,
-      );
+      // doScrollZoomPitch(
+      //   this.#pitchMin, this.#pitchRange, bounds.width / bounds.height,
+      //   deltaY, event.ctrlKey, 1 - offsetY / bounds.height,
+      // );
     }
   }
 
@@ -133,17 +136,15 @@ export class AudioVisualizationComponent {
     event.preventDefault();
     const downClientX = event.clientX;
     const downClientY = event.clientY;
-    const downTimeMin = this.timeMin();
-    const downPitchMin = this.pitchMin();
+    const downOffsetX = this.viewportOffsetX();
+    const downOffsetY = this.viewportOffsetY();
+    const offsetXMax = this.#viewportOffsetXMax();
+    const offsetYMax = this.#viewportOffsetYMax();
 
     const onMoveSub = rxjs.fromEvent(document, 'mousemove').subscribe(ev_ => {
       const ev = ev_ as MouseEvent;
-
-      const deltaTime = (ev.clientX - downClientX) / this.pxPerTime();
-      this.#timeMin.set(lodash.clamp(downTimeMin - deltaTime, 0, this.audioDuration() - this.timeRange()));
-
-      const deltaPitch = (ev.clientY - downClientY) / this.pxPerPitch();
-      this.#pitchMin.set(lodash.clamp(downPitchMin + deltaPitch, 0, PITCH_MAX - this.pitchRange()));
+      this.#viewportOffsetX.set(lodash.clamp(downOffsetX - ev.clientX + downClientX, 0, offsetXMax));
+      this.#viewportOffsetY.set(lodash.clamp(downOffsetY - ev.clientY + downClientY, 0, offsetYMax));
     });
     this.isPanning = true;
     try {
