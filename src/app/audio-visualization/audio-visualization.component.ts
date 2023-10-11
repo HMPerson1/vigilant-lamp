@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, computed, runInInjectionContext, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, WritableSignal, computed, runInInjectionContext, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { GenSpecTile } from '../common';
@@ -39,18 +39,21 @@ export class AudioVisualizationComponent {
   @Input() showCrosshair = true;
   @Output() playheadSeek: EventEmitter<number> = new EventEmitter();
 
-  #viewportSize = computed(() => ({ blockSize: 0, inlineSize: 0 }));
-  get viewportSize() { return this.#viewportSize }
+  readonly #realViewportSize: WritableSignal<Signal<ResizeObserverSize> | undefined> = signal(undefined);
+  readonly viewportSize = computed(() => {
+    const r = this.#realViewportSize();
+    return r !== undefined ? r() : { inlineSize: 0, blockSize: 0 };
+  });
   readonly pxPerTime = computed(() => this.viewportSize().inlineSize / this.timeRange());
   readonly pxPerPitch = computed(() => this.viewportSize().blockSize / this.pitchRange());
 
   constructor(private readonly environmentInjector: EnvironmentInjector) { }
 
-  #specContainerBoundingClientRect!: DOMRect;
+  #specContainer!: HTMLElement;
   @ViewChild('specContainer') set specContainer(elemRef: ElementRef<HTMLElement>) {
-    this.#specContainerBoundingClientRect = elemRef.nativeElement.getBoundingClientRect();
+    this.#specContainer = elemRef.nativeElement;
     runInInjectionContext(this.environmentInjector, () => {
-      this.#viewportSize = elemBoxSizeSignal(elemRef.nativeElement);
+      this.#realViewportSize.set(elemBoxSizeSignal(elemRef.nativeElement));
     })
   }
 
@@ -83,8 +86,9 @@ export class AudioVisualizationComponent {
 
   @HostListener('mousemove', ['$event'])
   onMouseMove(event: MouseEvent) {
-    this.#visMouseX.set(event.clientX - this.#specContainerBoundingClientRect.x)
-    const newMouseY = event.clientY - this.#specContainerBoundingClientRect.y;
+    const bounds = this.#specContainer.getBoundingClientRect();
+    this.#visMouseX.set(event.clientX - bounds.x)
+    const newMouseY = event.clientY - bounds.y;
     this.#visMouseY.set(newMouseY >= 0 ? newMouseY : undefined)
   }
 
@@ -108,7 +112,7 @@ export class AudioVisualizationComponent {
   onSpecWheel(event: WheelEvent) {
     if (this.isPanning) return;
     event.preventDefault();
-    const bounds = this.#specContainerBoundingClientRect;
+    const bounds = this.#specContainer.getBoundingClientRect();
     const [deltaX, deltaY] = event.shiftKey ? [event.deltaY, event.deltaX] : [event.deltaX, event.deltaY];
     const offsetX = event.clientX - bounds.x;
     const offsetY = event.clientY - bounds.y;
