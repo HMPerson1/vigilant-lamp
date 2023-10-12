@@ -1,9 +1,7 @@
-import { ChangeDetectionStrategy, Component, Input, WritableSignal, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Signal, WritableSignal, computed, signal } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
-import { Subject } from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
-import { GenSpecTile } from '../common';
 import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-common';
 
 @Component({
@@ -14,17 +12,16 @@ import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-co
 })
 export class SpectrogramGridsComponent {
   @Input() showPitchGrid: boolean = false;
-  _pitchLabelType$: WritableSignal<PitchLabelType> = signal('sharp');
+  readonly _pitchLabelType$: WritableSignal<PitchLabelType> = signal('sharp');
   @Input() set pitchLabelType(v: PitchLabelType) { this._pitchLabelType$.set(v) }
 
   @Input() showCrosshair: boolean = true;
   @Input() showOvertones: boolean = false;
 
-  beatGrid: Array<{ x: number, m: boolean, s: boolean }> = [];
-  @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.next(x ? x : undefined) }
-  #meter$ = new Subject<Partial<Meter> | undefined>();
+  @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.set(x ?? undefined) }
+  readonly #meter$: WritableSignal<Partial<Meter> | undefined> = signal(undefined);
 
-  constructor(readonly viewport: AudioVisualizationComponent) { }
+  constructor(private readonly viewport: AudioVisualizationComponent) { }
 
   overtoneYOffsets = computed(() => {
     const pxPerPitch = this.viewport.pxPerPitch();
@@ -33,68 +30,70 @@ export class SpectrogramGridsComponent {
   });
   overtoneContainerTransform = computed(() => {
     const ox = this.viewport.viewportOffsetX();
-    const oy = this.viewport.viewportOffsetY();
-    const s = this.viewport.viewportSize();
-    return `translate(${ox}px,${(this.viewport.visMouseY() ?? 0) + oy - s.blockSize}px)`;
+    const oy = this.viewport.viewportOffsetY() + (this.viewport.visMouseY() ?? 0) - this.viewport.viewportSize().blockSize;
+    return `translate(${ox}px,${oy}px)`;
   });
 
   pitchLabels = computed(() => {
-    const pxPerPitch = this.viewport.pxPerPitch();
+    const px = this.#pitchTransform();
     return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({
-      xfm: `translateY(${Math.round((PITCH_MAX - i) * pxPerPitch)}px)`,
+      xfm: px(PITCH_MAX - i),
       txt: pitchLabel(this._pitchLabelType$(), i),
     }));
   });
   pitchLabelFontSize = computed(() => lodash.clamp(Math.round(.8 * this.viewport.pxPerPitch()), 12, 20));
 
-  pitchGridBorders = computed(() => {
+  #pitchTransform: () => (p: number) => string = () => {
     const pxPerPitch = this.viewport.pxPerPitch();
-    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) =>
-      `translateY(${Math.round((PITCH_MAX - i + .5) * pxPerPitch)}px)`);
+    return p => `translateY(${Math.round(p * pxPerPitch)}px)`
+  }
+
+  pitchGridBorders = computed(() => {
+    const px = this.#pitchTransform();
+    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => px(PITCH_MAX - i + .5));
   });
   pitchGridCenters = computed(() => {
-    const pxPerPitch = this.viewport.pxPerPitch();
-    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) =>
-      `translateY(${Math.round((PITCH_MAX - i) * pxPerPitch)}px)`);
+    const px = this.#pitchTransform();
+    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => px(PITCH_MAX - i));
   });
   showPitchGridCenters = computed(() => this.viewport.pxPerPitch() > 30);
 
-  pitchContainerHeight = computed(() => PITCH_MAX * this.viewport.pxPerPitch());
-  pitchContainerTransform = computed(() => `translate(${this.viewport.viewportOffsetX()}px)`);
+  pitchContainerHeight = this.viewport.canvasHeight;
+  pitchContainerTransform = computed(() => `translateX(${this.viewport.viewportOffsetX()}px)`);
 
-  updateBeatGrid(render: GenSpecTile<DOMRect>, meter?: Partial<Meter>) {
-    // TODO: this could be rendered more efficiently because of vertical translational symmetry
+  beatGrid: Signal<Array<{ xfm: string, m: boolean, s: boolean }>> = computed(() => {
+    const meter = this.#meter$();
+    const pxPerTime = this.viewport.pxPerTime()
+    const timeTransform = (t: number) => `translateX(${Math.round(t * pxPerTime)}px)`;
     if (meter === undefined || meter.state === 'unset') {
-      this.beatGrid = [];
-      return;
+      return [];
     } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
-      this.beatGrid = [{ x: Math.round(render.time2x(meter.startOffset)), m: false, s: false }];
-      return;
+      return [{ xfm: timeTransform(meter.startOffset), m: false, s: false }];
     } else if (!Meter.is(meter)) {
-      this.beatGrid = [];
-      return;
+      return [];
     }
+    const timeMax = this.viewport.timeMax();
     const secPerBeat = 60 / meter.bpm;
-    const pixelsPerBeat = secPerBeat * render.pixelsPerTime;
-    const windowLeftBeat = time2beat(meter, render.timeMin);
+    const pixelsPerBeat = secPerBeat * pxPerTime;
+    const windowLeftBeat = time2beat(meter, this.viewport.timeMin());
     if (pixelsPerBeat < 10) {
       const firstMeasure = Math.max(Math.ceil(windowLeftBeat / meter.measureLength), 0);
       const firstMeasureTime = beat2time(meter, firstMeasure * meter.measureLength);
       const secPerMeasure = secPerBeat * meter.measureLength;
-      const length = Math.ceil((render.timeMax - firstMeasureTime) / secPerMeasure);
-      if (length > 2000) { this.beatGrid = []; throw new Error("too many beats"); }
-      this.beatGrid = Array.from({ length }, (_x, i) => ({
-        x: Math.round(render.time2x(firstMeasureTime + i * secPerMeasure)),
+      const length = Math.ceil((timeMax - firstMeasureTime) / secPerMeasure);
+      if (length > 2000) { console.error("too many beats!", length); return []; }
+      return Array.from({ length }, (_x, i) => ({
+        xfm: timeTransform(firstMeasureTime + i * secPerMeasure),
         m: true,
         s: false,
       }))
     } else if (pixelsPerBeat < 100) {
       const firstBeat = Math.max(Math.ceil(windowLeftBeat), 0);
       const firstBeatTime = beat2time(meter, firstBeat);
-      const length = Math.ceil((render.timeMax - firstBeatTime) / secPerBeat);
-      if (length > 2000) { this.beatGrid = []; throw new Error("too many beats"); }
-      this.beatGrid = Array.from({ length }, (_x, i) => ({
-        x: Math.round(render.time2x(firstBeatTime + i * secPerBeat)),
+      const length = Math.ceil((timeMax - firstBeatTime) / secPerBeat);
+      if (length > 2000) { console.error("too many beats!", length); return []; }
+      return Array.from({ length }, (_x, i) => ({
+        xfm: timeTransform(firstBeatTime + i * secPerBeat),
         m: (firstBeat + i) % meter.measureLength === 0,
         s: false
       }))
@@ -103,15 +102,18 @@ export class SpectrogramGridsComponent {
       const firstSubdivTime = beat2time(meter, firstSubdiv / meter.subdivision);
       const secPerSubdiv = secPerBeat / meter.subdivision;
       const subdivsPerMeasure = meter.measureLength * meter.subdivision;
-      const length = Math.ceil((render.timeMax - firstSubdivTime) / secPerSubdiv);
-      if (length > 2000) { this.beatGrid = []; throw new Error("too many beats"); }
-      this.beatGrid = Array.from({ length }, (_x, i) => ({
-        x: Math.round(render.time2x(firstSubdivTime + i * secPerSubdiv)),
+      const length = Math.ceil((timeMax - firstSubdivTime) / secPerSubdiv);
+      if (length > 2000) { console.error("too many beats!", length); return []; }
+      return Array.from({ length }, (_x, i) => ({
+        xfm: timeTransform(firstSubdivTime + i * secPerSubdiv),
         m: (firstSubdiv + i) % subdivsPerMeasure === 0,
         s: (firstSubdiv + i) % meter.subdivision !== 0,
       }))
     }
-  }
+  })
+
+  beatContainerWidth = this.viewport.canvasWidth;
+  beatContainerTransform = computed(() => `translateY(${this.viewport.viewportOffsetY()}px)`);
 
   trackIdx(idx: number, _item: any) { return idx }
 }

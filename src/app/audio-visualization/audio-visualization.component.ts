@@ -12,6 +12,8 @@ import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-
 export class AudioVisualizationComponent {
   readonly #canvasWidth = signal(1);
   readonly #canvasHeight = signal(1);
+  readonly canvasWidth = this.#canvasWidth.asReadonly();
+  readonly canvasHeight = this.#canvasHeight.asReadonly();
   readonly #viewportOffsetX = signal(0); // always an exact integer
   readonly #viewportOffsetY = signal(0); // always an exact integer
   readonly viewportOffsetX = this.#viewportOffsetX.asReadonly();

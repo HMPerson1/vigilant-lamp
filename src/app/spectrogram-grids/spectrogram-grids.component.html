@@ -1,6 +1,7 @@
 <div class="grids-container">
-  <div *ngIf="beatGrid">
-    <div class="beat-grid" *ngFor="let i of beatGrid; trackBy: trackIdx" [style.transform]="'translateX('+i.x+'px)'"
+  <div *ngIf="beatGrid" class="beat-container" [style.transform]="beatContainerTransform()"
+    [style.width.px]="beatContainerWidth()">
+    <div class="beat-grid" *ngFor="let i of beatGrid(); trackBy: trackIdx" [style.transform]="i.xfm"
       [class.beat-grid-measure]="i.m" [class.beat-grid-subdiv]="i.s"></div>
   </div>
   <div class="pitch-container" [style.transform]="pitchContainerTransform()" [style.height.px]="pitchContainerHeight()">

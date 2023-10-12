@@ -34,6 +34,13 @@
   padding-left: 1px;
 }
 
+.beat-container {
+  will-change: transform;
+  position: absolute;
+  height: 100%;
+  contain: strict;
+}
+
 .beat-grid {
   position: absolute;
   height: 100%;
