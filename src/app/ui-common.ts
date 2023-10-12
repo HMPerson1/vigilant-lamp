@@ -105,53 +105,7 @@ export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Si
   return toSignal(resizeObservable(elem, options));
 }
 
-export function doScrollZoom(
-  signalMin: WritableSignal<number>, signalRange: WritableSignal<number>,
-  clampMin: number, clampMax: number, rangeMin: number,
-  zoomRate: number, scrollRate: number,
-  wheelDelta: number, zoom: boolean, centerPosFrac: number
-) {
-  let rangeMax = clampMax - clampMin
-  let valMin = signalMin()
-  let valRange = signalRange()
-  if (zoom) {
-    let newValRange = valRange * (2 ** (wheelDelta * zoomRate));
-    newValRange = clamp(newValRange, rangeMin, rangeMax)
-    const deltaValRange = newValRange - valRange;
-    valRange = newValRange
-    valMin -= centerPosFrac * deltaValRange
-  } else {
-    valMin += valRange * (wheelDelta * scrollRate)
-  }
-
-  valMin = clamp(valMin, clampMin, clampMax - valRange)
-  signalMin.set(valMin)
-  signalRange.set(valRange)
-}
-
-export function doScrollZoomTime(
-  signalMin: WritableSignal<number>, signalRange: WritableSignal<number>,
-  clampMax: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
-) {
-  doScrollZoom(
-    signalMin, signalRange,
-    0, clampMax, 1 / 1000, 1 / 400, 1 / 1600,
-    wheelDelta, zoom, centerPosFrac,
-  )
-}
-
 export const PITCH_MAX = 136;
-
-export function doScrollZoomPitch(
-  signalMin: WritableSignal<number>, signalRange: WritableSignal<number>,
-  aspectRatio: number, wheelDelta: number, zoom: boolean, centerPosFrac: number
-) {
-  doScrollZoom(
-    signalMin, signalRange,
-    0, PITCH_MAX, 6, 1 / 400, -1 / 1600 * aspectRatio,
-    wheelDelta, zoom, centerPosFrac,
-  )
-}
 
 export interface ModalSpectrogramEdit {
   click: (

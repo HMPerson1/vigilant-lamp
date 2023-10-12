@@ -1,8 +1,7 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, WritableSignal, computed, runInInjectionContext, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
-import { GenSpecTile } from '../common';
-import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-common';
+import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-common';
 
 @Component({
   selector: 'app-audio-visualization',
@@ -92,10 +91,11 @@ export class AudioVisualizationComponent {
   }
 
   #doWheel(delta: number, offsetX: number, zoom: boolean) {
-    // doScrollZoomTime(
-    //   this.#timeMin, this.#timeRange, this.#audioDuration(),
-    //   delta, zoom, offsetX / this.viewportSize().inlineSize,
-    // )
+    doScrollZoom(
+      this.#viewportOffsetX, this.#canvasWidth,
+      this.viewportSize().inlineSize, this.audioDuration() * 1000,
+      delta, zoom, offsetX,
+    );
   }
 
   @HostListener('mousemove', ['$event'])
@@ -128,10 +128,11 @@ export class AudioVisualizationComponent {
       this.#doWheel(deltaX, offsetX, event.ctrlKey);
     }
     if (deltaY !== 0) {
-      // doScrollZoomPitch(
-      //   this.#pitchMin, this.#pitchRange, bounds.width / bounds.height,
-      //   deltaY, event.ctrlKey, 1 - offsetY / bounds.height,
-      // );
+      doScrollZoom(
+        this.#viewportOffsetY, this.#canvasHeight,
+        this.viewportSize().blockSize, PITCH_MAX / 6,
+        deltaY, event.ctrlKey, offsetY,
+      );
     }
   }
 
@@ -158,4 +159,22 @@ export class AudioVisualizationComponent {
       onMoveSub.unsubscribe();
     }
   }
+}
+
+function doScrollZoom(
+  viewportOffset: WritableSignal<number>, canvasSize: WritableSignal<number>,
+  viewportSize: number, canvasSizeMaxRatio: number,
+  wheelDelta: number, zoom: boolean, mouseOffset: number
+) {
+  let viewportOffsetVal = viewportOffset();
+  let canvasSizeVal = canvasSize();
+  if (zoom) {
+    const oldCanvasSize = canvasSizeVal;
+    canvasSizeVal = lodash.clamp(canvasSizeVal * (2 ** (- wheelDelta / 400)), viewportSize, viewportSize * canvasSizeMaxRatio);
+    canvasSize.set(canvasSizeVal);
+    viewportOffsetVal = (mouseOffset + viewportOffsetVal) * canvasSizeVal / oldCanvasSize - mouseOffset;
+  } else {
+    viewportOffsetVal += wheelDelta;
+  }
+  viewportOffset.set(lodash.clamp(Math.round(viewportOffsetVal), 0, Math.ceil(canvasSizeVal - viewportSize)));
 }
