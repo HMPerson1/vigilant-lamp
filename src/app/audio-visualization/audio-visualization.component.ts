@@ -11,8 +11,8 @@ import { PITCH_MAX, doScrollZoomPitch, doScrollZoomTime, elemBoxSizeSignal, mkTr
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AudioVisualizationComponent {
-  readonly #viewportWidthFrac = signal(1);
-  readonly #viewportHeightFrac = signal(88 / PITCH_MAX);
+  readonly #canvasWidth = signal(1);
+  readonly #canvasHeight = signal(1);
   readonly #viewportOffsetX = signal(0); // always an exact integer
   readonly #viewportOffsetY = signal(0); // always an exact integer
   readonly viewportOffsetX = this.#viewportOffsetX.asReadonly();
@@ -27,21 +27,21 @@ export class AudioVisualizationComponent {
   readonly #audioDuration = signal(30);
   readonly audioDuration = this.#audioDuration.asReadonly();
 
-  readonly timeRange = computed(() => this.audioDuration() * this.#viewportWidthFrac());
-  readonly pitchRange = computed(() => PITCH_MAX * this.#viewportHeightFrac());
-  readonly pxPerTime = computed(() => this.viewportSize().inlineSize / this.timeRange());
-  readonly pxPerPitch = computed(() => this.viewportSize().blockSize / this.pitchRange());
-  readonly timePerPx = computed(() => this.timeRange() / this.viewportSize().inlineSize);
-  readonly pitchPerPx = computed(() => this.pitchRange() / this.viewportSize().blockSize);
+  readonly pxPerTime = computed(() => this.#canvasWidth() / this.audioDuration());
+  readonly pxPerPitch = computed(() => this.#canvasHeight() / PITCH_MAX);
+  readonly timePerPx = computed(() => this.audioDuration() / this.#canvasWidth());
+  readonly pitchPerPx = computed(() => PITCH_MAX / this.#canvasHeight());
 
+  readonly timeRange = computed(() => this.viewportSize().inlineSize * this.timePerPx());
+  readonly pitchRange = computed(() => this.viewportSize().blockSize * this.pitchPerPx());
   readonly timeMin = computed(() => this.viewportOffsetX() * this.timePerPx());
   readonly timeMax = computed(() => this.timeMin() + this.timeRange());
   readonly pitchMin = computed(() => PITCH_MAX - ((this.viewportOffsetY() + this.viewportSize().blockSize) * this.pitchPerPx()));
   readonly pitchMax = computed(() => this.pitchMin() + this.pitchRange());
 
   /** equivalent to `(audioDuration - timeRange) * pxPerTime` */
-  readonly #viewportOffsetXMax = computed(() => Math.ceil(((1 / this.#viewportWidthFrac()) - 1) * this.viewportSize().inlineSize));
-  readonly #viewportOffsetYMax = computed(() => Math.ceil(((1 / this.#viewportHeightFrac()) - 1) * this.viewportSize().blockSize));
+  readonly #viewportOffsetXMax = computed(() => Math.ceil(this.#canvasWidth() - this.viewportSize().inlineSize));
+  readonly #viewportOffsetYMax = computed(() => Math.ceil(this.#canvasHeight() - this.viewportSize().blockSize));
 
   readonly #visMouseX = signal<number | undefined>(undefined);
   readonly #visMouseY = signal<number | undefined>(undefined);
@@ -64,8 +64,12 @@ export class AudioVisualizationComponent {
     runInInjectionContext(this.environmentInjector, () => {
       this.#realViewportSize.set(elemBoxSizeSignal(elemRef.nativeElement));
     });
+    const bounds = elemRef.nativeElement.getBoundingClientRect();
     // this _should_ be fine since this should only ever be called once
-    this.#viewportOffsetY.set(Math.round((PITCH_MAX - 108.5) * elemRef.nativeElement.getBoundingClientRect().height / this.pitchRange()));
+    // but this is also really jank
+    this.#canvasWidth.set(bounds.width);
+    this.#canvasHeight.set(bounds.height * (PITCH_MAX / 88));
+    this.#viewportOffsetY.set(Math.round((PITCH_MAX - 108.5) * this.pxPerPitch()));
     this.changeDetectorRef.detectChanges();
   }
 
