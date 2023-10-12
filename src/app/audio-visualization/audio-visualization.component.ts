@@ -38,10 +38,6 @@ export class AudioVisualizationComponent {
   readonly pitchMin = computed(() => PITCH_MAX - ((this.viewportOffsetY() + this.viewportSize().blockSize) * this.pitchPerPx()));
   readonly pitchMax = computed(() => this.pitchMin() + this.pitchRange());
 
-  /** equivalent to `(audioDuration - timeRange) * pxPerTime` */
-  readonly #viewportOffsetXMax = computed(() => Math.ceil(this.#canvasWidth() - this.viewportSize().inlineSize));
-  readonly #viewportOffsetYMax = computed(() => Math.ceil(this.#canvasHeight() - this.viewportSize().blockSize));
-
   readonly #visMouseX = signal<number | undefined>(undefined);
   readonly #visMouseY = signal<number | undefined>(undefined);
   readonly visMouseX = this.#visMouseX.asReadonly();
@@ -74,6 +70,8 @@ export class AudioVisualizationComponent {
 
   onAudioLoad(duration: number) {
     this.#audioDuration.set(duration);
+    this.#viewportOffsetX.set(0);
+    this.#canvasWidth.set(this.#specContainer.getBoundingClientRect().width);
   }
 
   onWaveformClick(event: MouseEvent) {
@@ -143,8 +141,8 @@ export class AudioVisualizationComponent {
     const downClientY = event.clientY;
     const downOffsetX = this.viewportOffsetX();
     const downOffsetY = this.viewportOffsetY();
-    const offsetXMax = this.#viewportOffsetXMax();
-    const offsetYMax = this.#viewportOffsetYMax();
+    const offsetXMax = Math.ceil(this.#canvasWidth() - this.viewportSize().inlineSize);
+    const offsetYMax = Math.ceil(this.#canvasHeight() - this.viewportSize().blockSize);
 
     const onMoveSub = rxjs.fromEvent(document, 'mousemove').subscribe(ev_ => {
       const ev = ev_ as MouseEvent;

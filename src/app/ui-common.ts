@@ -1,10 +1,9 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { Portal } from '@angular/cdk/portal';
-import { Signal, WritableSignal, computed } from '@angular/core';
+import { Signal, computed } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { absurd } from 'fp-ts/function';
 import * as t from 'io-ts';
-import { clamp } from "lodash-es";
 import { Lens } from 'monocle-ts';
 import { Observable, map } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
