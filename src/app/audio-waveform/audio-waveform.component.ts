@@ -25,8 +25,14 @@ export class AudioWaveformComponent {
       });
       return computed(() => {
         lastRenderer?.free();
+        lastRenderer = undefined;
         const audioData = project.projectAudio();
-        lastRenderer = audioData && new wasm_module.WaveformRenderer(new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate));
+        if (audioData !== undefined) {
+          console.log('new data');
+          const wasmBuffer = new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
+          lastRenderer = new wasm_module.WaveformRenderer(wasmBuffer);
+          wasmBuffer.free();
+        }
         return lastRenderer;
       });
     })();

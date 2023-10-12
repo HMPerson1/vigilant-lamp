@@ -1,9 +1,8 @@
-import { Injectable } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { Injectable, WritableSignal, signal } from '@angular/core';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
-import { Observable, Subject, distinctUntilChanged, map } from 'rxjs';
+import { Observable, Subject, distinctUntilChanged } from 'rxjs';
 import { AudioSamples } from '../common';
 import { Project, defaultMeter } from '../ui-common';
 
@@ -17,7 +16,8 @@ export class ProjectService {
   private _prevModTime?: number;
   private _project$ = new Subject<Project>();
   get project$(): Observable<Project> { return this._project$ }
-  readonly projectAudio = toSignal<AudioSamples>(this._project$.pipe(map(p => p.audio)));
+  readonly #projectAudio: WritableSignal<AudioSamples | undefined> = signal(undefined);
+  readonly projectAudio = this.#projectAudio.asReadonly();
   private _lastSaved?: Project;
   private _isUnsaved$ = new Subject<boolean>();
   readonly isUnsaved$: Observable<boolean> = this._isUnsaved$.pipe(distinctUntilChanged());
@@ -38,15 +38,18 @@ export class ProjectService {
     this._history = [{ audioFile, audio, meter: defaultMeter, parts: [] }];
     this._current = 0;
     this._onChange();
+    this.#projectAudio.set(audio);
   }
 
   async fromBlob(blob: Blob) {
-    this._history = [pipe(
+    const proj = pipe(
       Project.decode(await msgpack.decodeAsync(blob.stream()) as any),
-      getOrElseW((e) => { console.log("fromBlob:", e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`) })
-    )];
+      getOrElseW((e) => { console.log("fromBlob:", e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`); })
+    );
+    this._history = [proj];
     this._current = 0;
     this._onChange();
+    this.#projectAudio.set(proj.audio);
   }
 
   intoBlob(): Blob {
