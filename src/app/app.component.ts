@@ -195,6 +195,7 @@ export class AppComponent {
       accept: (v: number) => boolean,
       onInput: (v: number | undefined) => void
     ): Promise<number | undefined> => {
+      onInput(undefined);
       const onInputSub = rxjs.merge(
         rxjs.fromEvent(this.visElem.nativeElement, 'mousemove').pipe(rxjs.map(this.event2time), rxjs.map(v => accept(v) ? v : undefined), rxjs.distinctUntilChanged()),
         rxjs.fromEvent(this.visElem.nativeElement, 'mouseleave').pipe(rxjs.map(() => undefined)),
@@ -222,6 +223,7 @@ export class AppComponent {
       let accumDrag = 0;
       let dragStart: number | undefined;
       let mouseInbounds = false;
+      onInput(0);
       const onInputSub = rxjs.merge(
         rxjs.fromEvent(this.visElem.nativeElement, 'mousedown'),
         rxjs.fromEvent(this.visElem.nativeElement, 'mousemove'),
