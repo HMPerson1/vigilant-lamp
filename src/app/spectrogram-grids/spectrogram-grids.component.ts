@@ -114,6 +114,8 @@ export class SpectrogramGridsComponent {
 
   beatContainerWidth = this.viewport.canvasWidth;
   beatContainerTransform = computed(() => `translateY(${this.viewport.viewportOffsetY()}px)`);
+  
+  trackBeatGridByTransform = (_i: number, e: {xfm: string}) => e.xfm
 
   trackIdx(idx: number, _item: any) { return idx }
 }
