@@ -117,14 +117,11 @@ export class PairsSet<T, U> {
     }
   }
 
-  [Symbol.iterator](): Iterator<[T, U]> {
-    const self = this;
-    return function* () {
-      for (const [t, us] of self._inner) {
-        for (const u of us) {
-          yield [t, u];
-        }
+  *[Symbol.iterator](): Iterator<[T, U]> {
+    for (const [t, us] of this._inner) {
+      for (const u of us) {
+        yield [t, u];
       }
-    }();
+    }
   }
 }
