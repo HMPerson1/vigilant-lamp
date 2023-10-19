@@ -1,4 +1,5 @@
-import { Injectable, WritableSignal, signal } from '@angular/core';
+import { Injectable } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { pipe } from 'fp-ts/function';
@@ -16,8 +17,9 @@ export class ProjectService {
   private _prevModTime?: number;
   private _project$ = new Subject<Project>();
   get project$(): Observable<Project> { return this._project$ }
-  readonly #projectAudio: WritableSignal<AudioSamples | undefined> = signal(undefined);
-  readonly projectAudio = this.#projectAudio.asReadonly();
+  readonly #projectAudio = new Subject<AudioSamples>();
+  readonly projectAudio = toSignal(this.#projectAudio);
+  readonly projectAudio$ = this.#projectAudio.asObservable();
   private _lastSaved?: Project;
   private _isUnsaved$ = new Subject<boolean>();
   readonly isUnsaved$: Observable<boolean> = this._isUnsaved$.pipe(distinctUntilChanged());
@@ -38,7 +40,7 @@ export class ProjectService {
     this._history = [{ audioFile, audio, meter: defaultMeter, parts: [] }];
     this._current = 0;
     this._onChange();
-    this.#projectAudio.set(audio);
+    this.#projectAudio.next(audio);
   }
 
   async fromBlob(blob: Blob) {
@@ -49,7 +51,7 @@ export class ProjectService {
     this._history = [proj];
     this._current = 0;
     this._onChange();
-    this.#projectAudio.set(proj.audio);
+    this.#projectAudio.next(proj.audio);
   }
 
   intoBlob(): Blob {

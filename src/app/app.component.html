@@ -4,14 +4,13 @@
       <app-audio-visualization [playheadPos]="audioPlayer.playheadPos" [showCrosshair]="showCrosshair"
         (playheadSeek)="audioPlayer.seekPlayhead($event)" #audioVizContainer>
         <div class="stacking" style="height: 100%;">
-          <app-audio-spectrogram [audioData]="audioData" [(pitchMin)]="specPitchMin" [(pitchMax)]="specPitchMax"
-            [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
+          <app-audio-spectrogram [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
             [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample"
             #specElem></app-audio-spectrogram>
           <app-piano-roll-editor [activePartIdx]="activePartIdx" [mouseX]="visMouseX" [mouseY]="visMouseY"
             [pitchMin]="specPitchMin" [pitchMax]="specPitchMax" #pianoRollEditor></app-piano-roll-editor>
-          <app-spectrogram-grids [showPitchGrid]="showPitchGrid"
-            [pitchLabelType]="pitchLabelType" [showCrosshair]="showCrosshair" [showOvertones]="showOvertones"
+          <app-spectrogram-grids [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
+            [showCrosshair]="showCrosshair" [showOvertones]="showOvertones"
             [meter]="displayedMeter"></app-spectrogram-grids>
           <div [class.pointer-events-none]="!uiMode || uiMode.mode !== 'timing'" [style.cursor]="visCursor" #visElem>
           </div>
