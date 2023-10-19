@@ -1,5 +1,8 @@
 :host {
-  contain: strict;
+  display: block;
+  position: absolute;
+  inset: 0;
+  contain: size layout style;
 }
 
 * {
@@ -63,4 +66,9 @@
   pointer-events: none;
   background-color: #fff3;
   border: 1px dashed #fff;
+}
+
+.click-handler {
+  position: absolute;
+  inset: 0;
 }

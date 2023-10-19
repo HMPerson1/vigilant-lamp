@@ -1,4 +1,4 @@
-import { Component, DestroyRef, ElementRef, Input, ViewChild, computed, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Input, ViewChild, computed, effect, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { fromWorker } from 'observable-webworker';
 import { BehaviorSubject, combineLatest, map, merge, mergeMap, scan } from 'rxjs';
@@ -21,6 +21,7 @@ type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
   selector: 'app-audio-spectrogram',
   templateUrl: './audio-spectrogram.component.html',
   styles: [':host{display:block; position: absolute; inset: 0}'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AudioSpectrogramComponent {
   @ViewChild('spectrogram_canvas') set spectrogramCanvas(v: ElementRef<HTMLCanvasElement>) { this.#spectrogramCanvas.set(v.nativeElement) }

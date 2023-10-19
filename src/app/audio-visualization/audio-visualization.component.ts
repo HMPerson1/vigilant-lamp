@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Envi
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-common';
+import { SpecTileWindow } from '../common';
 
 @Component({
   selector: 'app-audio-visualization',

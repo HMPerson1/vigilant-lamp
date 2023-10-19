@@ -1,3 +1,5 @@
+<div class="click-handler" (mousedown)="onMouseDown($event)" [style.transform]="_clickHandlerTransform()"></div>
+
 <div class="part-container" [class.hide-selected-notes]="hideSelectedNotes">
   <div class="part-container" *ngFor="let part of project.project?.parts; trackBy: trackIdx; let pIdx = index">
     <div class="note" *ngFor="let note of part.notes; trackBy: trackIdx; let nIdx = index"
