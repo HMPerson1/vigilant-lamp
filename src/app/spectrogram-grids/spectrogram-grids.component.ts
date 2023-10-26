@@ -1,32 +1,189 @@
-import { ChangeDetectionStrategy, Component, Input, Signal, WritableSignal, computed, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, ViewChild, WritableSignal, computed, effect, signal } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
-import { Meter, PITCH_MAX, PitchLabelType, beat2time, time2beat } from '../ui-common';
+import { GenSpecTile, SpecTileWindow } from '../common';
+import { Meter, PitchLabelType, beat2time, elemBoxSizeSignal, time2beat } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-grids',
   templateUrl: './spectrogram-grids.component.html',
   styleUrls: ['./spectrogram-grids.component.css'],
+  styles: [':host{ display:block; position:absolute; inset:0; pointer-events:none }'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SpectrogramGridsComponent {
-  @Input() showPitchGrid: boolean = false;
-  readonly _pitchLabelType$: WritableSignal<PitchLabelType> = signal('sharp');
-  @Input() set pitchLabelType(v: PitchLabelType) { this._pitchLabelType$.set(v) }
+  readonly #showPitchGrid$ = signal(false);
+  @Input() set showPitchGrid(v: boolean) { this.#showPitchGrid$.set(v) }
+  readonly #pitchLabelType$: WritableSignal<PitchLabelType> = signal('sharp');
+  @Input() set pitchLabelType(v: PitchLabelType) { this.#pitchLabelType$.set(v) }
 
-  @Input() showCrosshair: boolean = true;
-  @Input() showOvertones: boolean = false;
+
+  readonly _showOvertones$ = signal(true);
+  @Input() set showOvertones(v: boolean) { this._showOvertones$.set(v) }
 
   @Input() set meter(x: Partial<Meter> | undefined) { this.#meter$.set(x ?? undefined) }
   readonly #meter$: WritableSignal<Partial<Meter> | undefined> = signal(undefined);
 
-  constructor(private readonly viewport: AudioVisualizationComponent) { }
+  @ViewChild('canvas') set canvasChildElem(v: ElementRef<HTMLCanvasElement>) { this.#canvas.set(v.nativeElement) }
+  readonly #canvas = signal<HTMLCanvasElement | undefined>(undefined);
+
+  constructor(private readonly viewport: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>) {
+    const canvasSize = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
+    const viewportParams = computed<SpecTileWindow>(() => ({
+      timeMin: viewport.timeMin(), timeMax: viewport.timeMax(),
+      pitchMin: viewport.pitchMin(), pitchMax: viewport.pitchMax(),
+    }));
+
+    effect(() => {
+      const canvas = this.#canvas();
+      if (canvas === undefined) return;
+      canvas.width = canvasSize().inlineSize;
+      canvas.height = canvasSize().blockSize;
+      const canvasCtx = canvas.getContext('2d', { alpha: true })!;
+      canvasCtx.imageSmoothingEnabled = false;
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
+      const canvasTile = new GenSpecTile(viewportParams(), canvas);
+      this.renderPitchGrid(canvasTile, canvasCtx);
+      this.renderBeatGrid(canvasTile, canvasCtx);
+    })
+  }
+
+  renderPitchGrid(canvasTile: SpecTileCanvas, canvasCtx: CanvasRenderingContext2D) {
+    const pitchMinInt = Math.floor(canvasTile.pitchMin);
+    const pitchMaxInt = Math.ceil(canvasTile.pitchMax);
+    const forEachPitch = (f: (pitch: number) => void) => {
+      for (let pitch = pitchMinInt; pitch <= pitchMaxInt; pitch++) {
+        f(pitch)
+      }
+    }
+
+    canvasCtx.save();
+    canvasCtx.lineWidth = 1;
+    canvasCtx.translate(0, 0.5);
+
+    if (this.#showPitchGrid$()) {
+      const pitchLines = (offset: number) => {
+        canvasCtx.beginPath();
+        forEachPitch((p) => {
+          const y = Math.floor(canvasTile.pitch2y(p + offset));
+          canvasCtx.moveTo(0, y);
+          canvasCtx.lineTo(canvasTile.width, y);
+        });
+        canvasCtx.stroke();
+      };
+
+      canvasCtx.save();
+      canvasCtx.strokeStyle = PITCH_GRID_BORDER;
+      pitchLines(-.5);
+      canvasCtx.restore();
+
+      if (canvasTile.pixelsPerPitch > 30) {
+        canvasCtx.save();
+        canvasCtx.strokeStyle = PITCH_GRID_CENTER;
+        canvasCtx.setLineDash([4, 4])
+        pitchLines(0);
+        canvasCtx.restore();
+      }
+    }
+
+    const label = this.#pitchLabelType$();
+    if (label != 'none') {
+      canvasCtx.save();
+      canvasCtx.shadowColor = 'black';
+      canvasCtx.shadowBlur = 3;
+      canvasCtx.textBaseline = 'alphabetic';
+      const fontSize = lodash.clamp(Math.round(.8 * canvasTile.pixelsPerPitch), 12, 20);
+      canvasCtx.font = `${fontSize}px sans-serif`
+      const textMetrics = canvasCtx.measureText("");
+      forEachPitch((pitch) => {
+        const pitchStr = pitchLabel(label, pitch);
+        const textHeight = textMetrics.fontBoundingBoxAscent + textMetrics.fontBoundingBoxDescent;
+        const textBaseline = canvasTile.pitch2y(pitch) - .5 + textMetrics.fontBoundingBoxAscent - textHeight / 2;
+        canvasCtx.fillStyle = 'black';
+        canvasCtx.fillText(pitchStr, 1, textBaseline);
+        canvasCtx.fillText(pitchStr, 1, textBaseline);
+        canvasCtx.fillStyle = 'white';
+        canvasCtx.fillText(pitchStr, 1, textBaseline);
+      })
+      canvasCtx.restore();
+    }
+
+    canvasCtx.restore();
+  }
+
+  renderBeatGrid(canvasTile: SpecTileCanvas, canvasCtx: CanvasRenderingContext2D) {
+    const meter = this.#meter$();
+    if (meter === undefined || meter.state === 'unset') {
+      return;
+    } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
+      canvasCtx.save();
+      canvasCtx.translate(0.5, 0);
+      canvasCtx.strokeStyle = BEAT_GRID_BEAT_LINE;
+      canvasCtx.beginPath();
+      const x = Math.round(canvasTile.time2x(meter.startOffset));
+      canvasCtx.moveTo(x, 0);
+      canvasCtx.lineTo(x, canvasTile.height);
+      canvasCtx.stroke();
+      canvasCtx.restore();
+      return;
+    } else if (!Meter.is(meter)) {
+      return;
+    }
+
+    canvasCtx.save();
+    canvasCtx.translate(0.5, 0);
+
+    const timePerPx = 1 / canvasTile.pixelsPerTime;
+    const windowLeftBeat = time2beat(meter, canvasTile.timeMin - timePerPx);
+    const windowRightBeat = time2beat(meter, canvasTile.timeMax + timePerPx);
+    const beatLines = (scale: number, skip: number) => {
+      const first = Math.max(Math.ceil(windowLeftBeat / scale), 0);
+      const last = Math.floor(windowRightBeat / scale);
+
+      if (last - first > 2000) {
+        console.warn("beat grid too dense!", canvasTile, meter);
+        return;
+      }
+
+      canvasCtx.beginPath();
+      for (let l = first; l <= last; l++) {
+        if (l % skip === 0) continue;
+        const x = Math.round(canvasTile.time2x(beat2time(meter, l * scale)));
+        canvasCtx.moveTo(x, 0);
+        canvasCtx.lineTo(x, canvasTile.height);
+      }
+      canvasCtx.stroke();
+    }
+
+    canvasCtx.save();
+    canvasCtx.strokeStyle = BEAT_GRID_MEASURE_LINE;
+    beatLines(meter.measureLength, Infinity);
+    canvasCtx.restore();
+
+    const pixelsPerBeat = canvasTile.pixelsPerTime * 60 / meter.bpm;
+    if (pixelsPerBeat > 10) {
+      canvasCtx.save();
+      canvasCtx.strokeStyle = BEAT_GRID_BEAT_LINE;
+      beatLines(1, meter.measureLength);
+      canvasCtx.restore();
+
+      if (pixelsPerBeat > 100) {
+        canvasCtx.save();
+        canvasCtx.setLineDash([1, 1]);
+        canvasCtx.strokeStyle = BEAT_GRID_BEAT_LINE;
+        beatLines(1 / meter.subdivision, meter.subdivision);
+        canvasCtx.restore();
+      }
+    }
+
+    canvasCtx.restore();
+  }
 
   overtoneYOffsets = computed(() => {
     const pxPerPitch = this.viewport.pxPerPitch();
     const s = this.viewport.viewportSize();
-    return Array.from({ length: 7 }, (_x, i) => `translateY(${s.blockSize - Math.round(Math.log2(i + 2) * 12 * pxPerPitch)}px)`);
+    return Array.from({ length: 7 }, (_x, i) => `translateY(${s.blockSize - Math.ceil(Math.log2(i + 2) * 12 * pxPerPitch)}px)`);
   });
   overtoneContainerTransform = computed(() => {
     const ox = this.viewport.viewportOffsetX();
@@ -34,93 +191,19 @@ export class SpectrogramGridsComponent {
     return `translate(${ox}px,${oy}px)`;
   });
 
-  pitchLabels = computed(() => {
-    const px = this.#pitchTransform();
-    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => ({
-      xfm: px(PITCH_MAX - i),
-      txt: pitchLabel(this._pitchLabelType$(), i),
-    }));
-  });
-  pitchLabelFontSize = computed(() => lodash.clamp(Math.round(.8 * this.viewport.pxPerPitch()), 12, 20));
-
-  #pitchTransform: () => (p: number) => string = () => {
-    const pxPerPitch = this.viewport.pxPerPitch();
-    return p => `translateY(${Math.round(p * pxPerPitch)}px)`
-  }
-
-  pitchGridBorders = computed(() => {
-    const px = this.#pitchTransform();
-    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => px(PITCH_MAX - i + .5));
-  });
-  pitchGridCenters = computed(() => {
-    const px = this.#pitchTransform();
-    return Array.from({ length: PITCH_MAX + 1 }, (_x, i) => px(PITCH_MAX - i));
-  });
-  showPitchGridCenters = computed(() => this.viewport.pxPerPitch() > 30);
-
-  pitchContainerHeight = this.viewport.canvasHeight;
-  pitchContainerTransform = computed(() => `translateX(${this.viewport.viewportOffsetX()}px)`);
-
-  beatGrid: Signal<Array<{ xfm: string, m: boolean, s: boolean }>> = computed(() => {
-    const meter = this.#meter$();
-    const pxPerTime = this.viewport.pxPerTime()
-    const timeTransform = (t: number) => `translateX(${Math.round(t * pxPerTime)}px)`;
-    if (meter === undefined || meter.state === 'unset') {
-      return [];
-    } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
-      return [{ xfm: timeTransform(meter.startOffset), m: false, s: false }];
-    } else if (!Meter.is(meter)) {
-      return [];
-    }
-    const timeMax = this.viewport.timeMax();
-    const secPerBeat = 60 / meter.bpm;
-    const pixelsPerBeat = secPerBeat * pxPerTime;
-    const windowLeftBeat = time2beat(meter, this.viewport.timeMin());
-    if (pixelsPerBeat < 10) {
-      const firstMeasure = Math.max(Math.ceil(windowLeftBeat / meter.measureLength), 0);
-      const firstMeasureTime = beat2time(meter, firstMeasure * meter.measureLength);
-      const secPerMeasure = secPerBeat * meter.measureLength;
-      const length = Math.ceil((timeMax - firstMeasureTime) / secPerMeasure);
-      if (length > 2000) { console.error("too many beats!", length); return []; }
-      return Array.from({ length }, (_x, i) => ({
-        xfm: timeTransform(firstMeasureTime + i * secPerMeasure),
-        m: true,
-        s: false,
-      }))
-    } else if (pixelsPerBeat < 100) {
-      const firstBeat = Math.max(Math.ceil(windowLeftBeat), 0);
-      const firstBeatTime = beat2time(meter, firstBeat);
-      const length = Math.ceil((timeMax - firstBeatTime) / secPerBeat);
-      if (length > 2000) { console.error("too many beats!", length); return []; }
-      return Array.from({ length }, (_x, i) => ({
-        xfm: timeTransform(firstBeatTime + i * secPerBeat),
-        m: (firstBeat + i) % meter.measureLength === 0,
-        s: false
-      }))
-    } else {
-      const firstSubdiv = Math.max(Math.ceil(windowLeftBeat * meter.subdivision), 0);
-      const firstSubdivTime = beat2time(meter, firstSubdiv / meter.subdivision);
-      const secPerSubdiv = secPerBeat / meter.subdivision;
-      const subdivsPerMeasure = meter.measureLength * meter.subdivision;
-      const length = Math.ceil((timeMax - firstSubdivTime) / secPerSubdiv);
-      if (length > 2000) { console.error("too many beats!", length); return []; }
-      return Array.from({ length }, (_x, i) => ({
-        xfm: timeTransform(firstSubdivTime + i * secPerSubdiv),
-        m: (firstSubdiv + i) % subdivsPerMeasure === 0,
-        s: (firstSubdiv + i) % meter.subdivision !== 0,
-      }))
-    }
-  })
-
-  beatContainerWidth = this.viewport.canvasWidth;
-  beatContainerTransform = computed(() => `translateY(${this.viewport.viewportOffsetY()}px)`);
-  
-  trackBeatGridByTransform = (_i: number, e: {xfm: string}) => e.xfm
-
+  readonly canvasBoxTransform = computed(() => `translate(${this.viewport.viewportOffsetX()}px,${this.viewport.viewportOffsetY()}px)`);
   trackIdx(idx: number, _item: any) { return idx }
 }
 
 function pitchLabel(label: PitchLabelType, pitch: number): string {
   if (label === 'midi') return `${pitch}`;
+  if (pitch < 0) return "";
   return midiToNoteName(pitch, { sharps: label === 'sharp' }).replace('#', '♯').replace('b', '♭');
 }
+
+type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>;
+
+const PITCH_GRID_BORDER = '#808080FF'
+const PITCH_GRID_CENTER = '#80808080'
+const BEAT_GRID_BEAT_LINE = '#00CC0080';
+const BEAT_GRID_MEASURE_LINE = '#00CC00FF';

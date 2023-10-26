@@ -42,8 +42,8 @@ export class AudioSpectrogramComponent {
   @Input() debug_downsample: number = 0;
 
   constructor(project: ProjectService, private readonly viewport: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>, destroyRef: DestroyRef) {
-    const canvasSize = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
-    const viewportParams = computed<SpecTileWindow>(() => ({
+    const canvasSize$ = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
+    const viewportParams$ = computed<SpecTileWindow>(() => ({
       timeMin: viewport.timeMin(), timeMax: viewport.timeMax(),
       pitchMin: viewport.pitchMin(), pitchMax: viewport.pitchMax(),
     }));
@@ -68,8 +68,8 @@ export class AudioSpectrogramComponent {
         ))).pipe(map(tag("fftParams"))),
         toObservable(computed<SpectrogramWork>(() => (
           {
-            ...viewportParams(),
-            canvasWidth: canvasSize().inlineSize, canvasHeight: canvasSize().blockSize,
+            ...viewportParams$(),
+            canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
             timeStep: this.#timeStep$(), mode: 0,
           }
         ))).pipe(map(tag("work"))),
@@ -84,8 +84,8 @@ export class AudioSpectrogramComponent {
         ))).pipe(map(tag("fftParams"))),
         toObservable(computed<SpectrogramWork>(() => (
           {
-            ...viewportParams(),
-            canvasWidth: canvasSize().inlineSize, canvasHeight: canvasSize().blockSize,
+            ...viewportParams$(),
+            canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
             timeStep: 32, mode: 0,
           }
         ))).pipe(map(tag("work"))),
@@ -106,22 +106,30 @@ export class AudioSpectrogramComponent {
       specDbMax: this.#specDbMax$,
     }).pipe(tileWasmToBmp));
 
+    let lastRafId: number | undefined = undefined;
+
     effect(() => {
       const specCanvas = this.#spectrogramCanvas();
       const loresTileBmp = loresTileBmp$();
       const hiresTileBmp = hiresTileBmp$();
       if (!specCanvas || (!loresTileBmp && !hiresTileBmp)) return;
+      const canvasSize = canvasSize$();
+      const viewportParams = viewportParams$();
 
-      specCanvas.width = canvasSize().inlineSize;
-      specCanvas.height = canvasSize().blockSize;
-      const specCanvasCtx = specCanvas.getContext('2d', { alpha: false })!
-      specCanvasCtx.imageSmoothingEnabled = false
-      specCanvasCtx.fillStyle = 'gray'
-      specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
+      if (lastRafId !== undefined) cancelAnimationFrame(lastRafId);
 
-      const canvasTile = new GenSpecTile(viewportParams(), specCanvas);
-      if (loresTileBmp) renderTile(canvasTile, loresTileBmp, specCanvasCtx);
-      if (hiresTileBmp) renderTile(canvasTile, hiresTileBmp, specCanvasCtx);
+      lastRafId = requestAnimationFrame(() => {
+        specCanvas.width = canvasSize.inlineSize;
+        specCanvas.height = canvasSize.blockSize;
+        const specCanvasCtx = specCanvas.getContext('2d', { alpha: false })!
+        specCanvasCtx.imageSmoothingEnabled = false
+        specCanvasCtx.fillStyle = 'gray'
+        specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
+
+        const canvasTile = new GenSpecTile(viewportParams, specCanvas);
+        if (loresTileBmp) renderTile(canvasTile, loresTileBmp, specCanvasCtx);
+        if (hiresTileBmp) renderTile(canvasTile, hiresTileBmp, specCanvasCtx);
+      })
     });
   }
 

@@ -1,4 +1,4 @@
-import { Component, ElementRef, HostListener, Input, Signal, computed } from '@angular/core';
+import { Component, HostListener, Input, Signal, computed } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { identity } from 'fp-ts/function';
 import * as lodash from 'lodash-es';
@@ -7,7 +7,7 @@ import { AudioVisualizationComponent } from '../audio-visualization/audio-visual
 import { GenSpecTile, SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
 import { ProjectService } from '../services/project.service';
-import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, ProjectLens, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
 
 @Component({
@@ -31,10 +31,6 @@ export class PianoRollEditorComponent {
   readonly mouseX = computed(() => { const x = this.viewport.visMouseX(); return x && x + this.viewport.viewportOffsetX() });
   readonly mouseY = computed(() => { const y = this.viewport.visMouseY(); return y && y + this.viewport.viewportOffsetY() });
 
-  readonly timeMin = this.viewport.timeMin;
-  readonly timeMax = this.viewport.timeMax;
-  readonly pitchMin = this.viewport.pitchMin;
-  readonly pitchMax = this.viewport.pitchMax;
   readonly #mousePos = computed(() => {
     const x = this.mouseX();
     const y = this.mouseY();
