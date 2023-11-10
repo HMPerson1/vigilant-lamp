@@ -1,107 +1,126 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Signal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
+import { NonEmptyArray } from 'fp-ts/NonEmptyArray';
 import { pipe } from 'fp-ts/function';
-import { Observable, Subject, distinctUntilChanged } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
 import { AudioSamples } from '../common';
-import { Project, defaultMeter } from '../ui-common';
+import { Project } from '../ui-common';
+import { signalDefined, signalFiltered } from '../utils/ho-signals';
 
 @Injectable({
   providedIn: 'root'
 })
 export class ProjectService {
-  private _history: Project[] = [];
-  private _current: number = 0;
-  private _prevModFusionTag?: string;
-  private _prevModTime?: number;
-  private _project$ = new Subject<Project>();
-  get project$(): Observable<Project> { return this._project$ }
-  readonly #projectAudio = new Subject<AudioSamples>();
-  readonly projectAudio = toSignal(this.#projectAudio);
-  readonly projectAudio$ = this.#projectAudio.asObservable();
-  private _lastSaved?: Project;
-  private _isUnsaved$ = new Subject<boolean>();
-  readonly isUnsaved$: Observable<boolean> = this._isUnsaved$.pipe(distinctUntilChanged());
-
-  // invariant: _project.length == 0 || 0 <= _current < _project.length
-
-  // TODO: this being optional is too annoying
-  get project(): Project | undefined { return this._history.length ? this._history[this._current] : undefined }
-
-  private _onChange(ft?: string, mt?: number) {
-    this._prevModFusionTag = ft;
-    this._prevModTime = mt;
-    this._project$.next(this.project!);
-    this._isUnsaved$.next(!Object.is(this.project, this._lastSaved));
-  }
+  #currentProject$ = new Subject<ProjectHolder>();
+  get currentProject$(): Observable<ProjectHolder> { return this.#currentProject$ }
+  readonly currentProjectRaw = toSignal(this.#currentProject$);
+  readonly currentProject = signalDefined(this.currentProjectRaw);
 
   newProject(audioFile: Uint8Array, audio: AudioSamples) {
-    this._history = [{ audioFile, audio, meter: defaultMeter, parts: [] }];
-    this._current = 0;
-    this._onChange();
-    this.#projectAudio.next(audio);
+    this.#currentProject$.next(new ProjectHolder({ audioFile, audio, meter: undefined, parts: [] }))
   }
 
   async fromBlob(blob: Blob) {
-    const proj = pipe(
+    const projHolder = new ProjectHolder(pipe(
       Project.decode(await msgpack.decodeAsync(blob.stream()) as any),
       getOrElseW((e) => { console.log("fromBlob:", e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`); })
-    );
-    this._history = [proj];
-    this._current = 0;
-    this._onChange();
-    this.#projectAudio.next(proj.audio);
+    ));
+    this.#currentProject$.next(projHolder);
+    return projHolder;
+  }
+}
+
+export interface FilteredProjectHolder<T> {
+  project: Signal<Project & T>;
+  modify(op: (a: Project & T) => Project, fusionTag?: string): void;
+}
+
+export class ProjectHolder implements FilteredProjectHolder<unknown> {
+  #history: NonEmptyArray<Project>;
+  #current: number = 0;
+  get #projectInternal(): Project { return this.#history[this.#current] }
+  #project = signal(this.#projectInternal);
+  project = this.#project.asReadonly();
+
+  #lastSaved = signal<Project | undefined>(undefined);
+  isUnsaved = computed(() => !Object.is(this.#project(), this.#lastSaved()));
+
+  #prevModFusionTag?: string;
+  #prevModTime?: number;
+
+  constructor(prj: Project) {
+    this.#history = [prj];
   }
 
   intoBlob(): Blob {
-    if (!this.project) throw new Error("cannot serialize non-existant project");
-    return new Blob([msgpack.encode(Project.encode(this.project))]);
+    return new Blob([msgpack.encode(Project.encode(this.#projectInternal))]);
   }
 
   /** if the previous modification had the same fusion tag, a new undo state may not be created */
   modify(op: (a: Project) => Project, fusionTag?: string) {
-    if (!this.project) return;
-    const next = op(this.project);
+    const next = op(this.#projectInternal);
     const modTime = performance.now();
     if (
-      this._prevModFusionTag !== undefined
-      && this._prevModFusionTag === fusionTag // implies `fusionTag !== undefined`
-      && this._prevModTime !== undefined
-      && modTime - this._prevModTime <= MAX_FUSION_TIMEOUT
+      this.#prevModFusionTag !== undefined
+      && this.#prevModFusionTag === fusionTag // implies `fusionTag !== undefined`
+      && this.#prevModTime !== undefined
+      && modTime - this.#prevModTime <= MAX_FUSION_TIMEOUT
     ) {
-      this._history[this._current] = next;
+      this.#history[this.#current] = next;
     } else {
-      this._current++;
-      this._history.splice(this._current);
-      this._history.push(next);
+      this.#current++;
+      this.#history.splice(this.#current);
+      this.#history.push(next);
     }
     // always reset timestamp to allow "chaining" changes
-    this._onChange(fusionTag, modTime);
+    this.#prevModFusionTag = fusionTag;
+    this.#prevModTime = modTime;
+    this.#project.set(this.#projectInternal);
   }
 
-  canUndo() { return this._current >= 1 }
+  canUndo() { return this.#current >= 1 }
 
   undo() {
     if (!this.canUndo()) return;
-    this._current--;
-    this._onChange();
+    this.#current--;
+    this.#project.set(this.#projectInternal);
   }
 
-  canRedo() { return this._current + 1 <= this._history.length - 1 }
+  canRedo() { return this.#current + 1 <= this.#history.length - 1 }
 
   redo() {
     if (!this.canRedo()) return;
-    this._current++;
-    this._onChange();
+    this.#current++;
+    this.#project.set(this.#projectInternal);
   }
 
   markSaved() {
-    if (!this.project) return;
-    this._lastSaved = this.project;
-    this._isUnsaved$.next(false);
+    this.#lastSaved.set(this.#projectInternal);
+  }
+
+  filterProject<T>(filter: (a: Project) => a is Project & T): Signal<FilteredProjectHolder<T> | undefined> {
+    return signalFiltered(this.#project, filter, (project) => ({
+      project,
+      modify: (op, fusionTag) => {
+        try {
+          this.modify((p) => {
+            if (!filter(p)) {
+              console.error('attempt to modify filtered project holder at invalid state', filter, p);
+              console.trace();
+              throw filterProjectNoopThrowable;
+            }
+            return op(p);
+          }, fusionTag);
+        } catch (e) {
+          if (e !== filterProjectNoopThrowable) throw e;
+        }
+      },
+    }),);
   }
 }
 
 /** if two modifications are more than this many milliseconds apart, they will not be merged */
 const MAX_FUSION_TIMEOUT: DOMHighResTimeStamp = 1000;
+const filterProjectNoopThrowable: unique symbol = Symbol();

@@ -4,10 +4,12 @@
       <app-audio-visualization [playheadPos]="audioPlayer.playheadPos" [showCrosshair]="showCrosshair"
         (playheadSeek)="audioPlayer.seekPlayhead($event)" #audioVizContainer>
         <div class="stacking" style="height: 100%;">
-          <app-audio-spectrogram [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
-            [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample"
-            #specElem></app-audio-spectrogram>
-          <app-piano-roll-editor [activePartIdx]="activePartIdx" #pianoRollEditor></app-piano-roll-editor>
+          <ng-container *ngIf="project.currentProject() as prjSig">
+            <app-audio-spectrogram [project]="prjSig" [specDbMin]="specDbMin" [specDbMax]="specDbMax"
+              [fftLgWindowSize]="specLgWindowSize" [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad"
+              [debug_downsample]="debug_downsample" #specElem></app-audio-spectrogram>
+            <app-piano-roll-editor [project]="prjSig" [activePartIdx]="activePartIdx"></app-piano-roll-editor>
+          </ng-container>
           <app-spectrogram-grids [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
             [showOvertones]="showOvertones && showCrosshair" [meter]="displayedMeter"></app-spectrogram-grids>
           <div [class.pointer-events-none]="!uiMode || uiMode.mode !== 'timing'" [style.cursor]="visCursor" #visElem>
@@ -17,6 +19,7 @@
     </div>
     <div class="groove-border settings-panel" #settings_panel>
       <div class="file-toolbar">
+        <!-- TODO: make this a component -->
         <div class="stacking">
           <button mat-icon-button matTooltip="New Project" color="primary"
             (click)="newProject(); settings_panel.offsetWidth" [disabled]="!!loading">
@@ -35,26 +38,26 @@
           </div>
         </div>
         <button mat-icon-button *ngIf="browserFsApiSupported" matTooltip="Save" color="primary" (click)="saveProject()"
-          [disabled]="!hasProject">
+          [disabled]="!hasProject()">
           <mat-icon>save</mat-icon>
         </button>
         <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)"
-          [disabled]="!hasProject">
+          [disabled]="!hasProject()">
           <mat-icon>save_as</mat-icon>
         </button>
         <div style="flex: 1;"></div>
-        <button mat-icon-button matTooltip="Undo" color="primary" (click)="project.undo()"
-          [disabled]="!hasProject || !project.canUndo()">
+        <button mat-icon-button matTooltip="Undo" color="primary" (click)="project.currentProjectRaw()?.undo()"
+          [disabled]="!project.currentProjectRaw()?.canUndo()">
           <mat-icon>undo</mat-icon>
         </button>
-        <button mat-icon-button matTooltip="Redo" color="primary" (click)="project.redo()"
-          [disabled]="!hasProject || !project.canRedo()">
+        <button mat-icon-button matTooltip="Redo" color="primary" (click)="project.currentProjectRaw()?.redo()"
+          [disabled]="!project.currentProjectRaw()?.canRedo()">
           <mat-icon>redo</mat-icon>
         </button>
       </div>
       <app-audio-player [audioBuffer]="audioBuffer" #audioPlayer></app-audio-player>
       <mat-accordion>
-        <mat-expansion-panel [disabled]="!hasProject">
+        <mat-expansion-panel [disabled]="!hasProject()">
           <mat-expansion-panel-header>
             <mat-panel-title>
               View Settings
@@ -99,8 +102,8 @@
           </label>
           <label class="inline-comp">
             Beat Grid
-            <mat-slide-toggle [(ngModel)]="userShowBeatGrid" [disabled]="!hasProjectMeter"
-              [matTooltip]="!hasProjectMeter ? 'Meter has not been set' : ''"></mat-slide-toggle>
+            <mat-slide-toggle [(ngModel)]="userShowBeatGrid" [disabled]="!hasProjectMeter()"
+              [matTooltip]="!hasProjectMeter() ? 'Meter has not been set' : ''"></mat-slide-toggle>
           </label>
           <label class="inline-comp">
             Pitch Labels
@@ -120,7 +123,7 @@
             </mat-button-toggle-group>
           </label>
         </mat-expansion-panel>
-        <mat-expansion-panel [disabled]="!hasProject" [(expanded)]="meterPanelExpanded">
+        <mat-expansion-panel [disabled]="!hasProject()" [(expanded)]="meterPanelExpanded">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Meter Settings
@@ -129,8 +132,7 @@
           <app-meter-settings-panel [modalEdit]="modalSpectrogramEdit"
             (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
         </mat-expansion-panel>
-        <mat-expansion-panel [disabled]="!hasProject || project.project?.meter?.state === 'unset' "
-          [(expanded)]="transcribePanelExpanded">
+        <mat-expansion-panel [disabled]="!hasProjectMeter()" [(expanded)]="transcribePanelExpanded">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Parts

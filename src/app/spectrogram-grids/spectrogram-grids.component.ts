@@ -114,7 +114,7 @@ export class SpectrogramGridsComponent {
 
   renderBeatGrid(canvasTile: SpecTileCanvas, canvasCtx: CanvasRenderingContext2D) {
     const meter = this.#meter$();
-    if (meter === undefined || meter.state === 'unset') {
+    if (meter === undefined) {
       return;
     } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
       canvasCtx.save();

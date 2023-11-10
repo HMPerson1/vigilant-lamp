@@ -101,5 +101,3 @@ export function reinterpretTypedArray<U>(t: TypedArrayLike, ty: TypedArrayTypeLi
 export type Tagged<K extends string, T> = { type: K, val: T }
 
 export function tag<K extends string, T>(k: K): (v: T) => Tagged<K, T> { return v => { return { type: k, val: v } } }
-
-export function isNotUndefined<T>(x?: T): x is T { return x !== undefined }

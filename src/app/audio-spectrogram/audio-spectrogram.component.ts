@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, Input, ViewChild, computed, effect, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, EnvironmentInjector, Input, OnInit, Signal, ViewChild, computed, effect, runInInjectionContext, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { fromWorker } from 'observable-webworker';
 import { BehaviorSubject, combineLatest, map, merge, mergeMap, scan } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile, SpecFftParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, tag } from '../common';
-import { ProjectService } from '../services/project.service';
+import { ProjectHolder } from '../services/project.service';
 import { elemBoxSizeSignal, imageDataToBitmapFast } from '../ui-common';
 
 const mkSpectrogramWorker = () => new Worker(new URL('./spectrogram.worker', import.meta.url));
@@ -23,9 +23,8 @@ type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
   styles: [':host{display:block; position: absolute; inset: 0}'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class AudioSpectrogramComponent {
-  @ViewChild('spectrogram_canvas') set spectrogramCanvas(v: ElementRef<HTMLCanvasElement>) { this.#spectrogramCanvas.set(v.nativeElement) }
-  readonly #spectrogramCanvas = signal<HTMLCanvasElement | undefined>(undefined);
+export class AudioSpectrogramComponent implements OnInit {
+  @ViewChild('spectrogram_canvas') spectrogramCanvas!: ElementRef<HTMLCanvasElement>;
 
   @Input() set specDbMin(v: number) { this.#specDbMin$.next(v) }
   @Input() set specDbMax(v: number) { this.#specDbMax$.next(v) }
@@ -41,95 +40,107 @@ export class AudioSpectrogramComponent {
 
   @Input() debug_downsample: number = 0;
 
-  constructor(project: ProjectService, private readonly viewport: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>, destroyRef: DestroyRef) {
-    const canvasSize$ = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
-    const viewportParams$ = computed<SpecTileWindow>(() => ({
-      timeMin: viewport.timeMin(), timeMax: viewport.timeMax(),
-      pitchMin: viewport.pitchMin(), pitchMax: viewport.pitchMax(),
-    }));
+  @Input({ required: true }) project!: Signal<ProjectHolder>;
 
-    const toWasm = scan<SpectrogramTileJs, SpecTileWasm, undefined>((prev, tileJs) => {
-      prev?.tile.free();
-      return {
-        timeMin: tileJs.timeMin,
-        timeMax: tileJs.timeMax,
-        pitchMin: tileJs.pitchMin,
-        pitchMax: tileJs.pitchMax,
-        tile: wasm_module.SpectrogramTile.from_inner(tileJs.width, tileJs.pixels)
-      };
-    }, undefined);
-    // TODO: cancellation??
-    const hiresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
-      mkSpectrogramWorker,
-      merge(
-        project.projectAudio$.pipe(map(tag("audioData"))),
-        toObservable(computed<SpecFftParams>(() => (
-          { lgWindowSize: this.#fftLgWindowSize$(), lgExtraPad: this.#fftLgExtraPad$() }
-        ))).pipe(map(tag("fftParams"))),
-        toObservable(computed<SpectrogramWork>(() => (
-          {
-            ...viewportParams$(),
-            canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
-            timeStep: this.#timeStep$(), mode: 0,
-          }
-        ))).pipe(map(tag("work"))),
-      ),
-    ).pipe(toWasm);
-    const loresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
-      mkSpectrogramWorker,
-      merge(
-        project.projectAudio$.pipe(map(tag("audioData"))),
-        toObservable(computed<SpecFftParams>(() => (
-          { lgWindowSize: this.#fftLgWindowSize$(), lgExtraPad: Math.min(this.#fftLgExtraPad$(), 0) }
-        ))).pipe(map(tag("fftParams"))),
-        toObservable(computed<SpectrogramWork>(() => (
-          {
-            ...viewportParams$(),
-            canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
-            timeStep: 32, mode: 0,
-          }
-        ))).pipe(map(tag("work"))),
-      ),
-    ).pipe(toWasm);
+  constructor(
+    private readonly viewport: AudioVisualizationComponent,
+    private readonly hostElem: ElementRef<HTMLElement>,
+    private readonly environmentInjector: EnvironmentInjector,
+  ) { }
 
-    const tileWasmToBmp = mergeMap(async ({ tile, specDbMin, specDbMax }) => {
-      return new GenSpecTile(tile, await imageDataToBitmapFast(tile.tile.render(specDbMin, specDbMax), true));
-    });
-    const hiresTileBmp$ = toSignal(combineLatest({
-      tile: hiresTile$,
-      specDbMin: this.#specDbMin$,
-      specDbMax: this.#specDbMax$,
-    }).pipe(tileWasmToBmp));
-    const loresTileBmp$ = toSignal(combineLatest({
-      tile: loresTile$,
-      specDbMin: this.#specDbMin$,
-      specDbMax: this.#specDbMax$,
-    }).pipe(tileWasmToBmp));
+  ngOnInit() {
+    runInInjectionContext(this.environmentInjector, () => {
+      const canvasSize$ = elemBoxSizeSignal(this.hostElem.nativeElement, 'device-pixel-content-box');
+      const viewportParams$ = computed<SpecTileWindow>(() => ({
+        timeMin: this.viewport.timeMin(), timeMax: this.viewport.timeMax(),
+        pitchMin: this.viewport.pitchMin(), pitchMax: this.viewport.pitchMax(),
+      }));
 
-    let lastRafId: number | undefined = undefined;
+      const toWasm = scan<SpectrogramTileJs, SpecTileWasm, undefined>((prev, tileJs) => {
+        prev?.tile.free();
+        return {
+          timeMin: tileJs.timeMin,
+          timeMax: tileJs.timeMax,
+          pitchMin: tileJs.pitchMin,
+          pitchMax: tileJs.pitchMax,
+          tile: wasm_module.SpectrogramTile.from_inner(tileJs.width, tileJs.pixels)
+        };
+      }, undefined);
 
-    effect(() => {
-      const specCanvas = this.#spectrogramCanvas();
-      const loresTileBmp = loresTileBmp$();
-      const hiresTileBmp = hiresTileBmp$();
-      if (!specCanvas || (!loresTileBmp && !hiresTileBmp)) return;
-      const canvasSize = canvasSize$();
-      const viewportParams = viewportParams$();
+      const projectAudio$ = toObservable(computed(() => this.project().project().audio))
+      // TODO: cancellation??
+      const hiresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
+        mkSpectrogramWorker,
+        merge(
+          projectAudio$.pipe(map(tag("audioData"))),
+          toObservable(computed<SpecFftParams>(() => (
+            { lgWindowSize: this.#fftLgWindowSize$(), lgExtraPad: this.#fftLgExtraPad$() }
+          ))).pipe(map(tag("fftParams"))),
+          toObservable(computed<SpectrogramWork>(() => (
+            {
+              ...viewportParams$(),
+              canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
+              timeStep: this.#timeStep$(), mode: 0,
+            }
+          ))).pipe(map(tag("work"))),
+        ),
+      ).pipe(toWasm);
+      const loresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
+        mkSpectrogramWorker,
+        merge(
+          projectAudio$.pipe(map(tag("audioData"))),
+          toObservable(computed<SpecFftParams>(() => (
+            { lgWindowSize: this.#fftLgWindowSize$(), lgExtraPad: Math.min(this.#fftLgExtraPad$(), 0) }
+          ))).pipe(map(tag("fftParams"))),
+          toObservable(computed<SpectrogramWork>(() => (
+            {
+              ...viewportParams$(),
+              canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
+              timeStep: 32, mode: 0,
+            }
+          ))).pipe(map(tag("work"))),
+        ),
+      ).pipe(toWasm);
 
-      if (lastRafId !== undefined) cancelAnimationFrame(lastRafId);
+      const tileWasmToBmp = mergeMap(async ({ tile, specDbMin, specDbMax }) => {
+        return new GenSpecTile(tile, await imageDataToBitmapFast(tile.tile.render(specDbMin, specDbMax), true));
+      });
+      const hiresTileBmp$ = toSignal(combineLatest({
+        tile: hiresTile$,
+        specDbMin: this.#specDbMin$,
+        specDbMax: this.#specDbMax$,
+      }).pipe(tileWasmToBmp));
+      const loresTileBmp$ = toSignal(combineLatest({
+        tile: loresTile$,
+        specDbMin: this.#specDbMin$,
+        specDbMax: this.#specDbMax$,
+      }).pipe(tileWasmToBmp));
 
-      lastRafId = requestAnimationFrame(() => {
-        specCanvas.width = canvasSize.inlineSize;
-        specCanvas.height = canvasSize.blockSize;
-        const specCanvasCtx = specCanvas.getContext('2d', { alpha: false })!
-        specCanvasCtx.imageSmoothingEnabled = false
-        specCanvasCtx.fillStyle = 'gray'
-        specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
+      let lastRafId: number | undefined = undefined;
 
-        const canvasTile = new GenSpecTile(viewportParams, specCanvas);
-        if (loresTileBmp) renderTile(canvasTile, loresTileBmp, specCanvasCtx);
-        if (hiresTileBmp) renderTile(canvasTile, hiresTileBmp, specCanvasCtx);
-      })
+      effect(() => {
+        const loresTileBmp = loresTileBmp$();
+        const hiresTileBmp = hiresTileBmp$();
+        if (!loresTileBmp && !hiresTileBmp) return;
+        const canvasSize = canvasSize$();
+        const viewportParams = viewportParams$();
+
+        if (lastRafId !== undefined) cancelAnimationFrame(lastRafId);
+
+        lastRafId = requestAnimationFrame(() => {
+          const specCanvas = this.spectrogramCanvas.nativeElement;
+          specCanvas.width = canvasSize.inlineSize;
+          specCanvas.height = canvasSize.blockSize;
+          const specCanvasCtx = specCanvas.getContext('2d', { alpha: false })!
+          specCanvasCtx.imageSmoothingEnabled = false
+          specCanvasCtx.fillStyle = 'gray'
+          specCanvasCtx.fillRect(0, 0, specCanvas.width, specCanvas.height)
+
+          const canvasTile = new GenSpecTile(viewportParams, specCanvas);
+          if (loresTileBmp) renderTile(canvasTile, loresTileBmp, specCanvasCtx);
+          if (hiresTileBmp) renderTile(canvasTile, hiresTileBmp, specCanvasCtx);
+        })
+      });
     });
   }
 

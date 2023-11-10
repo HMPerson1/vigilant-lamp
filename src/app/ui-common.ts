@@ -1,6 +1,6 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { Portal } from '@angular/cdk/portal';
-import { Signal, computed } from '@angular/core';
+import { Signal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { absurd } from 'fp-ts/function';
 import * as t from 'io-ts';
@@ -50,7 +50,7 @@ export const defaultPart: Part = {
 
 export interface Meter extends t.TypeOf<typeof Meter> { }
 export const Meter = t.readonly(t.type({
-  state: t.union([t.literal('unset'), t.literal('active'), t.literal('locked')]),
+  state: t.union([t.literal('active'), t.literal('locked')]),
   startOffset: t.number,
   bpm: t.number,
   measureLength: t.number,
@@ -58,7 +58,7 @@ export const Meter = t.readonly(t.type({
 }));
 export const MeterLens = Lens.fromProp<Meter>();
 export const defaultMeter: Meter = {
-  state: 'unset',
+  state: 'active',
   startOffset: 0,
   bpm: 120,
   measureLength: 4,
@@ -74,7 +74,7 @@ export interface Project extends t.TypeOf<typeof Project> { }
 export const Project = t.readonly(t.type({
   audioFile: t_Uint8Array,
   audio: AudioSamples,
-  meter: Meter,
+  meter: t.union([Meter, t.undefined]),
   parts: t.readonlyArray(Part),
 }));
 export const ProjectLens = Lens.fromPath<Project>();

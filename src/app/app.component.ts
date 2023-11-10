@@ -1,18 +1,18 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
-import { Component, ElementRef, NgZone, ViewChild, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, ViewChild, computed, effect, signal } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
-import { AudioContextService } from './services/audio-context.service';
-import { AudioSamples, audioSamplesDuration } from './common';
+import { AudioVisualizationComponent } from './audio-visualization/audio-visualization.component';
+import { audioSamplesDuration } from './common';
 import { downsampleAudio, loadAudio } from './load-audio';
+import { AudioContextService } from './services/audio-context.service';
 import { ProjectService } from './services/project.service';
 import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
-import { AudioVisualizationComponent } from './audio-visualization/audio-visualization.component';
 
 @Component({
   selector: 'app-root',
@@ -27,21 +27,22 @@ export class AppComponent {
     titleService: Title,
     ngZone: NgZone,
   ) {
-    rxjs.combineLatest({ unsaved: project.isUnsaved$, name: this.#projectName$ }).forEach(({ unsaved, name }) =>
-      titleService.setTitle(`${name ?? '(unsaved project)'}${unsaved ? '*' : ''} - Vigilant Lamp`)
-    );
-    project.isUnsaved$.forEach(unsaved => {
-      if (unsaved) {
+    const globalIsUnsaved = computed(() => project.currentProjectRaw()?.isUnsaved() ?? false);
+    effect(() => {
+      titleService.setTitle(`${this.#projectName() ?? '(unsaved project)'}${globalIsUnsaved() ? '*' : ''} - Vigilant Lamp`)
+    });
+    effect(() => {
+      if (globalIsUnsaved()) {
         addEventListener('beforeunload', beforeUnloadListener);
       } else {
         removeEventListener('beforeunload', beforeUnloadListener);
       }
-    })
+    });
 
     Mousetrap.bind('esc', () => ngZone.run(() => { this.uiMode?.cancel() }));
-    Mousetrap.bind('mod+s', () => ngZone.run(() => { if (this.project.project) { this.saveProject() } return false }));
-    Mousetrap.bind('mod+z', () => ngZone.run(() => { project.undo() }));
-    Mousetrap.bind('mod+shift+z', () => ngZone.run(() => { project.redo() }));
+    Mousetrap.bind('mod+s', () => ngZone.run(() => { this.saveProject(); return false }));
+    Mousetrap.bind('mod+z', () => ngZone.run(() => { project.currentProjectRaw()?.undo() }));
+    Mousetrap.bind('mod+shift+z', () => ngZone.run(() => { project.currentProjectRaw()?.redo() }));
   }
 
   readonly TIME_STEP_INPUT_MAX = 5
@@ -53,9 +54,6 @@ export class AppComponent {
 
   get audioContext() { return this.audioContextSvc.audioContext }
 
-  specPitchMin: number = 12
-  specPitchMax: number = 108
-  // TODO: move ^^ to new component
   specDbMin: number = -60
   specDbMax: number = -20
   specLgWindowSize: number = 12
@@ -68,18 +66,17 @@ export class AppComponent {
 
   @ViewChild('audioVizContainer') audioVizContainer!: AudioVisualizationComponent;
 
-  #projectName$ = new rxjs.Subject<string | undefined>();
+  #projectName = signal<string | undefined>(undefined);
   #projectFileHandle?: FileSystemFileHandle;
   get projectFileHandle() { return this.#projectFileHandle }
   set projectFileHandle(p) {
     this.#projectFileHandle = p;
-    this.#projectName$.next(p?.name);
+    this.#projectName.set(p?.name);
   }
 
-  get hasProject(): boolean { return !!this.project.project }
-  get hasProjectMeter(): boolean { return this.project.project?.meter?.state !== 'unset' }
+  readonly hasProject = computed(() => !!this.project.currentProjectRaw())
+  readonly hasProjectMeter = computed(() => !!this.project.currentProjectRaw()?.project().meter)
 
-  get audioData(): AudioSamples | undefined { return this.project.project?.audio }
   audioBuffer?: AudioBuffer;
   loading?: 'new' | 'open'
 
@@ -97,7 +94,7 @@ export class AppComponent {
   debug_downsample: number = 0;
 
   meterPanelExpanded: boolean = false;
-  get displayedMeter(): Partial<Meter> | undefined { return this.meterPanelExpanded ? this.liveMeter : this.userShowBeatGrid ? this.project.project?.meter : undefined }
+  get displayedMeter(): Partial<Meter> | undefined { return this.meterPanelExpanded ? this.liveMeter : this.userShowBeatGrid ? this.project.currentProjectRaw()?.project().meter : undefined }
   liveMeter?: Partial<Meter>;
 
   transcribePanelExpanded: boolean = false;
@@ -135,11 +132,11 @@ export class AppComponent {
     this.loading = 'open'
     try {
       const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' })
-      await this.project.fromBlob(projectFile)
-      this.project.markSaved();
+      const project = await this.project.fromBlob(projectFile)
+      project.markSaved();
       this.projectFileHandle = projectFile.handle
-      this.audioVizContainer.onAudioLoad(audioSamplesDuration(this.project.project!.audio));
-      this.audioBuffer = await loadAudio(this.project.project!.audioFile.slice().buffer, this.audioContext.sampleRate)
+      this.audioVizContainer.onAudioLoad(audioSamplesDuration(project.project().audio));
+      this.audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.audioContext.sampleRate)
     } catch (e) {
       console.log("error load project:", e);
       if (!isUserAbortException(e)) {
@@ -150,14 +147,16 @@ export class AppComponent {
   }
 
   async saveProject(saveAs = false) {
+    const project = this.project.currentProjectRaw();
+    if (!project) { console.warn('saveProject called without project'); return; }
     try {
       this.projectFileHandle = await fileSave(
-        this.project.intoBlob(),
+        project.intoBlob(),
         { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
         saveAs ? null : this.projectFileHandle,
         true,
       ) ?? undefined
-      this.project.markSaved();
+      project.markSaved();
     } catch (e) {
       console.log("error save project:", e);
       if (!isUserAbortException(e)) {

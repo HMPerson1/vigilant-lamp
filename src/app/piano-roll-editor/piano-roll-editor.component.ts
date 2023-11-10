@@ -1,4 +1,4 @@
-import { Component, HostListener, Input, Signal, computed } from '@angular/core';
+import { Component, HostListener, Input, Signal, computed, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { identity } from 'fp-ts/function';
 import * as lodash from 'lodash-es';
@@ -6,7 +6,7 @@ import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile, SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
-import { ProjectService } from '../services/project.service';
+import { ProjectHolder } from '../services/project.service';
 import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
 
@@ -17,28 +17,28 @@ import { PairsSet } from '../utils/pairs-set';
   // changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PianoRollEditorComponent {
+  @Input({ required: true }) project!: Signal<ProjectHolder>;
   constructor(
-    readonly project: ProjectService,
     private readonly viewport: AudioVisualizationComponent,
     private readonly keyboardState: KeyboardStateService,
-  ) {
-    this.tile = computed(() => new GenSpecTile(
-      { timeMin: 0, timeMax: viewport.audioDuration(), pitchMin: 0, pitchMax: PITCH_MAX },
-      { width: viewport.canvasWidth(), height: viewport.canvasHeight() },
-    ));
-  }
+  ) { }
 
-  readonly mouseX = computed(() => { const x = this.viewport.visMouseX(); return x && x + this.viewport.viewportOffsetX() });
-  readonly mouseY = computed(() => { const y = this.viewport.visMouseY(); return y && y + this.viewport.viewportOffsetY() });
+  readonly mouseX = computed(() => { const x = this.viewport.visMouseX(); return x !== undefined ? x + this.viewport.viewportOffsetX() : undefined });
+  readonly mouseY = computed(() => { const y = this.viewport.visMouseY(); return y !== undefined ? y + this.viewport.viewportOffsetY() : undefined });
 
   readonly #mousePos = computed(() => {
     const x = this.mouseX();
     const y = this.mouseY();
     return x !== undefined && y !== undefined ? [x, y] as const : undefined;
   });
-  @Input() activePartIdx?: number;
 
-  private tile: Signal<GenSpecTile<{ width: number, height: number }>>;
+  readonly #activePartIdx$ = signal<number | undefined>(undefined);
+  @Input() set activePartIdx(v: number | undefined) { this.#activePartIdx$.set(v) };
+
+  private tile = computed(() => new GenSpecTile(
+    { timeMin: 0, timeMax: this.viewport.audioDuration(), pitchMin: 0, pitchMax: PITCH_MAX },
+    { width: this.viewport.canvasWidth(), height: this.viewport.canvasHeight() },
+  ));
 
   get activePart(): Part | undefined { return this.activePartIdx !== undefined ? this.project.project?.parts?.[this.activePartIdx] : undefined }
   get activePartColor() { return this.activePart?.color }
@@ -364,3 +364,19 @@ const rect2style = ({ x, y, width, height }: Rect) =>
 const isNoteInRect = (rect: SpecTileWindow, note: Note) =>
   (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
   && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
+
+interface EditorState {
+  render(): void;
+}
+
+class Notation implements EditorState {
+  render(): void {
+    throw new Error('Method not implemented.');
+  }
+}
+
+class Selection implements EditorState {
+  render(): void {
+    throw new Error('Method not implemented.');
+  }
+}
