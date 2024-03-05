@@ -1,4 +1,4 @@
-import { Injectable, Signal, computed, signal } from '@angular/core';
+import { Injectable, Signal, WritableSignal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
@@ -6,7 +6,7 @@ import { NonEmptyArray } from 'fp-ts/NonEmptyArray';
 import { pipe } from 'fp-ts/function';
 import { Observable, Subject } from 'rxjs';
 import { AudioSamples } from '../common';
-import { Project } from '../ui-common';
+import { Meter, Project } from '../ui-common';
 import { signalDefined, signalFiltered } from '../utils/ho-signals';
 
 @Injectable({
@@ -41,8 +41,8 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   #history: NonEmptyArray<Project>;
   #current: number = 0;
   get #projectInternal(): Project { return this.#history[this.#current] }
-  #project = signal(this.#projectInternal);
-  project = this.#project.asReadonly();
+  #project: WritableSignal<Project>;
+  project: Signal<Project>;
 
   #lastSaved = signal<Project | undefined>(undefined);
   isUnsaved = computed(() => !Object.is(this.#project(), this.#lastSaved()));
@@ -50,8 +50,13 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   #prevModFusionTag?: string;
   #prevModTime?: number;
 
+  withMeter: Signal<FilteredProjectHolder<WithMeter> | undefined>;
+
   constructor(prj: Project) {
     this.#history = [prj];
+    this.#project = signal(this.#projectInternal);
+    this.project = this.#project.asReadonly();
+    this.withMeter = this.filterProject<WithMeter>((a): a is Project & WithMeter => a.meter !== undefined);
   }
 
   intoBlob(): Blob {
@@ -80,7 +85,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     this.#project.set(this.#projectInternal);
   }
 
-  canUndo() { return this.#current >= 1 }
+  canUndo() { return this.#current > 0 }
 
   undo() {
     if (!this.canUndo()) return;
@@ -88,7 +93,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     this.#project.set(this.#projectInternal);
   }
 
-  canRedo() { return this.#current + 1 <= this.#history.length - 1 }
+  canRedo() { return this.#current < this.#history.length - 1 }
 
   redo() {
     if (!this.canRedo()) return;
@@ -124,3 +129,5 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
 /** if two modifications are more than this many milliseconds apart, they will not be merged */
 const MAX_FUSION_TIMEOUT: DOMHighResTimeStamp = 1000;
 const filterProjectNoopThrowable: unique symbol = Symbol();
+
+type WithMeter = { meter: Meter };

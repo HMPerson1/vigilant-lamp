@@ -5,10 +5,10 @@ export async function loadAudio(arrBuf: ArrayBuffer, sampleRate: number): Promis
   return await new OfflineAudioContext(1, 1, sampleRate).decodeAudioData(arrBuf);
 }
 
-export function downsampleAudio(audioBuffer: AudioBuffer, sampleRate: number): Promise<AudioSamples> {
+export function downsampleAudio(audioBuffer: AudioBuffer): Promise<AudioSamples> {
   return new Promise(async (resolve) => {
     // FIXME: when webcodecs is stable, rewrite to avoid resampling
-    const mixOffAudioCtx = new OfflineAudioContext(1, audioBuffer.length, sampleRate);
+    const mixOffAudioCtx = new OfflineAudioContext(1, audioBuffer.length, audioBuffer.sampleRate);
     const srcNode = new AudioBufferSourceNode(mixOffAudioCtx, { buffer: audioBuffer });
     srcNode.connect(mixOffAudioCtx.destination)
     srcNode.start()

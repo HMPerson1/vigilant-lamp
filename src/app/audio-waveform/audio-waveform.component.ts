@@ -18,6 +18,7 @@ export class AudioWaveformComponent {
 
   constructor(project: ProjectService, audioVizContainer: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>, destroyRef: DestroyRef) {
     const wasmWaveRenderer$ = (() => {
+      // TODO: `free`ing is no longer necessary after rust wasm-bindgen finalizers
       let lastRenderer: wasm_module.WaveformRenderer | undefined;
       destroyRef.onDestroy(() => {
         lastRenderer?.free();

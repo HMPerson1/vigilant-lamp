@@ -52,7 +52,7 @@ export class AppComponent {
   readonly hwCcur = navigator.hardwareConcurrency
   readonly browserFsApiSupported = browserFsApiSupported
 
-  get audioContext() { return this.audioContextSvc.audioContext }
+  readonly outputSampleRate = this.audioContextSvc.audioContext.sampleRate;
 
   specDbMin: number = -60
   specDbMax: number = -20
@@ -114,8 +114,8 @@ export class AppComponent {
     try {
       const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
       const audioFile = new Uint8Array(await fh.arrayBuffer());
-      this.audioBuffer = await loadAudio(audioFile.slice().buffer, this.audioContext.sampleRate)
-      const audioData = await downsampleAudio(this.audioBuffer, this.audioContext.sampleRate)
+      this.audioBuffer = await loadAudio(audioFile.slice().buffer, this.outputSampleRate)
+      const audioData = await downsampleAudio(this.audioBuffer)
       this.project.newProject(audioFile, audioData)
       this.projectFileHandle = undefined;
       this.audioVizContainer.onAudioLoad(this.audioBuffer.duration);
@@ -136,7 +136,7 @@ export class AppComponent {
       project.markSaved();
       this.projectFileHandle = projectFile.handle
       this.audioVizContainer.onAudioLoad(audioSamplesDuration(project.project().audio));
-      this.audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.audioContext.sampleRate)
+      this.audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.outputSampleRate)
     } catch (e) {
       console.log("error load project:", e);
       if (!isUserAbortException(e)) {

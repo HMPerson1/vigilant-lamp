@@ -49,6 +49,7 @@ export class AudioSpectrogramComponent implements OnInit {
   ) { }
 
   ngOnInit() {
+    // TODO: wait this is can be in the constructor since `this.project` will be defined by the time it's acutally accessed
     runInInjectionContext(this.environmentInjector, () => {
       const canvasSize$ = elemBoxSizeSignal(this.hostElem.nativeElement, 'device-pixel-content-box');
       const viewportParams$ = computed<SpecTileWindow>(() => ({
