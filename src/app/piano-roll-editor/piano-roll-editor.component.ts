@@ -6,8 +6,8 @@ import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile, SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
-import { ProjectHolder } from '../services/project.service';
-import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { ProjectHolder, ProjectService } from '../services/project.service';
+import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, Project, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
 
 @Component({
@@ -17,8 +17,8 @@ import { PairsSet } from '../utils/pairs-set';
   // changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PianoRollEditorComponent {
-  @Input({ required: true }) project!: Signal<ProjectHolder>;
   constructor(
+    readonly project: ProjectService,
     private readonly viewport: AudioVisualizationComponent,
     private readonly keyboardState: KeyboardStateService,
   ) { }
@@ -34,18 +34,20 @@ export class PianoRollEditorComponent {
 
   readonly #activePartIdx$ = signal<number | undefined>(undefined);
   @Input() set activePartIdx(v: number | undefined) { this.#activePartIdx$.set(v) };
+  get activePartIdx() { return this.#activePartIdx$(); }
 
   private tile = computed(() => new GenSpecTile(
     { timeMin: 0, timeMax: this.viewport.audioDuration(), pitchMin: 0, pitchMax: PITCH_MAX },
     { width: this.viewport.canvasWidth(), height: this.viewport.canvasHeight() },
   ));
 
-  get activePart(): Part | undefined { return this.activePartIdx !== undefined ? this.project.project?.parts?.[this.activePartIdx] : undefined }
-  get activePartColor() { return this.activePart?.color }
+  readonly projectParts: Signal<ReadonlyArray<Part> | undefined> = computed(() => this.project.currentProjectRaw()?.project().parts);
+  readonly activePart: Signal<Part | undefined> = computed(() => this.activePartIdx !== undefined ? this.projectParts()?.[this.activePartIdx] : undefined)
+  readonly activePartColor = computed(() => this.activePart()?.color)
   get hideSelectedNotes() { return this.resizeNoteState !== undefined || this.draggedNotes !== undefined; }
 
   hoveredNote(): Note | undefined {
-    const meter = this.project.project?.meter;
+    const meter = this.project.currentProjectRaw()?.project().meter;
     if (!meter || this.mouseX() === undefined || this.mouseY() === undefined) return;
 
     const subdiv = Math.floor(meter.subdivision * time2beat(meter, this.tile().x2time(this.mouseX()!)));
@@ -67,7 +69,7 @@ export class PianoRollEditorComponent {
   }
 
   private note2rect(note: Note): Rect | undefined {
-    const meter = this.project.project?.meter;
+    const meter = this.project.currentProjectRaw()?.project().meter;
     if (!this.tile || !meter) return;
 
     const x = Math.round(this.tile().time2x(pulse2time(meter, note.start)));
@@ -112,7 +114,7 @@ export class PianoRollEditorComponent {
       if (!hoveredNoteEnd) return;
       const clickedNote = clickDragNote(hoveredNoteStart, hoveredNoteEnd);
       if (!clickedNote) return;
-      this.project.modify(
+      this.project.currentProjectRaw()?.modify(
         ProjectLens(['parts']).compose(indexReadonlyArray(activePartIdx)).compose(PartLens('notes')).modify(
           notes => [...notes, clickedNote]
         )
@@ -141,8 +143,9 @@ export class PianoRollEditorComponent {
 
   async startSelection(event: MouseEvent) {
     if (this.activePartIdx !== undefined || this.mouseX() === undefined || this.mouseY() === undefined) return;
-    const project = this.project.project;
-    if (project === undefined) return;
+    const project = this.project.currentProjectRaw()?.project();
+    if (project === undefined || project.meter === undefined) return;
+    const projectMeter = project.meter;
 
     event.preventDefault();
 
@@ -156,8 +159,8 @@ export class PianoRollEditorComponent {
     this.selectionStart = selStart;
     const onMoveSub = this.#mousePos$.pipe(rxjs.map(mousePos => {
       if (!mousePos) return;
-      const time0 = time2pulse(project.meter, this.tile().x2time(selStart[0]));
-      const time1 = time2pulse(project.meter, this.tile().x2time(mousePos[0]));
+      const time0 = time2pulse(projectMeter, this.tile().x2time(selStart[0]));
+      const time1 = time2pulse(projectMeter, this.tile().x2time(mousePos[0]));
       const pitch0 = this.tile().y2pitch(selStart[1]);
       const pitch1 = this.tile().y2pitch(mousePos[1]);
       const selRect = {
@@ -205,11 +208,12 @@ export class PianoRollEditorComponent {
   }
 
   get selectionResizeIndicatorStyle() {
-    if (!this.project.project || this.draggedNotes !== undefined) return;
+    const project = this.project.currentProjectRaw()?.project();
+    if (!project || this.draggedNotes !== undefined) return;
     let note = this.resizeNote;
     if (this.singleSelection && !note) {
       const [partIdx, noteIdx] = this.singleSelection;
-      note = this.project.project.parts[partIdx].notes[noteIdx];
+      note = project.parts[partIdx].notes[noteIdx];
     }
     const noteRect = note && this.note2rect(note);
     return noteRect && rect2style(noteRect);
@@ -225,27 +229,31 @@ export class PianoRollEditorComponent {
     this.resizeNoteState = [partIdx, noteIdx, which];
     try {
       await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-      if (!this.mouseX() || !this.project.project) return;
-      const origNote = this.project.project.parts[partIdx].notes[noteIdx];
+      const projectHolder = this.project.currentProjectRaw();
+      if (projectHolder === undefined) return;
+      const project = projectHolder.project();
+      if (this.mouseX() === undefined || !project || !project.meter) return;
+      const origNote = project.parts[partIdx].notes[noteIdx];
       const newNote = doResizeNote(
-        this.project.project.meter,
+        project.meter,
         origNote,
         which,
         this.tile().x2time(this.mouseX()!),
       );
       // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (lodash.isEqual(origNote, newNote)) return;
-      this.project.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
+      projectHolder.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
     } finally {
       this.resizeNoteState = undefined;
     }
   }
 
   get resizeNote() {
-    if (!this.resizeNoteState || !this.project.project || !this.tile) return;
-    const origNote = this.project.project.parts[this.resizeNoteState[0]].notes[this.resizeNoteState[1]];
+    const project = this.project.currentProjectRaw()?.project();
+    if (!this.resizeNoteState || !project || !project.meter) return;
+    const origNote = project.parts[this.resizeNoteState[0]].notes[this.resizeNoteState[1]];
     return !this.mouseX() ? origNote : doResizeNote(
-      this.project.project.meter,
+      project.meter,
       origNote,
       this.resizeNoteState[2],
       this.tile().x2time(this.mouseX()!),
@@ -262,8 +270,8 @@ export class PianoRollEditorComponent {
   private readonly keyboardShiftKey = toObservable(this.keyboardState.shiftKey);
 
   async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
-    const project = this.project.project;
-    if (!project || event.button !== 0 || this.mouseX() === undefined || this.mouseY() === undefined) return;
+    const project = this.project.currentProjectRaw()?.project();
+    if (!project || !project.meter || event.button !== 0 || this.mouseX() === undefined || this.mouseY() === undefined) return;
     event.preventDefault();
     event.stopPropagation();
 
@@ -301,7 +309,7 @@ export class PianoRollEditorComponent {
       const thisMoveNote2 = thisMoveNote(this.tile(), this.mouseX()!, this.mouseY()!, this.keyboardState.shiftKey());
       // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
       if (thisMoveNote2 === identity) return;
-      this.project.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
+      this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
         const selPart = this.selection.withFirst(partIdx);
         return !selPart ? part : {
           ...part,
@@ -365,18 +373,57 @@ const isNoteInRect = (rect: SpecTileWindow, note: Note) =>
   (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
   && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
 
+type DragHandler = (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => ((a: Project) => Project) | undefined;
+type CssCursorValue = "auto" | "pointer" | "move" | "ew-resize";
+
 interface EditorState {
-  render(): void;
+  render(project: Project, mousePos?: [number, number]): CssCursorValue;
+  startDrag(startTime: number, startPitch: number): DragHandler;
 }
 
 class Notation implements EditorState {
-  render(): void {
-    throw new Error('Method not implemented.');
+  constructor(readonly activePartIdx: number) { }
+
+  render(project: Project, mousePos?: [number, number]): CssCursorValue {
+    return "pointer";
+  }
+
+  startDrag(startTime: number, startPitch: number): DragHandler {
+    // add new note
+    return (endTime: number, endPitch: number) => (a: Project) => a;
   }
 }
 
 class Selection implements EditorState {
-  render(): void {
-    throw new Error('Method not implemented.');
+  selection: PairsSet<number, number> = PairsSet.empty();
+  #lastRenderedProject?: Project;
+
+  render(project: Project, mousePos?: [number, number]): CssCursorValue {
+    this.#lastRenderedProject = project;
+    return "auto";
+  }
+
+  startDrag(startTime: number, startPitch: number): DragHandler {
+    if (this.#lastRenderedProject !== undefined) {
+      // if on drag handle, resize note (click => true no-op)
+      // if on selected note, drag notes (click => change selection to the clicked note)
+    }
+    // otherwise, update selection (click => treat as 0-length drag)
+    return (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => (a: Project) => a;
   }
 }
+
+// code problems:
+// - `if (<thing> !== undefined)` repeated too often
+// - drag handlers have similar behaviour which should be enforced
+// - on each drag handler, final edit should match preview render
+
+// data problems:
+// - whan heppens if the project changes mid-drag (e.g. by undo)
+// - what happens to selection if parts are rearranged
+// - what happens to selection if a selected note goes away (e.g. by undo)
+// constraints:
+// - don't want ui state to leak into on-disk data
+// - don't want in-memory data to differ from on-disk data
+
+// TODO: copy-paste

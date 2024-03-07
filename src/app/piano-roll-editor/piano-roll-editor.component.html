@@ -1,7 +1,7 @@
 <div class="click-handler" (mousedown)="onMouseDown($event)" [style.transform]="_clickHandlerTransform()"></div>
 
 <div class="part-container" [class.hide-selected-notes]="hideSelectedNotes">
-  <div class="part-container" *ngFor="let part of project.project?.parts; trackBy: trackIdx; let pIdx = index">
+  <div class="part-container" *ngFor="let part of projectParts(); trackBy: trackIdx; let pIdx = index">
     <div class="note" *ngFor="let note of part.notes; trackBy: trackIdx; let nIdx = index"
       [class.note-selected]="selection.has([pIdx, nIdx])" [style]="noteStyle(note)"
       [style.background-color]="part.color" (mousedown)="onSelectedNoteMouseDown(pIdx, nIdx, $event)">
@@ -11,17 +11,17 @@
 
 <div class="part-container" *ngIf="draggedNotes">
   <div class="note note-selected" *ngFor="let noteEnt of draggedNotes; trackBy: trackIdx"
-    [style]="noteStyle(noteEnt[1])" [style.background-color]="project.project?.parts?.[noteEnt[0]]?.color">
+    [style]="noteStyle(noteEnt[1])" [style.background-color]="projectParts()?.[noteEnt[0]]?.color">
   </div>
 </div>
 
-<div class="note note-preview" [style]="notePreviewStyle ?? 'display: none'" [style.background-color]="activePartColor">
+<div class="note note-preview" [style]="notePreviewStyle ?? 'display: none'" [style.background-color]="activePartColor()">
 </div>
-<div class="note" [style]="activeNoteStyle ?? 'display: none'" [style.background-color]="activePartColor"></div>
+<div class="note" [style]="activeNoteStyle ?? 'display: none'" [style.background-color]="activePartColor()"></div>
 
 <div *ngIf="showResizeHandles && singleSelection">
   <div class="note note-selected" [style]="resizeNoteStyle ?? 'display: none'"
-    [style.background-color]="project.project?.parts?.[singleSelection[0]]?.color"></div>
+    [style.background-color]="projectParts()?.[singleSelection[0]]?.color"></div>
   <div class="selection-resize-indicator" [style]="selectionResizeIndicatorStyle ?? 'display: none'">
     <div class="selection-resize-handle handle-left" (mousedown)="startNoteResize(0, $event)"></div>
     <div class="selection-resize-handle handle-right" (mousedown)="startNoteResize(1, $event)"></div>

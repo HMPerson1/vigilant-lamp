@@ -4,8 +4,8 @@
       <mat-icon>edit</mat-icon>SET ALL
     </button>
     <button mat-stroked-button (click)="onToggleLockClick()" [disabled]="!isMeterSet">
-      <mat-icon fontSet="material-icons-outlined">{{ isMeterLocked ? 'lock_open' : 'lock'}}</mat-icon>
-      {{ isMeterLocked ? 'UNLOCK' : 'LOCK'}}
+      <mat-icon fontSet="material-icons-outlined">{{ isMeterLocked() ? 'lock_open' : 'lock'}}</mat-icon>
+      {{ isMeterLocked() ? 'UNLOCK' : 'LOCK'}}
     </button>
   </div>
   <div class="input-row">

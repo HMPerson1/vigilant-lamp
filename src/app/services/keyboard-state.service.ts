@@ -24,7 +24,9 @@ export class KeyboardStateService {
     ngZone.runOutsideAngular(() => {
       window.addEventListener('keydown', listener, { capture: true });
       window.addEventListener('keyup', listener, { capture: true });
+      window.addEventListener('mousedown', listener, { capture: true });
       window.addEventListener('mousemove', listener, { capture: true });
+      window.addEventListener('mouseup', listener, { capture: true });
     })
   }
 }

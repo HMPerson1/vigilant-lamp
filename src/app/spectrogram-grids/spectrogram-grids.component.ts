@@ -128,6 +128,7 @@ export class SpectrogramGridsComponent {
       canvasCtx.restore();
       return;
     } else if (!Meter.is(meter)) {
+      // TODO: can render with just bpm/offset
       return;
     }
 

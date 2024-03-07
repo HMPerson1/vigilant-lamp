@@ -4,7 +4,7 @@ import { Signal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { absurd } from 'fp-ts/function';
 import * as t from 'io-ts';
-import { Lens } from 'monocle-ts';
+import { Lens, Optional } from 'monocle-ts';
 import { Observable, map } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
 
@@ -78,6 +78,7 @@ export const Project = t.readonly(t.type({
   parts: t.readonlyArray(Part),
 }));
 export const ProjectLens = Lens.fromPath<Project>();
+export const ProjectOptional = Optional.fromPath<Project>();
 
 export type PitchLabelType = 'none' | 'midi' | 'sharp' | 'flat';
 
