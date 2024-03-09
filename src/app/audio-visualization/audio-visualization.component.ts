@@ -115,6 +115,8 @@ export class AudioVisualizationComponent {
 
   readonly _offsetDivTransform = computed(() => `translate(${-this.viewportOffsetX()}px,${-this.viewportOffsetY()}px)`);
 
+  readonly viewportTransform = computed(() => `translate(${this.viewportOffsetX()}px,${this.viewportOffsetY()}px)`);
+
   private isPanning = false;
 
   onSpecWheel(event: WheelEvent) {

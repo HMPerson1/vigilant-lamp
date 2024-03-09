@@ -65,10 +65,13 @@ export const defaultMeter: Meter = {
   subdivision: 2,
 }
 
-export const time2beat = (meter: Meter, t: number): number => (t - meter.startOffset) * meter.bpm / 60;
-export const beat2time = (meter: Meter, b: number): number => b * 60 / meter.bpm + meter.startOffset;
-export const time2pulse = (meter: Meter, t: number): number => time2beat(meter, t) * PULSES_PER_BEAT;
-export const pulse2time = (meter: Meter, p: number): number => beat2time(meter, p / PULSES_PER_BEAT);
+export type MinMeter = Pick<Meter, "bpm" | "startOffset">;
+export const isMinMeter = (meter: Partial<Meter>): meter is Partial<Meter> & MinMeter => meter.bpm !== undefined && meter.startOffset !== undefined;
+
+export const time2beat = (meter: MinMeter, t: number): number => (t - meter.startOffset) * meter.bpm / 60;
+export const beat2time = (meter: MinMeter, b: number): number => b * 60 / meter.bpm + meter.startOffset;
+export const time2pulse = (meter: MinMeter, t: number): number => time2beat(meter, t) * PULSES_PER_BEAT;
+export const pulse2time = (meter: MinMeter, p: number): number => beat2time(meter, p / PULSES_PER_BEAT);
 
 export interface Project extends t.TypeOf<typeof Project> { }
 export const Project = t.readonly(t.type({

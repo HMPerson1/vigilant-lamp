@@ -19,7 +19,7 @@ import { PairsSet } from '../utils/pairs-set';
 export class PianoRollEditorComponent {
   constructor(
     readonly project: ProjectService,
-    private readonly viewport: AudioVisualizationComponent,
+    readonly viewport: AudioVisualizationComponent,
     private readonly keyboardState: KeyboardStateService,
   ) { }
 
@@ -322,7 +322,6 @@ export class PianoRollEditorComponent {
     }
   }
 
-  readonly _clickHandlerTransform = computed(() => `translate(${this.viewport.viewportOffsetX()}px,${this.viewport.viewportOffsetY()}px)`);
   trackIdx(idx: number, _item: unknown) { return idx }
 }
 

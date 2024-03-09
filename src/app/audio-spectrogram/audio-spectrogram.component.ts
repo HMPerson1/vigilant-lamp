@@ -43,7 +43,7 @@ export class AudioSpectrogramComponent {
 
   constructor(
     project: ProjectService,
-    private readonly viewport: AudioVisualizationComponent,
+    readonly viewport: AudioVisualizationComponent,
     hostElem: ElementRef<HTMLElement>,
   ) {
     const canvasSize$ = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
@@ -138,8 +138,6 @@ export class AudioSpectrogramComponent {
       })
     });
   }
-
-  readonly canvasBoxTransform = computed(() => `translate(${this.viewport.viewportOffsetX()}px,${this.viewport.viewportOffsetY()}px)`);
 }
 
 function renderTile(render: SpecTileCanvas, tile: SpecTileBitmap, specCanvasCtx: CanvasRenderingContext2D) {

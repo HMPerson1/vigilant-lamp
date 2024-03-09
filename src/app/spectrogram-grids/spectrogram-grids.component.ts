@@ -3,7 +3,7 @@ import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile, SpecTileWindow } from '../common';
-import { Meter, PitchLabelType, beat2time, elemBoxSizeSignal, time2beat } from '../ui-common';
+import { Meter, MinMeter, PitchLabelType, beat2time, elemBoxSizeSignal, isMinMeter, time2beat } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-grids',
@@ -28,7 +28,7 @@ export class SpectrogramGridsComponent {
   @ViewChild('canvas') set canvasChildElem(v: ElementRef<HTMLCanvasElement>) { this.#canvas.set(v.nativeElement) }
   readonly #canvas = signal<HTMLCanvasElement | undefined>(undefined);
 
-  constructor(private readonly viewport: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>) {
+  constructor(readonly viewport: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>) {
     const canvasSize = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
     const viewportParams = computed<SpecTileWindow>(() => ({
       timeMin: viewport.timeMin(), timeMax: viewport.timeMax(),
@@ -114,9 +114,9 @@ export class SpectrogramGridsComponent {
 
   renderBeatGrid(canvasTile: SpecTileCanvas, canvasCtx: CanvasRenderingContext2D) {
     const meter = this.#meter$();
-    if (meter === undefined) {
+    if (meter === undefined || meter.startOffset === undefined) {
       return;
-    } else if (meter.startOffset !== undefined && meter.bpm === undefined) {
+    } else if (!isMinMeter(meter)) {
       canvasCtx.save();
       canvasCtx.translate(0.5, 0);
       canvasCtx.strokeStyle = BEAT_GRID_BEAT_LINE;
@@ -126,9 +126,6 @@ export class SpectrogramGridsComponent {
       canvasCtx.lineTo(x, canvasTile.height);
       canvasCtx.stroke();
       canvasCtx.restore();
-      return;
-    } else if (!Meter.is(meter)) {
-      // TODO: can render with just bpm/offset
       return;
     }
 
@@ -146,6 +143,7 @@ export class SpectrogramGridsComponent {
         console.warn("beat grid too dense!", canvasTile, meter);
         return;
       }
+      if (last === 0) { scale = 1; }
 
       canvasCtx.beginPath();
       for (let l = first; l <= last; l++) {
@@ -159,17 +157,17 @@ export class SpectrogramGridsComponent {
 
     canvasCtx.save();
     canvasCtx.strokeStyle = BEAT_GRID_MEASURE_LINE;
-    beatLines(meter.measureLength, Infinity);
+    beatLines(meter.measureLength ?? Infinity, NaN);
     canvasCtx.restore();
 
     const pixelsPerBeat = canvasTile.pixelsPerTime * 60 / meter.bpm;
     if (pixelsPerBeat > 10) {
       canvasCtx.save();
       canvasCtx.strokeStyle = BEAT_GRID_BEAT_LINE;
-      beatLines(1, meter.measureLength);
+      beatLines(1, meter.measureLength ?? Infinity);
       canvasCtx.restore();
 
-      if (pixelsPerBeat > 100) {
+      if (pixelsPerBeat > 100 && meter.subdivision !== undefined) {
         canvasCtx.save();
         canvasCtx.setLineDash([1, 1]);
         canvasCtx.strokeStyle = BEAT_GRID_BEAT_LINE;
@@ -192,7 +190,6 @@ export class SpectrogramGridsComponent {
     return `translate(${ox}px,${oy}px)`;
   });
 
-  readonly canvasBoxTransform = computed(() => `translate(${this.viewport.viewportOffsetX()}px,${this.viewport.viewportOffsetY()}px)`);
   trackIdx(idx: number, _item: any) { return idx }
 }
 
