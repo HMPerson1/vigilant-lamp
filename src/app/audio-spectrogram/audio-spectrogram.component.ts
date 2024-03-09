@@ -43,7 +43,7 @@ export class AudioSpectrogramComponent {
 
   constructor(
     project: ProjectService,
-    viewport: AudioVisualizationComponent,
+    private readonly viewport: AudioVisualizationComponent,
     hostElem: ElementRef<HTMLElement>,
   ) {
     const canvasSize$ = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
@@ -63,7 +63,7 @@ export class AudioSpectrogramComponent {
       };
     }, undefined);
 
-    const projectAudio$ = toObservable(computed(() => this.project.currentProjectRaw()?.project().audio)).pipe(filter(isNonnull))
+    const projectAudio$ = toObservable(computed(() => project.currentProjectRaw()?.project().audio)).pipe(filter(isNonnull))
     // TODO: cancellation??
     const hiresTile$ = fromWorker<SpecWorkerMsg, SpectrogramTileJs>(
       mkSpectrogramWorker,

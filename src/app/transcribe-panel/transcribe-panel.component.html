@@ -1,7 +1,7 @@
 <div class="container">
-  <div class="container" *ngIf="project.project?.parts?.length ?? 0 !== 0" cdkDropList
+  <div class="container" *ngIf="project.currentProjectRaw()?.project()?.parts?.length ?? 0 !== 0" cdkDropList
     (cdkDropListDropped)="drop($event)">
-    <mat-card *ngFor="let part of project.project?.parts; index as idx" cdkDrag cdkDragLockAxis="y"
+    <mat-card *ngFor="let part of project.currentProjectRaw()?.project()?.parts; index as idx" cdkDrag cdkDragLockAxis="y"
       cdkDragBoundary=".container">
       <div matRipple [matRippleTrigger]="drag_handle">
         <!-- extra div so that the ripple doesn't break :nth-child styles -->
@@ -26,7 +26,7 @@
     </mat-card>
   </div>
   <button mat-stroked-button class="full-width" (click)="onAddPartClick()"
-    [disabled]="project.project?.meter?.state === 'unset'"><mat-icon>add</mat-icon>ADD PART</button>
+    [disabled]="project.currentProjectRaw()?.project()?.meter === undefined"><mat-icon>add</mat-icon>ADD PART</button>
 </div>
 
 <mat-menu #partCardMenu="matMenu">

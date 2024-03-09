@@ -128,7 +128,7 @@ export class MeterSettingsPanelComponent {
       if (tempoScaleLn === undefined) return;
 
       this.project.currentProjectRaw()?.modify(
-        ProjectOptional(['meter', 'startOffset']).modify(bpm => Math.round(100 * bpm * Math.exp(tempoScaleLn)) / 100),
+        ProjectOptional(['meter', 'bpm']).modify(bpm => Math.round(100 * bpm * Math.exp(tempoScaleLn)) / 100),
       );
     } finally {
       this.liveMeter.emit(this.project.currentProjectRaw()?.project().meter ?? {});
@@ -136,7 +136,7 @@ export class MeterSettingsPanelComponent {
   }
 
   onOffsetBumpBeat(dir: number) {
-    if (!this.isMeterSet) return;
+    if (!this.isMeterSet()) return;
     this.project.currentProjectRaw()?.modify(
       ProjectOptional(['meter']).modify(m => MeterLens('startOffset').modify(x => x + dir * 60 / m.bpm)(m)),
       'startOffsetBump',
@@ -144,7 +144,7 @@ export class MeterSettingsPanelComponent {
     // TODO: this should adjust the representation of notes so that the real time stays constant
   }
   onTempoMult(factor: number, dir: 1 | -1) {
-    if (!this.isMeterSet) return;
+    if (!this.isMeterSet()) return;
     this.project.currentProjectRaw()?.modify(flow(
       ProjectOptional(['meter', 'bpm']).modify(x => dir === 1 ? x * factor : x / factor),
       ProjectOptional(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : x % factor === 0 ? x / factor : x),
