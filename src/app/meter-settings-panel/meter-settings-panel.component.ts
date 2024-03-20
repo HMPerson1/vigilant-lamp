@@ -139,7 +139,7 @@ export class MeterSettingsPanelComponent {
     if (!this.isMeterSet()) return;
     this.project.currentProjectRaw()?.modify(
       ProjectOptional(['meter']).modify(m => MeterLens('startOffset').modify(x => x + dir * 60 / m.bpm)(m)),
-      'startOffsetBump',
+      { fusionTag: 'startOffsetBump' },
     );
     // TODO: this should adjust the representation of notes so that the real time stays constant
   }
@@ -187,7 +187,8 @@ const bindProjectCtrl =
         const projectHolder = this.project.currentProjectRaw();
         if (!projectHolder) return;
         const storedVal = lens.getOption(projectHolder.project());
-        if (O.match(() => false, v => v !== x)(storedVal)) projectHolder.modify(lens.set(x), fusionTag);
+        // TODO: maybe preserveSelection?
+        if (O.match(() => false, v => v !== x)(storedVal)) projectHolder.modify(lens.set(x), { fusionTag });
       });
       return formCtrl;
     }

@@ -43,13 +43,13 @@ export class SpectrogramGridsComponent {
       const canvasCtx = canvas.getContext('2d', { alpha: true })!;
       canvasCtx.imageSmoothingEnabled = false;
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-      const canvasTile = new GenSpecTile(viewportParams(), canvas);
+      const canvasTile = new GenSpecTile(viewportParams(), {width: canvasSize().inlineSize, height: canvasSize().blockSize});
       this.renderPitchGrid(canvasTile, canvasCtx);
       this.renderBeatGrid(canvasTile, canvasCtx);
     })
   }
 
-  renderPitchGrid(canvasTile: SpecTileCanvas, canvasCtx: CanvasRenderingContext2D) {
+  renderPitchGrid(canvasTile: GenSpecTile, canvasCtx: CanvasRenderingContext2D) {
     const pitchMinInt = Math.floor(canvasTile.pitchMin);
     const pitchMaxInt = Math.ceil(canvasTile.pitchMax);
     const forEachPitch = (f: (pitch: number) => void) => {
@@ -112,7 +112,7 @@ export class SpectrogramGridsComponent {
     canvasCtx.restore();
   }
 
-  renderBeatGrid(canvasTile: SpecTileCanvas, canvasCtx: CanvasRenderingContext2D) {
+  renderBeatGrid(canvasTile: GenSpecTile, canvasCtx: CanvasRenderingContext2D) {
     const meter = this.#meter$();
     if (meter === undefined || meter.startOffset === undefined) {
       return;

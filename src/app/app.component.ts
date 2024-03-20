@@ -156,6 +156,7 @@ export class AppComponent {
         saveAs ? null : this.projectFileHandle,
         true,
       ) ?? undefined
+      // TODO: there's an await between intoBlob and markSaved
       project.markSaved();
     } catch (e) {
       console.log("error save project:", e);

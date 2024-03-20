@@ -1,21 +1,27 @@
-export class PairsSet<T, U> {
+export interface PairsSetView<out T, out U> {
+  get isEmpty(): boolean;
+  get asSingleton(): readonly [T, U] | null;
+  has(value: readonly [T, U]): boolean;
+  withFirst(t: T): ReadonlySet<U> | undefined;
+  [Symbol.iterator](): Iterator<[T, U]>;
+  clone(): PairsSet<T, U>;
+}
+
+export class PairsSet<T, U> implements PairsSetView<T, U> {
   _inner: Map<T, Set<U>>;
   #singletonCache: readonly [T, U] | null | undefined;
 
   /// invariant: forall a, a in _inner => _inner[a].size > 0
   /// invariant: #singletonCache !== undefined => {{ cache is valid }}
 
-  static empty(): PairsSet<never, never> {
-    return new this(new Map<never, never>(), null);
+  static empty<T = never, U = never>(): PairsSet<T, U> {
+    return new this(new Map<T, Set<U>>(), null);
   }
 
   static fromIterable<T, U>(iterable: Iterable<readonly [T, Iterable<U>]>): PairsSet<T, U> {
-    return new this(new Map(function* () {
-      for (const [t, ui] of iterable) {
-        const us = new Set(ui);
-        if (us.size > 0) yield [t, us];
-      }
-    }()), undefined);
+    const ret = this.empty<T, U>();
+    ret.setFromIterable(iterable);
+    return ret;
   }
 
   static singleton<T, U>(value: readonly [T, U]) {
@@ -51,6 +57,19 @@ export class PairsSet<T, U> {
   }
 
   withFirst(t: T): ReadonlySet<U> | undefined { return this._inner.get(t) }
+
+  *[Symbol.iterator](): Iterator<[T, U]> {
+    for (const [t, us] of this._inner) {
+      for (const u of us) {
+        yield [t, u];
+      }
+    }
+  }
+
+  clone(): PairsSet<T, U> {
+    const _inner = this._inner;
+    return new PairsSet(new Map(function* () { for (const [t, us] of _inner) { yield [t, new Set(us)] } }()), this.#singletonCache);
+  }
 
   add(value: readonly [T, U]) {
     this.#singletonCache = undefined;
@@ -117,11 +136,18 @@ export class PairsSet<T, U> {
     }
   }
 
-  *[Symbol.iterator](): Iterator<[T, U]> {
-    for (const [t, us] of this._inner) {
-      for (const u of us) {
-        yield [t, u];
+  clear(): void {
+    this._inner.clear();
+    this.#singletonCache = null;
+  }
+
+  setFromIterable(iterable: Iterable<readonly [T, Iterable<U>]>): void {
+    this.#singletonCache = undefined;
+    this._inner = new Map(function* () {
+      for (const [t, ui] of iterable) {
+        const us = new Set(ui);
+        if (us.size > 0) yield [t, us];
       }
-    }
+    }());
   }
 }

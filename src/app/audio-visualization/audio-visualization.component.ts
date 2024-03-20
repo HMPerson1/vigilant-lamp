@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, Envi
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-common';
-import { SpecTileWindow } from '../common';
+import { GenSpecTile, SpecTileWindow } from '../common';
 
 @Component({
   selector: 'app-audio-visualization',
@@ -84,6 +84,13 @@ export class AudioVisualizationComponent {
 
   x2time(x: number) { return x / this.viewportSize().inlineSize * this.timeRange() + this.timeMin() }
   private time2x(t: number) { return (t - this.timeMin()) / this.timeRange() * this.viewportSize().inlineSize }
+
+  viewport() {
+    return new GenSpecTile(
+      { timeMin: this.timeMin(), timeMax: this.timeMax(), pitchMin: this.pitchMin(), pitchMax: this.pitchMax(), },
+      { width: this.viewportSize().inlineSize, height: this.viewportSize().blockSize, },
+    )
+  }
 
   onWaveformWheel(event: WheelEvent) {
     event.preventDefault()

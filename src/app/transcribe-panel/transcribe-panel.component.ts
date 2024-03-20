@@ -60,6 +60,7 @@ export class TranscribePanelComponent {
   }
 
   drop(event: CdkDragDrop<any>) {
+    // TODO: don't "physically" move parts, just change order in UI
     if (event.currentIndex !== event.previousIndex) {
       this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => {
         const ret = [...parts];

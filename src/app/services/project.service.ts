@@ -8,6 +8,7 @@ import { Observable, Subject } from 'rxjs';
 import { AudioSamples } from '../common';
 import { Meter, Project } from '../ui-common';
 import { signalDefined, signalFiltered } from '../utils/ho-signals';
+import { PairsSet } from '../utils/pairs-set';
 
 @Injectable({
   providedIn: 'root'
@@ -32,28 +33,37 @@ export class ProjectService {
   }
 }
 
+type ModifyOpts = {
+  fusionTag?: string;
+  preserveSelection?: boolean;
+};
+
 export interface FilteredProjectHolder<T> {
   project: Signal<Project & T>;
-  modify(op: (a: Project & T) => Project, fusionTag?: string): void;
+  modify(op: (a: Project & T) => Project, opts?: ModifyOpts): void;
 }
 
-export class ProjectHolder implements FilteredProjectHolder<unknown> {
-  #history: NonEmptyArray<Project>;
-  #current: number = 0;
-  get #projectInternal(): Project { return this.#history[this.#current] }
-  #project: WritableSignal<Project>;
-  project: Signal<Project>;
+export type NoteSelection = PairsSet<number, number>;
 
-  #lastSaved = signal<Project | undefined>(undefined);
-  isUnsaved = computed(() => !Object.is(this.#project(), this.#lastSaved()));
+export class ProjectHolder implements FilteredProjectHolder<unknown> {
+  #history: NonEmptyArray<[Project, boolean]>;
+  #current: number = 0;
+  get #projectInternal(): Project { return this.#history[this.#current][0] }
+  readonly #project: WritableSignal<Project>;
+  readonly project: Signal<Project>;
+
+  readonly #lastSaved = signal<Project | undefined>(undefined);
+  readonly isUnsaved = computed(() => !Object.is(this.#project(), this.#lastSaved()));
 
   #prevModFusionTag?: string;
   #prevModTime?: number;
 
-  withMeter: Signal<FilteredProjectHolder<WithMeter> | undefined>;
+  readonly currentSelection: NoteSelection = PairsSet.empty();
+
+  readonly withMeter: Signal<FilteredProjectHolder<WithMeter> | undefined>;
 
   constructor(prj: Project) {
-    this.#history = [prj];
+    this.#history = [[prj, false]];
     this.#project = signal(this.#projectInternal);
     this.project = this.#project.asReadonly();
     this.withMeter = this.filterProject<WithMeter>((a): a is Project & WithMeter => a.meter !== undefined);
@@ -64,41 +74,55 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   }
 
   /** if the previous modification had the same fusion tag, a new undo state may not be created */
-  modify(op: (a: Project) => Project, fusionTag?: string) {
+  modify(op: (a: Project) => Project, opts?: ModifyOpts) {
     const next = op(this.#projectInternal);
     const modTime = performance.now();
+    const preserveSelection = !!opts?.preserveSelection;
     if (
       this.#prevModFusionTag !== undefined
-      && this.#prevModFusionTag === fusionTag // implies `fusionTag !== undefined`
+      && this.#prevModFusionTag === opts?.fusionTag // implies `fusionTag !== undefined`
       && this.#prevModTime !== undefined
       && modTime - this.#prevModTime <= MAX_FUSION_TIMEOUT
+      && this.#current === this.#history.length - 1
     ) {
-      this.#history[this.#current] = next;
+      const lastPS = this.#history[this.#current][1]
+      this.#history[this.#current] = [next, preserveSelection && lastPS];
     } else {
       this.#current++;
       this.#history.splice(this.#current);
-      this.#history.push(next);
+      this.#history.push([next, preserveSelection]);
     }
     // always reset timestamp to allow "chaining" changes
-    this.#prevModFusionTag = fusionTag;
+    this.#prevModFusionTag = opts?.fusionTag;
     this.#prevModTime = modTime;
     this.#project.set(this.#projectInternal);
+    if (!preserveSelection) {
+      this.currentSelection?.clear();
+    }
   }
 
   canUndo() { return this.#current > 0 }
 
   undo() {
     if (!this.canUndo()) return;
+    this.#prevModFusionTag = undefined;
     this.#current--;
     this.#project.set(this.#projectInternal);
+    if (!this.#history[this.#current + 1][1]) {
+      this.currentSelection?.clear();
+    }
   }
 
   canRedo() { return this.#current < this.#history.length - 1 }
 
   redo() {
     if (!this.canRedo()) return;
+    this.#prevModFusionTag = undefined;
     this.#current++;
     this.#project.set(this.#projectInternal);
+    if (!this.#history[this.#current][1]) {
+      this.currentSelection?.clear();
+    }
   }
 
   markSaved() {
@@ -108,7 +132,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   filterProject<T>(filter: (a: Project) => a is Project & T): Signal<FilteredProjectHolder<T> | undefined> {
     return signalFiltered(this.#project, filter, (project) => ({
       project,
-      modify: (op, fusionTag) => {
+      modify: (op, opts) => {
         try {
           this.modify((p) => {
             if (!filter(p)) {
@@ -117,7 +141,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
               throw filterProjectNoopThrowable;
             }
             return op(p);
-          }, fusionTag);
+          }, opts);
         } catch (e) {
           if (e !== filterProjectNoopThrowable) throw e;
         }

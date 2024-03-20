@@ -1,14 +1,15 @@
-import { Component, HostListener, Input, Signal, computed, signal } from '@angular/core';
+import { Component, ElementRef, HostListener, Input, Signal, ViewChild, computed, effect, signal } from '@angular/core';
 import { toObservable } from '@angular/core/rxjs-interop';
 import { identity } from 'fp-ts/function';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
-import { GenSpecTile, SpecTileWindow } from '../common';
+import { GenSpecTile, SpecTileWindow, SpecTileWindowExt } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
-import { ProjectHolder, ProjectService } from '../services/project.service';
-import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, Project, ProjectLens, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { NoteSelection, ProjectHolder, ProjectService } from '../services/project.service';
+import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, Part, PartLens, Project, ProjectLens, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
+import { Viewport } from '../ui-common';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -17,412 +18,576 @@ import { PairsSet } from '../utils/pairs-set';
   // changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PianoRollEditorComponent {
+  readonly #activePartIdx$ = new rxjs.BehaviorSubject<number | undefined>(undefined);
+  @Input() set activePartIdx(v: number | undefined) { this.#activePartIdx$.next(v) };
+  get activePartIdx() { return this.#activePartIdx$.value }
+
+  readonly #editorState = signal<[EditorState, Omit<RenderParams, 'viewport'>] | undefined>(undefined);
+  readonly #dragState = signal<[number, number] | undefined>(undefined);
+
   constructor(
     readonly project: ProjectService,
     readonly viewport: AudioVisualizationComponent,
     private readonly keyboardState: KeyboardStateService,
-  ) { }
+    hostElem: ElementRef<HTMLElement>,
+  ) {
 
-  readonly mouseX = computed(() => { const x = this.viewport.visMouseX(); return x !== undefined ? x + this.viewport.viewportOffsetX() : undefined });
-  readonly mouseY = computed(() => { const y = this.viewport.visMouseY(); return y !== undefined ? y + this.viewport.viewportOffsetY() : undefined });
+    const canvasSize = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
+    const dragging = computed(() => this.#dragState() !== undefined);
+    rxjs.combineLatest({
+      activePartIdx: this.#activePartIdx$.pipe(rxjs.distinctUntilChanged()),
+      projectHolder: toObservable(project.currentProjectRaw),
+    }).subscribe(({ activePartIdx, projectHolder }) => {
+      if (projectHolder === undefined) return;
+      this.#editorState.set([
+        activePartIdx === undefined ? new Selection(projectHolder.currentSelection) : new Notation(activePartIdx),
+        {
+          project: projectHolder.project,
+          dragging,
+          mousePos: this.#mousePos,
+        }
+      ]);
+    });
+
+    effect(() => {
+      const editorState_ = this.#editorState();
+      if (editorState_ === undefined) return;
+      const [editorState, renderParams] = editorState_;
+      const canvas = this.canvas.nativeElement;
+      canvas.width = canvasSize().inlineSize;
+      canvas.height = canvasSize().blockSize;
+      editorState.render(canvas.getContext('2d')!, { ...renderParams, viewport: viewport.viewport() });
+    });
+  }
+
+  @ViewChild('canvas') canvas!: ElementRef<HTMLCanvasElement>;
+
+  // readonly mouseX = computed(() => { const x = this.viewport.visMouseX(); return x !== undefined ? x + this.viewport.viewportOffsetX() : undefined });
+  // readonly mouseY = computed(() => { const y = this.viewport.visMouseY(); return y !== undefined ? y + this.viewport.viewportOffsetY() : undefined });
 
   readonly #mousePos = computed(() => {
-    const x = this.mouseX();
-    const y = this.mouseY();
+    const x = this.viewport.visMouseX();
+    const y = this.viewport.visMouseY();
     return x !== undefined && y !== undefined ? [x, y] as const : undefined;
   });
 
-  readonly #activePartIdx$ = signal<number | undefined>(undefined);
-  @Input() set activePartIdx(v: number | undefined) { this.#activePartIdx$.set(v) };
-  get activePartIdx() { return this.#activePartIdx$(); }
-
-  private tile = computed(() => new GenSpecTile(
-    { timeMin: 0, timeMax: this.viewport.audioDuration(), pitchMin: 0, pitchMax: PITCH_MAX },
-    { width: this.viewport.canvasWidth(), height: this.viewport.canvasHeight() },
-  ));
-
-  readonly projectParts: Signal<ReadonlyArray<Part> | undefined> = computed(() => this.project.currentProjectRaw()?.project().parts);
-  readonly activePart: Signal<Part | undefined> = computed(() => this.activePartIdx !== undefined ? this.projectParts()?.[this.activePartIdx] : undefined)
-  readonly activePartColor = computed(() => this.activePart()?.color)
-  get hideSelectedNotes() { return this.resizeNoteState !== undefined || this.draggedNotes !== undefined; }
-
-  hoveredNote(): Note | undefined {
-    const meter = this.project.currentProjectRaw()?.project().meter;
-    if (!meter || this.mouseX() === undefined || this.mouseY() === undefined) return;
-
-    const subdiv = Math.floor(meter.subdivision * time2beat(meter, this.tile().x2time(this.mouseX()!)));
-    if (subdiv < 0) return;
-    const pitch = Math.round(this.tile().y2pitch(this.mouseY()!));
-    return {
-      pitch,
-      start: subdiv * PULSES_PER_BEAT / meter.subdivision,
-      length: PULSES_PER_BEAT / meter.subdivision,
-      notation: undefined,
-    };
+  #nextMouseUp() {
+    return rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup').pipe(rxjs.filter(ev => (ev as MouseEvent).button === 0)));
   }
 
-  get notePreviewStyle() {
-    if (this.activePartIdx === undefined) return;
-    const hoveredNote = this.hoveredNote();
-    if (!hoveredNote) return;
-    return this.noteStyle(hoveredNote);
-  }
-
-  private note2rect(note: Note): Rect | undefined {
-    const meter = this.project.currentProjectRaw()?.project().meter;
-    if (!this.tile || !meter) return;
-
-    const x = Math.round(this.tile().time2x(pulse2time(meter, note.start)));
-    const y = Math.round(this.tile().pitch2y(note.pitch + .5));
-    return {
-      x,
-      y,
-      width: Math.round(this.tile().time2x(pulse2time(meter, (note.start + note.length)))) - x,
-      height: Math.round(this.tile().pitch2y(note.pitch - 0.5)) - y,
-    };
-  }
-
-  noteStyle(note: Note) {
-    const r = this.note2rect(note);
-    return r ? rect2style(r) + (r.width < 8 ? `border-inline-width: ${r.width / 2}px` : '') : undefined;
-  }
-
-  @HostListener('mousedown', ['$event'])
-  onMouseDown(event: MouseEvent) {
+  async onMouseDown(event: MouseEvent) {
     if (event.button !== 0) return;
-    if (this.activePartIdx !== undefined) {
-      this.startAddNote(event);
-    } else {
-      this.startSelection(event);
-    }
+    this.#dragState.set([0, 0]);
+    await this.#nextMouseUp();
+    this.#dragState.set(undefined);
   }
 
-  private clickStartNote?: Note;
+  // private tile = computed(() => new GenSpecTile(
+  //   { timeMin: 0, timeMax: this.viewport.audioDuration(), pitchMin: 0, pitchMax: PITCH_MAX },
+  //   { width: this.viewport.canvasWidth(), height: this.viewport.canvasHeight() },
+  // ));
 
-  async startAddNote(event: MouseEvent) {
-    const activePartIdx = this.activePartIdx;
-    if (activePartIdx === undefined) return;
-    const hoveredNoteStart = this.hoveredNote();
-    if (!hoveredNoteStart) return;
+  // readonly projectParts: Signal<ReadonlyArray<Part> | undefined> = computed(() => this.project.currentProjectRaw()?.project().parts);
+  // readonly activePart: Signal<Part | undefined> = computed(() => this.activePartIdx !== undefined ? this.projectParts()?.[this.activePartIdx] : undefined)
+  // readonly activePartColor = computed(() => this.activePart()?.color)
+  // get hideSelectedNotes() { return this.resizeNoteState !== undefined || this.draggedNotes !== undefined; }
 
-    event.preventDefault();
+  // hoveredNote(): Note | undefined {
+  //   const meter = this.project.currentProjectRaw()?.project().meter;
+  //   if (!meter || this.mouseX() === undefined || this.mouseY() === undefined) return;
 
-    this.clickStartNote = hoveredNoteStart;
-    try {
-      await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-      const hoveredNoteEnd = this.hoveredNote();
-      if (!hoveredNoteEnd) return;
-      const clickedNote = clickDragNote(hoveredNoteStart, hoveredNoteEnd);
-      if (!clickedNote) return;
-      this.project.currentProjectRaw()?.modify(
-        ProjectLens(['parts']).compose(indexReadonlyArray(activePartIdx)).compose(PartLens('notes')).modify(
-          notes => [...notes, clickedNote]
-        )
-      )
-    } finally {
-      this.clickStartNote = undefined;
-    }
-  }
+  //   const subdiv = Math.floor(meter.subdivision * time2beat(meter, this.tile().x2time(this.mouseX()!)));
+  //   if (subdiv < 0) return;
+  //   const pitch = Math.round(this.tile().y2pitch(this.mouseY()!));
+  //   return {
+  //     pitch,
+  //     start: subdiv * PULSES_PER_BEAT / meter.subdivision,
+  //     length: PULSES_PER_BEAT / meter.subdivision,
+  //     notation: undefined,
+  //   };
+  // }
 
-  get activeNoteStyle() {
-    if (!this.clickStartNote) return;
-    const hoveredNote = this.hoveredNote();
-    if (!hoveredNote) return;
-    const activeNote = clickDragNote(this.clickStartNote, hoveredNote);
-    return activeNote ? this.noteStyle(activeNote) : undefined;
-  }
+  // get notePreviewStyle() {
+  //   if (this.activePartIdx === undefined) return;
+  //   const hoveredNote = this.hoveredNote();
+  //   if (!hoveredNote) return;
+  //   return this.noteStyle(hoveredNote);
+  // }
 
-  selection: PairsSet<number, number> = PairsSet.empty();
-  get singleSelection() { return this.selection.asSingleton }
+  // private note2rect(note: Note): Rect | undefined {
+  //   const meter = this.project.currentProjectRaw()?.project().meter;
+  //   if (!this.tile || !meter) return;
 
-  showResizeHandles = true;
+  //   const x = Math.round(this.tile().time2x(pulse2time(meter, note.start)));
+  //   const y = Math.round(this.tile().pitch2y(note.pitch + .5));
+  //   return {
+  //     x,
+  //     y,
+  //     width: Math.round(this.tile().time2x(pulse2time(meter, (note.start + note.length)))) - x,
+  //     height: Math.round(this.tile().pitch2y(note.pitch - 0.5)) - y,
+  //   };
+  // }
 
-  private selectionStart?: readonly [number, number];
+  // noteStyle(note: Note) {
+  //   const r = this.note2rect(note);
+  //   return r ? rect2style(r) + (r.width < 8 ? `border-inline-width: ${r.width / 2}px` : '') : undefined;
+  // }
 
-  readonly #mousePos$ = toObservable(this.#mousePos);
+  // @HostListener('mousedown', ['$event'])
+  // onMouseDown(event: MouseEvent) {
+  //   if (event.button !== 0) return;
+  //   if (this.activePartIdx !== undefined) {
+  //     this.startAddNote(event);
+  //   } else {
+  //     this.startSelection(event);
+  //   }
+  // }
 
-  async startSelection(event: MouseEvent) {
-    if (this.activePartIdx !== undefined || this.mouseX() === undefined || this.mouseY() === undefined) return;
-    const project = this.project.currentProjectRaw()?.project();
-    if (project === undefined || project.meter === undefined) return;
-    const projectMeter = project.meter;
+  // private clickStartNote?: Note;
 
-    event.preventDefault();
+  // async startAddNote(event: MouseEvent) {
+  //   const activePartIdx = this.activePartIdx;
+  //   if (activePartIdx === undefined) return;
+  //   const hoveredNoteStart = this.hoveredNote();
+  //   if (!hoveredNoteStart) return;
 
-    const mode =
-      event.ctrlKey ? { t: 'xor', p: this.selection } as const
-        : event.shiftKey ? { t: 'or', p: this.selection } as const
-          : { t: 'new' } as const;
+  //   event.preventDefault();
 
-    this.showResizeHandles = false;
-    const selStart = [this.mouseX()!, this.mouseY()!] as const;
-    this.selectionStart = selStart;
-    const onMoveSub = this.#mousePos$.pipe(rxjs.map(mousePos => {
-      if (!mousePos) return;
-      const time0 = time2pulse(projectMeter, this.tile().x2time(selStart[0]));
-      const time1 = time2pulse(projectMeter, this.tile().x2time(mousePos[0]));
-      const pitch0 = this.tile().y2pitch(selStart[1]);
-      const pitch1 = this.tile().y2pitch(mousePos[1]);
-      const selRect = {
-        timeMin: Math.min(time0, time1),
-        timeMax: Math.max(time0, time1),
-        pitchMin: Math.min(pitch0, pitch1) - .5,
-        pitchMax: Math.max(pitch0, pitch1) + .5,
-      }
-      return PairsSet.fromIterable<number, number>(function* () {
-        for (const [partIdx, part] of project.parts.entries()) {
-          yield [partIdx, function* () {
-            for (const [noteIdx, note] of part.notes.entries()) {
-              if (isNoteInRect(selRect, note)) yield noteIdx;
-            }
-          }()];
-        }
-      }());
-    })).subscribe(curSel => {
-      if (!curSel || curSel.isEmpty) {
-        this.selection = mode.p ?? PairsSet.empty();
-        return;
-      }
-      switch (mode.t) {
-        case 'xor': curSel.xorWith(mode.p); break;
-        case 'or': curSel.unionWith(mode.p); break;
-      }
-      this.selection = curSel;
-    });
-    try {
-      await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-    } finally {
-      onMoveSub.unsubscribe();
-      this.selectionStart = undefined;
-      this.showResizeHandles = true;
-    }
-  }
+  //   this.clickStartNote = hoveredNoteStart;
+  //   try {
+  //     await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+  //     const hoveredNoteEnd = this.hoveredNote();
+  //     if (!hoveredNoteEnd) return;
+  //     const clickedNote = clickDragNote(hoveredNoteStart, hoveredNoteEnd);
+  //     if (!clickedNote) return;
+  //     this.project.currentProjectRaw()?.modify(
+  //       ProjectLens(['parts']).compose(indexReadonlyArray(activePartIdx)).compose(PartLens('notes')).modify(
+  //         notes => [...notes, clickedNote]
+  //       )
+  //     )
+  //   } finally {
+  //     this.clickStartNote = undefined;
+  //   }
+  // }
 
-  get selectionStartRectStyle() {
-    if (this.selectionStart === undefined || this.mouseX() === undefined || this.mouseY() === undefined) return;
-    const x = Math.min(this.mouseX()!, this.selectionStart[0]);
-    const xMax = Math.max(this.mouseX()!, this.selectionStart[0]);
-    const y = Math.min(this.mouseY()!, this.selectionStart[1]);
-    const yMax = Math.max(this.mouseY()!, this.selectionStart[1]);
-    return rect2style({ x, y, width: xMax - x, height: yMax - y });
-  }
+  // get activeNoteStyle() {
+  //   if (!this.clickStartNote) return;
+  //   const hoveredNote = this.hoveredNote();
+  //   if (!hoveredNote) return;
+  //   const activeNote = clickDragNote(this.clickStartNote, hoveredNote);
+  //   return activeNote ? this.noteStyle(activeNote) : undefined;
+  // }
 
-  get selectionResizeIndicatorStyle() {
-    const project = this.project.currentProjectRaw()?.project();
-    if (!project || this.draggedNotes !== undefined) return;
-    let note = this.resizeNote;
-    if (this.singleSelection && !note) {
-      const [partIdx, noteIdx] = this.singleSelection;
-      note = project.parts[partIdx].notes[noteIdx];
-    }
-    const noteRect = note && this.note2rect(note);
-    return noteRect && rect2style(noteRect);
-  }
+  // selection: NoteSelection = PairsSet.empty();
+  // get singleSelection() { return this.selection.asSingleton }
 
-  resizeNoteState?: [number, number, 0 | 1];
+  // showResizeHandles = true;
 
-  async startNoteResize(which: 0 | 1, event: MouseEvent) {
-    if (!this.singleSelection || event.button !== 0) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const [partIdx, noteIdx] = this.singleSelection;
-    this.resizeNoteState = [partIdx, noteIdx, which];
-    try {
-      await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-      const projectHolder = this.project.currentProjectRaw();
-      if (projectHolder === undefined) return;
-      const project = projectHolder.project();
-      if (this.mouseX() === undefined || !project || !project.meter) return;
-      const origNote = project.parts[partIdx].notes[noteIdx];
-      const newNote = doResizeNote(
-        project.meter,
-        origNote,
-        which,
-        this.tile().x2time(this.mouseX()!),
-      );
-      // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
-      if (lodash.isEqual(origNote, newNote)) return;
-      projectHolder.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
-    } finally {
-      this.resizeNoteState = undefined;
-    }
-  }
+  // private selectionStart?: readonly [number, number];
 
-  get resizeNote() {
-    const project = this.project.currentProjectRaw()?.project();
-    if (!this.resizeNoteState || !project || !project.meter) return;
-    const origNote = project.parts[this.resizeNoteState[0]].notes[this.resizeNoteState[1]];
-    return !this.mouseX() ? origNote : doResizeNote(
-      project.meter,
-      origNote,
-      this.resizeNoteState[2],
-      this.tile().x2time(this.mouseX()!),
-    );
-  }
+  // readonly #mousePos$ = toObservable(this.#mousePos);
 
-  get resizeNoteStyle() {
-    const n = this.resizeNote;
-    return n && this.noteStyle(n);
-  }
+  // async startSelection(event: MouseEvent) {
+  //   if (this.activePartIdx !== undefined || this.mouseX() === undefined || this.mouseY() === undefined) return;
+  //   const project = this.project.currentProjectRaw()?.project();
+  //   if (project === undefined || project.meter === undefined) return;
+  //   const projectMeter = project.meter;
 
-  draggedNotes?: ReadonlyArray<readonly [number, Note]>;
+  //   event.preventDefault();
 
-  private readonly keyboardShiftKey = toObservable(this.keyboardState.shiftKey);
+  //   const mode =
+  //     event.ctrlKey ? { t: 'xor', p: this.selection } as const
+  //       : event.shiftKey ? { t: 'or', p: this.selection } as const
+  //         : { t: 'new' } as const;
 
-  async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
-    const project = this.project.currentProjectRaw()?.project();
-    if (!project || !project.meter || event.button !== 0 || this.mouseX() === undefined || this.mouseY() === undefined) return;
-    event.preventDefault();
-    event.stopPropagation();
+  //   this.showResizeHandles = false;
+  //   const selStart = [this.mouseX()!, this.mouseY()!] as const;
+  //   this.selectionStart = selStart;
+  //   const onMoveSub = this.#mousePos$.pipe(rxjs.map(mousePos => {
+  //     if (!mousePos) return;
+  //     const time0 = time2pulse(projectMeter, this.tile().x2time(selStart[0]));
+  //     const time1 = time2pulse(projectMeter, this.tile().x2time(mousePos[0]));
+  //     const pitch0 = this.tile().y2pitch(selStart[1]);
+  //     const pitch1 = this.tile().y2pitch(mousePos[1]);
+  //     const selRect = {
+  //       timeMin: Math.min(time0, time1),
+  //       timeMax: Math.max(time0, time1),
+  //       pitchMin: Math.min(pitch0, pitch1) - .5,
+  //       pitchMax: Math.max(pitch0, pitch1) + .5,
+  //     }
+  //     return PairsSet.fromIterable<number, number>(function* () {
+  //       for (const [partIdx, part] of project.parts.entries()) {
+  //         yield [partIdx, function* () {
+  //           for (const [noteIdx, note] of part.notes.entries()) {
+  //             if (isNoteInRect(selRect, note)) yield noteIdx;
+  //           }
+  //         }()];
+  //       }
+  //     }());
+  //   })).subscribe(curSel => {
+  //     if (!curSel || curSel.isEmpty) {
+  //       this.selection = mode.p ?? PairsSet.empty();
+  //       return;
+  //     }
+  //     switch (mode.t) {
+  //       case 'xor': curSel.xorWith(mode.p); break;
+  //       case 'or': curSel.unionWith(mode.p); break;
+  //     }
+  //     this.selection = curSel;
+  //   });
+  //   try {
+  //     await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+  //   } finally {
+  //     onMoveSub.unsubscribe();
+  //     this.selectionStart = undefined;
+  //     this.showResizeHandles = true;
+  //   }
+  // }
 
-    const dragStartX = this.mouseX()!;
-    const dragStartY = this.mouseY()!;
+  // get selectionStartRectStyle() {
+  //   if (this.selectionStart === undefined || this.mouseX() === undefined || this.mouseY() === undefined) return;
+  //   const x = Math.min(this.mouseX()!, this.selectionStart[0]);
+  //   const xMax = Math.max(this.mouseX()!, this.selectionStart[0]);
+  //   const y = Math.min(this.mouseY()!, this.selectionStart[1]);
+  //   const yMax = Math.max(this.mouseY()!, this.selectionStart[1]);
+  //   return rect2style({ x, y, width: xMax - x, height: yMax - y });
+  // }
 
-    const nextMouseMove = rxjs.firstValueFrom(this.#mousePos$.pipe(rxjs.filter(v => !v || v[0] !== dragStartX || v[1] !== dragStartY)));
-    const nextMouseUp = rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-    if (await Promise.race([nextMouseUp.then(() => true), nextMouseMove.then(() => false)])) {
-      // single click: just (select/toggle selection of) the note
-      if (event.ctrlKey) {
-        this.selection.toggle([partIdx, noteIdx]);
-      } else if (event.shiftKey) {
-        this.selection.add([partIdx, noteIdx]);
-      } else {
-        this.selection = PairsSet.singleton([partIdx, noteIdx]);
-      }
-      return;
-    }
+  // get selectionResizeIndicatorStyle() {
+  //   const project = this.project.currentProjectRaw()?.project();
+  //   if (!project || this.draggedNotes !== undefined) return;
+  //   let note = this.resizeNote;
+  //   if (this.singleSelection && !note) {
+  //     const [partIdx, noteIdx] = this.singleSelection;
+  //     note = project.parts[partIdx].notes[noteIdx];
+  //   }
+  //   const noteRect = note && this.note2rect(note);
+  //   return noteRect && rect2style(noteRect);
+  // }
 
-    const thisMoveNote = moveNote(project.meter, this.tile().x2time(dragStartX), this.tile().y2pitch(dragStartY))
+  // resizeNoteState?: [number, number, 0 | 1];
 
-    const onInputSub = rxjs.combineLatest({ pos: this.#mousePos$, shiftKey: this.keyboardShiftKey })
-      .pipe(rxjs.map(({ pos, shiftKey }) => {
-        if (!pos) return;
-        const thisMoveNote2 = thisMoveNote(this.tile(), pos[0], pos[1], shiftKey);
-        return Array.from(this.selection, ([partIdx, noteIdx]) =>
-          [partIdx, thisMoveNote2(project.parts[partIdx].notes[noteIdx])] as const
-        );
-      }))
-      .subscribe(x => this.draggedNotes = x);
-    try {
-      await nextMouseUp;
-      if (this.mouseX() === undefined || this.mouseY() === undefined) return;
-      const thisMoveNote2 = thisMoveNote(this.tile(), this.mouseX()!, this.mouseY()!, this.keyboardState.shiftKey());
-      // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
-      if (thisMoveNote2 === identity) return;
-      this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
-        const selPart = this.selection.withFirst(partIdx);
-        return !selPart ? part : {
-          ...part,
-          notes: part.notes.map((note, noteIdx) => !selPart.has(noteIdx) ? note : thisMoveNote2(note))
-        };
-      })));
-    } finally {
-      this.draggedNotes = undefined;
-      onInputSub.unsubscribe();
-    }
-  }
+  // async startNoteResize(which: 0 | 1, event: MouseEvent) {
+  //   if (!this.singleSelection || event.button !== 0) return;
+  //   event.preventDefault();
+  //   event.stopPropagation();
+  //   const [partIdx, noteIdx] = this.singleSelection;
+  //   this.resizeNoteState = [partIdx, noteIdx, which];
+  //   try {
+  //     await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+  //     const projectHolder = this.project.currentProjectRaw();
+  //     if (projectHolder === undefined) return;
+  //     const project = projectHolder.project();
+  //     if (this.mouseX() === undefined || !project || !project.meter) return;
+  //     const origNote = project.parts[partIdx].notes[noteIdx];
+  //     const newNote = doResizeNote(
+  //       project.meter,
+  //       origNote,
+  //       which,
+  //       this.tile().x2time(this.mouseX()!),
+  //     );
+  //     // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
+  //     if (lodash.isEqual(origNote, newNote)) return;
+  //     projectHolder.modify(ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).set(newNote));
+  //   } finally {
+  //     this.resizeNoteState = undefined;
+  //   }
+  // }
 
-  trackIdx(idx: number, _item: unknown) { return idx }
+  // get resizeNote() {
+  //   const project = this.project.currentProjectRaw()?.project();
+  //   if (!this.resizeNoteState || !project || !project.meter) return;
+  //   const origNote = project.parts[this.resizeNoteState[0]].notes[this.resizeNoteState[1]];
+  //   return !this.mouseX() ? origNote : doResizeNote(
+  //     project.meter,
+  //     origNote,
+  //     this.resizeNoteState[2],
+  //     this.tile().x2time(this.mouseX()!),
+  //   );
+  // }
+
+  // get resizeNoteStyle() {
+  //   const n = this.resizeNote;
+  //   return n && this.noteStyle(n);
+  // }
+
+  // draggedNotes?: ReadonlyArray<readonly [number, Note]>;
+
+  // private readonly keyboardShiftKey = toObservable(this.keyboardState.shiftKey);
+
+  // async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
+  //   const project = this.project.currentProjectRaw()?.project();
+  //   if (!project || !project.meter || event.button !== 0 || this.mouseX() === undefined || this.mouseY() === undefined) return;
+  //   event.preventDefault();
+  //   event.stopPropagation();
+
+  //   const dragStartX = this.mouseX()!;
+  //   const dragStartY = this.mouseY()!;
+
+  //   const nextMouseMove = rxjs.firstValueFrom(this.#mousePos$.pipe(rxjs.filter(v => !v || v[0] !== dragStartX || v[1] !== dragStartY)));
+  //   const nextMouseUp = rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
+  //   if (await Promise.race([nextMouseUp.then(() => true), nextMouseMove.then(() => false)])) {
+  //     // single click: just (select/toggle selection of) the note
+  //     if (event.ctrlKey) {
+  //       this.selection.toggle([partIdx, noteIdx]);
+  //     } else if (event.shiftKey) {
+  //       this.selection.add([partIdx, noteIdx]);
+  //     } else {
+  //       this.selection = PairsSet.singleton([partIdx, noteIdx]);
+  //     }
+  //     return;
+  //   }
+
+  //   const thisMoveNote = moveNote(project.meter, this.tile().x2time(dragStartX), this.tile().y2pitch(dragStartY))
+
+  //   const onInputSub = rxjs.combineLatest({ pos: this.#mousePos$, shiftKey: this.keyboardShiftKey })
+  //     .pipe(rxjs.map(({ pos, shiftKey }) => {
+  //       if (!pos) return;
+  //       const thisMoveNote2 = thisMoveNote(this.tile(), pos[0], pos[1], shiftKey);
+  //       return Array.from(this.selection, ([partIdx, noteIdx]) =>
+  //         [partIdx, thisMoveNote2(project.parts[partIdx].notes[noteIdx])] as const
+  //       );
+  //     }))
+  //     .subscribe(x => this.draggedNotes = x);
+  //   try {
+  //     await nextMouseUp;
+  //     if (this.mouseX() === undefined || this.mouseY() === undefined) return;
+  //     const thisMoveNote2 = thisMoveNote(this.tile(), this.mouseX()!, this.mouseY()!, this.keyboardState.shiftKey());
+  //     // TODO: this may be confusing? maybe don't make undo state only if the drag was always a no-op
+  //     if (thisMoveNote2 === identity) return;
+  //     this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => Array.from(parts, (part, partIdx) => {
+  //       const selPart = this.selection.withFirst(partIdx);
+  //       return !selPart ? part : {
+  //         ...part,
+  //         notes: part.notes.map((note, noteIdx) => !selPart.has(noteIdx) ? note : thisMoveNote2(note))
+  //       };
+  //     })));
+  //   } finally {
+  //     this.draggedNotes = undefined;
+  //     onInputSub.unsubscribe();
+  //   }
+  // }
+
+  // trackIdx(idx: number, _item: unknown) { return idx }
 }
 
-const clickDragNote = (start: Note, end: Note): Note | undefined => {
-  const length = end.start + end.length - start.start;
-  return length > 0 ? { ...start, length, pitch: end.pitch } : undefined;
-};
+// const clickDragNote = (start: Note, end: Note): Note | undefined => {
+//   const length = end.start + end.length - start.start;
+//   return length > 0 ? { ...start, length, pitch: end.pitch } : undefined;
+// };
 
-const doResizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): Note => {
-  const ppsd = PULSES_PER_BEAT / meter.subdivision;
+// const doResizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): Note => {
+//   const ppsd = PULSES_PER_BEAT / meter.subdivision;
 
-  const mousePulseRaw = time2pulse(meter, time);
-  const mousePulse = Math.round(mousePulseRaw / ppsd) * ppsd;
-  const newNoteT1 = origNote.start + (1 - which) * origNote.length;
-  const newNoteT2 = mousePulse !== newNoteT1 ? mousePulse
-    : mousePulse + ppsd * (mousePulseRaw >= newNoteT1 ? +1 : -1);
+//   const mousePulseRaw = time2pulse(meter, time);
+//   const mousePulse = Math.round(mousePulseRaw / ppsd) * ppsd;
+//   const newNoteT1 = origNote.start + (1 - which) * origNote.length;
+//   const newNoteT2 = mousePulse !== newNoteT1 ? mousePulse
+//     : mousePulse + ppsd * (mousePulseRaw >= newNoteT1 ? +1 : -1);
 
-  return newNoteT2 >= newNoteT1
-    ? { ...origNote, start: newNoteT1, length: newNoteT2 - newNoteT1 }
-    : { ...origNote, start: newNoteT2, length: newNoteT1 - newNoteT2 };
-}
+//   return newNoteT2 >= newNoteT1
+//     ? { ...origNote, start: newNoteT1, length: newNoteT2 - newNoteT1 }
+//     : { ...origNote, start: newNoteT2, length: newNoteT1 - newNoteT2 };
+// }
 
-const moveNote = (meter: Meter, startTime: number, startPitch: number) => {
-  const ppsd = PULSES_PER_BEAT / meter.subdivision;
-  const startPulse = time2pulse(meter, startTime);
-  return (tile: GenSpecTile<{ width: number, height: number }>, endX: number, endY: number, lockAxis: boolean) => {
-    const deltaPulse0 = Math.round((time2pulse(meter, tile.x2time(endX)) - startPulse) / ppsd) * ppsd;
-    const deltaPitch0 = Math.round(tile.y2pitch(endY) - startPitch);
-    const [deltaPulse, deltaPitch] =
-      !lockAxis
-        ? [deltaPulse0, deltaPitch0]
-        : (Math.abs(endX - tile.time2x(startTime)) > Math.abs(endY - tile.pitch2y(startPitch))
-          ? [deltaPulse0, 0]
-          : [0, deltaPitch0]);
-    return deltaPulse === 0 && deltaPitch === 0 ? identity : (note: Note): Note => ({
-      ...note,
-      start: note.start + deltaPulse,
-      pitch: note.pitch + deltaPitch,
-    });
-  };
-}
+// const moveNote = (meter: Meter, startTime: number, startPitch: number) => {
+//   const ppsd = PULSES_PER_BEAT / meter.subdivision;
+//   const startPulse = time2pulse(meter, startTime);
+//   return (tile: GenSpecTile<{ width: number, height: number }>, endX: number, endY: number, lockAxis: boolean) => {
+//     const deltaPulse0 = Math.round((time2pulse(meter, tile.x2time(endX)) - startPulse) / ppsd) * ppsd;
+//     const deltaPitch0 = Math.round(tile.y2pitch(endY) - startPitch);
+//     const [deltaPulse, deltaPitch] =
+//       !lockAxis
+//         ? [deltaPulse0, deltaPitch0]
+//         : (Math.abs(endX - tile.time2x(startTime)) > Math.abs(endY - tile.pitch2y(startPitch))
+//           ? [deltaPulse0, 0]
+//           : [0, deltaPitch0]);
+//     return deltaPulse === 0 && deltaPitch === 0 ? identity : (note: Note): Note => ({
+//       ...note,
+//       start: note.start + deltaPulse,
+//       pitch: note.pitch + deltaPitch,
+//     });
+//   };
+// }
 
 type Rect = { x: number; y: number; width: number; height: number; };
-const rect2style = ({ x, y, width, height }: Rect) =>
-  `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`;
+// const rect2style = ({ x, y, width, height }: Rect) =>
+//   `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`;
 
-const isNoteInRect = (rect: SpecTileWindow, note: Note) =>
-  (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
-  && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
+// const isNoteInRect = (rect: SpecTileWindow, note: Note) =>
+//   (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
+//   && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
 
-type DragHandler = (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => ((a: Project) => Project) | undefined;
+type DragHandler = (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => Project | undefined;
 type CssCursorValue = "auto" | "pointer" | "move" | "ew-resize";
 
+type RenderParams = {
+  readonly viewport: Viewport;
+  readonly project: Signal<Project>;
+  readonly dragging: Signal<boolean>;
+  readonly mousePos: Signal<readonly [number, number] | undefined>;
+}
+
+// if the project changes mid-drag (e.g. by undo), cancel drag
 interface EditorState {
-  render(project: Project, mousePos?: [number, number]): CssCursorValue;
-  startDrag(startTime: number, startPitch: number): DragHandler;
+  render(canvasCtx: CanvasRenderingContext2D, params: RenderParams): CssCursorValue;
+  startDrag(project: Project, startTime: number, startPitch: number): DragHandler;
 }
 
 class Notation implements EditorState {
   constructor(readonly activePartIdx: number) { }
 
-  render(project: Project, mousePos?: [number, number]): CssCursorValue {
+  render(canvasCtx: CanvasRenderingContext2D, { viewport, project: project_, dragging, mousePos: mousePos_ }: RenderParams): CssCursorValue {
+    // draw notes
+    const project = project_();
+    if (project.meter === undefined) return "pointer";
+    for (const part of project.parts) {
+      for (const note of part.notes) {
+        drawNoteRect(canvasCtx, note2rect(viewport, project.meter, note), part.color);
+      }
+    }
+    if (!dragging()) {
+      const mousePos = mousePos_();
+      if (mousePos !== undefined) {
+        const subdiv = Math.floor(project.meter.subdivision * time2beat(project.meter, viewport.x2time(mousePos[0])));
+        if (subdiv >= 0) {
+          const pitch = Math.round(viewport.y2pitch(mousePos[1]));
+          const rect = note2rect(viewport, project.meter, {
+            pitch,
+            start: subdiv * PULSES_PER_BEAT / project.meter.subdivision,
+            length: PULSES_PER_BEAT / project.meter.subdivision,
+            notation: undefined,
+          });
+          canvasCtx.save();
+          drawNoteRect(canvasCtx, rect, project.parts[this.activePartIdx].color);
+          canvasCtx.rect(rect.x, rect.y, rect.width, rect.height);
+          canvasCtx.clip();
+          canvasCtx.fillStyle = "#000";
+          canvasCtx.globalAlpha = .5;
+          canvasCtx.globalCompositeOperation = "destination-in";
+          canvasCtx.fill();
+          canvasCtx.restore();
+        }
+      }
+    }
     return "pointer";
   }
 
-  startDrag(startTime: number, startPitch: number): DragHandler {
+  startDrag(project: Project, startTime: number, startPitch: number): DragHandler {
     // add new note
-    return (endTime: number, endPitch: number) => (a: Project) => a;
+    return (endTime: number, endPitch: number) => project;
   }
 }
 
 class Selection implements EditorState {
-  selection: PairsSet<number, number> = PairsSet.empty();
-  #lastRenderedProject?: Project;
+  readonly #selectionRect = signal<SpecTileWindow | undefined>(undefined);
+  constructor(private readonly currentSelection: NoteSelection) {
+    currentSelection.clear();
+  }
 
-  render(project: Project, mousePos?: [number, number]): CssCursorValue {
-    this.#lastRenderedProject = project;
+  render(canvasCtx: CanvasRenderingContext2D, { viewport, project: project_, dragging, mousePos }: RenderParams): CssCursorValue {
+    const project = project_();
+    if (project.meter === undefined) return "pointer";
+    for (const [partIdx, part] of project.parts.entries()) {
+      for (const [noteIdx, note] of part.notes.entries()) {
+        drawNoteRect(canvasCtx, note2rect(viewport, project.meter, note), part.color, this.currentSelection.has([partIdx, noteIdx]) ? SELECTED_BORDER : DEFAULT_BORDER);
+      }
+    }
+    if (dragging() && this.#selectionRect() !== undefined) {
+      // draw selection rect
+    }
     return "auto";
   }
 
-  startDrag(startTime: number, startPitch: number): DragHandler {
-    if (this.#lastRenderedProject !== undefined) {
-      // if on drag handle, resize note (click => true no-op)
-      // if on selected note, drag notes (click => change selection to the clicked note)
-    }
+  startDrag(project: Project, startTime: number, startPitch: number): DragHandler {
+    const prevSelection = this.currentSelection.clone();
+    // if on drag handle, resize note (click => true no-op)
+    // if on selected note, drag notes (click => change selection to the clicked note)
     // otherwise, update selection (click => treat as 0-length drag)
-    return (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => (a: Project) => a;
+    return (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => project;
   }
 }
 
-// code problems:
-// - `if (<thing> !== undefined)` repeated too often
-// - drag handlers have similar behaviour which should be enforced
-// - on each drag handler, final edit should match preview render
+type OutsetBorderStyle = {
+  borderColor1: string,
+  borderColor2: string,
+  borderOpacity: number,
+};
+const DEFAULT_BORDER: OutsetBorderStyle = {
+  borderColor1: "#545454",
+  borderColor2: "#000000",
+  borderOpacity: 8 / 15,
+};
+const SELECTED_BORDER: OutsetBorderStyle = {
+  borderColor1: "#EEEEEEE",
+  borderColor2: "#9A9A9A9",
+  borderOpacity: 12 / 15,
+};
 
-// data problems:
-// - whan heppens if the project changes mid-drag (e.g. by undo)
-// - what happens to selection if parts are rearranged
-// - what happens to selection if a selected note goes away (e.g. by undo)
-// constraints:
-// - don't want ui state to leak into on-disk data
-// - don't want in-memory data to differ from on-disk data
+function drawNoteRect(ctx: CanvasRenderingContext2D, { x, y, width, height }: Rect, fillStyle: string, { borderColor1, borderColor2, borderOpacity }: OutsetBorderStyle = DEFAULT_BORDER): void {
+  // note: chromium does alpha-compositing in the display's color space, not sRGB
+  // but canvas drawing always composites in sRGB (or Display P3)
+  // so we can't exactly perfectly replicate chromium's outset border rendering
+
+  if (width < 8) width = 8;
+  if (height < 4) height = 4;
+  if (x + width <= 0 || y + height <= 0 || x >= ctx.canvas.width || y >= ctx.canvas.height) return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.beginPath();
+  ctx.rect(0, 0, width, height);
+  ctx.clip();
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.fillStyle = borderColor1;
+  ctx.fillRect(0, 0, width, 2);
+
+  ctx.fillStyle = borderColor2;
+  ctx.fillRect(0, height - 2, width, 2);
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, height);
+  ctx.lineTo(4, height - 2);
+  ctx.lineTo(4, 0);
+  ctx.closePath();
+  ctx.fillStyle = borderColor1;
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.moveTo(width, height);
+  ctx.lineTo(width, 0);
+  ctx.lineTo(width - 4, 2);
+  ctx.lineTo(width - 4, height);
+  ctx.closePath();
+  ctx.fillStyle = borderColor2;
+  ctx.fill();
+
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = "#000";
+  ctx.globalAlpha = borderOpacity;
+  ctx.fillRect(0, 0, width, height);
+  ctx.globalCompositeOperation = 'destination-over';
+  ctx.fillStyle = fillStyle;
+  ctx.globalAlpha = 1;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.restore();
+}
 
 // TODO: copy-paste
+
+function note2rect(viewport: Viewport, meter: Meter, note: Note): Rect {
+  const x = Math.round(viewport.time2x(pulse2time(meter, note.start)));
+  const y = Math.round(viewport.pitch2y(note.pitch + .5));
+  return {
+    x,
+    y,
+    width: Math.round(viewport.time2x(pulse2time(meter, (note.start + note.length)))) - x,
+    height: Math.round(viewport.pitch2y(note.pitch - 0.5)) - y,
+  };
+}
+
+// code problems:
+// - canvas devicepixelsize repeated

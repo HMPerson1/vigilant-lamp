@@ -49,7 +49,7 @@ export class SpecTileWindowExt implements SpecTileWindow {
   }
 }
 
-export class GenSpecTile<T extends { width: number, height: number }> extends SpecTileWindowExt {
+export class GenSpecTile<T extends { width: number, height: number } = { width: number, height: number }> extends SpecTileWindowExt {
   get width() { return this.inner.width; }
   get height() { return this.inner.height; }
   get pixelsPerTime() { return this.width / this.timeRange; }
