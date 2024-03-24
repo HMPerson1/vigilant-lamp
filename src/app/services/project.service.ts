@@ -4,7 +4,7 @@ import * as msgpack from '@msgpack/msgpack';
 import { getOrElseW } from 'fp-ts/Either';
 import { NonEmptyArray } from 'fp-ts/NonEmptyArray';
 import { pipe } from 'fp-ts/function';
-import { Observable, Subject } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { AudioSamples } from '../common';
 import { Meter, Project } from '../ui-common';
 import { signalDefined, signalFiltered } from '../utils/ho-signals';
@@ -49,11 +49,12 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   #history: NonEmptyArray<[Project, boolean]>;
   #current: number = 0;
   get #projectInternal(): Project { return this.#history[this.#current][0] }
-  readonly #project: WritableSignal<Project>;
+  readonly #project$: BehaviorSubject<Project>;
+  readonly project$: Observable<Project>;
   readonly project: Signal<Project>;
 
   readonly #lastSaved = signal<Project | undefined>(undefined);
-  readonly isUnsaved = computed(() => !Object.is(this.#project(), this.#lastSaved()));
+  readonly isUnsaved = computed(() => !Object.is(this.project(), this.#lastSaved()));
 
   #prevModFusionTag?: string;
   #prevModTime?: number;
@@ -64,8 +65,11 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
 
   constructor(prj: Project) {
     this.#history = [[prj, false]];
-    this.#project = signal(this.#projectInternal);
-    this.project = this.#project.asReadonly();
+    this.#project$ = new BehaviorSubject(this.#projectInternal);
+    this.project$ = this.#project$.asObservable();
+    const projectW = signal(this.#projectInternal);
+    this.#project$.subscribe(v => projectW.set(v));
+    this.project = projectW.asReadonly();
     this.withMeter = this.filterProject<WithMeter>((a): a is Project & WithMeter => a.meter !== undefined);
   }
 
@@ -89,13 +93,12 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
       this.#history[this.#current] = [next, preserveSelection && lastPS];
     } else {
       this.#current++;
-      this.#history.splice(this.#current);
-      this.#history.push([next, preserveSelection]);
+      this.#history.splice(this.#current, Infinity, [next, preserveSelection]);
     }
     // always reset timestamp to allow "chaining" changes
     this.#prevModFusionTag = opts?.fusionTag;
     this.#prevModTime = modTime;
-    this.#project.set(this.#projectInternal);
+    this.#project$.next(this.#projectInternal);
     if (!preserveSelection) {
       this.currentSelection?.clear();
     }
@@ -107,7 +110,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     if (!this.canUndo()) return;
     this.#prevModFusionTag = undefined;
     this.#current--;
-    this.#project.set(this.#projectInternal);
+    this.#project$.next(this.#projectInternal);
     if (!this.#history[this.#current + 1][1]) {
       this.currentSelection?.clear();
     }
@@ -119,7 +122,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     if (!this.canRedo()) return;
     this.#prevModFusionTag = undefined;
     this.#current++;
-    this.#project.set(this.#projectInternal);
+    this.#project$.next(this.#projectInternal);
     if (!this.#history[this.#current][1]) {
       this.currentSelection?.clear();
     }
@@ -130,7 +133,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   }
 
   filterProject<T>(filter: (a: Project) => a is Project & T): Signal<FilteredProjectHolder<T> | undefined> {
-    return signalFiltered(this.#project, filter, (project) => ({
+    return signalFiltered(this.project, filter, (project) => ({
       project,
       modify: (op, opts) => {
         try {

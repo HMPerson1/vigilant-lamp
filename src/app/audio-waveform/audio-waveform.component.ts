@@ -27,7 +27,7 @@ export class AudioWaveformComponent {
       return computed(() => {
         lastRenderer?.free();
         lastRenderer = undefined;
-        const audioData = project.currentProjectRaw()?.project()?.audio;
+        const audioData = project.currentProjectRaw()?.project()?.audio; // TODO: don't rerun on all changes
         if (audioData !== undefined) {
           console.log('new data');
           const wasmBuffer = new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);

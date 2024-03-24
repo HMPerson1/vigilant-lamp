@@ -21,12 +21,10 @@ export class KeyboardStateService {
       this.#altKey.set(ev.altKey);
       this.#metaKey.set(ev.metaKey);
     };
-    ngZone.runOutsideAngular(() => {
-      window.addEventListener('keydown', listener, { capture: true });
-      window.addEventListener('keyup', listener, { capture: true });
-      window.addEventListener('mousedown', listener, { capture: true });
-      window.addEventListener('mousemove', listener, { capture: true });
-      window.addEventListener('mouseup', listener, { capture: true });
-    })
+    window.addEventListener('keydown', listener, { capture: true });
+    window.addEventListener('keyup', listener, { capture: true });
+    window.addEventListener('mousedown', listener, { capture: true });
+    window.addEventListener('mousemove', listener, { capture: true });
+    window.addEventListener('mouseup', listener, { capture: true });
   }
 }
