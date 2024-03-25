@@ -73,10 +73,10 @@
           },
           "configurations": {
             "production": {
-              "browserTarget": "vigilant-lamp:build:production"
+              "buildTarget": "vigilant-lamp:build:production"
             },
             "development": {
-              "browserTarget": "vigilant-lamp:build:development"
+              "buildTarget": "vigilant-lamp:build:development"
             }
           },
           "defaultConfiguration": "development"
@@ -84,7 +84,7 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "vigilant-lamp:build"
+            "buildTarget": "vigilant-lamp:build"
           }
         },
         "test": {

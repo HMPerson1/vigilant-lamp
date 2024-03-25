@@ -25,7 +25,7 @@
             <mat-icon>note_add</mat-icon>
           </button>
           <div style="padding: 4px;" [hidden]="loading !== 'new'">
-            <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+            <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
           </div>
         </div>
         <div class="stacking">
@@ -33,7 +33,7 @@
             <mat-icon>file_open</mat-icon>
           </button>
           <div style="padding: 4px;" [hidden]="loading !== 'open'">
-            <mat-progress-spinner mode="indeterminate" style="width: 40px; height: 40px"></mat-progress-spinner>
+            <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
           </div>
         </div>
         <button mat-icon-button *ngIf="browserFsApiSupported" matTooltip="Save" color="primary" (click)="saveProject()"
