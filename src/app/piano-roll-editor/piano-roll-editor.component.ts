@@ -46,14 +46,13 @@ export class PianoRollEditorComponent {
     });
 
     const canvasSize = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
-    const dragging = computed(() => this.#dragState() !== undefined);
     const renderState = computed(() => {
       const editorState_ = this.#editorState();
       if (editorState_ === undefined) return;
       const [editorState, projectHolder] = editorState_;
       const dragState = this.#dragState();
       const project = dragState?.()?.[0] ?? projectHolder.project();
-      return editorState.render({ viewport: viewport.viewport(), project, dragging, mousePos: this.#mousePos, });
+      return editorState.render({ viewport: viewport.viewport(), project, dragging: dragState !== undefined, mousePos: this.#mousePos, });
     });
     this.styleCursor = computed(() => renderState()?.[0])
     effect(() => {
@@ -93,11 +92,12 @@ export class PianoRollEditorComponent {
     const editorState_ = this.#editorState();
     if (editorState_ === undefined) return;
     const [editorState, projectHolder] = editorState_;
+
     const projectStart = projectHolder.project();
     const dragHandler = editorState.startDrag(projectStart, downMousePos[0], downMousePos[1]);
     const dragResult = () => {
       const viewport = this.viewport.viewport();
-      const newMousePos = this.#mousePosPx();
+      const newMousePos = this.#mousePos();
       if (newMousePos === undefined) return;
       // largest movement axis determined by drag amount in current viewport
       const lockAxis = !this.keyboardState.shiftKey() ? undefined :
@@ -459,12 +459,12 @@ type Rect = { x: number; y: number; width: number; height: number; };
 //   && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
 
 type DragHandler = (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => [Project, boolean] | undefined;
-type CssCursorValue = "auto" | "pointer" | "move" | "ew-resize";
+type CssCursorValue = "auto" | "pointer" | "move" | "not-allowed" | "ew-resize";
 
 type RenderParams = {
   readonly viewport: Viewport;
   readonly project: Project;
-  readonly dragging: Signal<boolean>;
+  readonly dragging: boolean;
   readonly mousePos: Signal<readonly [number, number] | undefined>;
 }
 
@@ -478,7 +478,6 @@ class Notation implements EditorState {
   constructor(readonly activePartIdx: number) { }
 
   render({ viewport, project: { meter, parts }, dragging, mousePos: mousePos_ }: RenderParams): [CssCursorValue, Drawable] {
-    // draw notes
     if (meter === undefined) return ["auto", () => { }];
     const drawNotes: Drawable = canvasCtx => {
       for (const part of parts) {
@@ -487,74 +486,52 @@ class Notation implements EditorState {
         }
       }
     };
-    if (!dragging()) {
+    if (!dragging) {
       const mousePos = mousePos_();
       if (mousePos !== undefined) {
-        const hoveredNote = Notation.noteAtMouse(meter, mousePos);
-        if (hoveredNote !== undefined) {
-          const rect = note2rect(viewport, meter, hoveredNote);
-          return ["pointer", canvasCtx => {
-            drawNotes(canvasCtx);
-            canvasCtx.save();
-            drawNoteRect(canvasCtx, rect, parts[this.activePartIdx].color);
-            canvasCtx.rect(rect.x, rect.y, rect.width, rect.height);
-            canvasCtx.clip();
-            canvasCtx.fillStyle = "#000";
-            canvasCtx.globalAlpha = 0.5;
-            canvasCtx.globalCompositeOperation = "destination-in";
-            canvasCtx.fill();
-            canvasCtx.restore();
-          }];
-        }
+        const subdiv = Math.floor(meter.subdivision * time2beat(meter, mousePos[0]));
+        if (subdiv < 0) return ["not-allowed", drawNotes];
+        const rect = note2rect(viewport, meter, {
+          pitch : Math.round(mousePos[1]),
+          start: subdiv * PULSES_PER_BEAT / meter.subdivision,
+          length: PULSES_PER_BEAT / meter.subdivision,
+          notation: undefined,
+        });
+        return ["pointer", canvasCtx => {
+          drawNotes(canvasCtx);
+          canvasCtx.save();
+          drawNoteRect(canvasCtx, rect, parts[this.activePartIdx].color);
+          canvasCtx.rect(rect.x, rect.y, rect.width, rect.height);
+          canvasCtx.clip();
+          canvasCtx.fillStyle = "#000";
+          canvasCtx.globalAlpha = 0.5;
+          canvasCtx.globalCompositeOperation = "destination-in";
+          canvasCtx.fill();
+          canvasCtx.restore();
+        }];
       }
     }
     return ["auto", drawNotes];
   }
 
-  static noteAtMouse(meter: Meter, [mouseT, mouseP]: readonly [number, number]): Note | undefined {
-    const subdiv = Math.floor(meter.subdivision * time2beat(meter, mouseT));
-    if (subdiv < 0) return undefined;
-    const pitch = Math.round(mouseP);
-    return {
-      pitch,
-      start: subdiv * PULSES_PER_BEAT / meter.subdivision,
-      length: PULSES_PER_BEAT / meter.subdivision,
-      notation: undefined,
+  startDrag(project: Project, startTime: number, startPitch: number): DragHandler {
+    const meter = project.meter;
+    if (meter === undefined) return () => undefined;
+    const startSubdiv = Math.floor(meter.subdivision * time2beat(meter, startTime));
+    if (startSubdiv < 0) return () => undefined;
+    // add new note
+    return (endTime: number, _endPitch: number) => {
+      const endSubdiv = Math.ceil(meter.subdivision * time2beat(meter, endTime));
+      const ppsd = PULSES_PER_BEAT / meter.subdivision;
+      const length = endSubdiv - startSubdiv;
+      if (length <= 0) return undefined;
+      const op = ProjectLens(['parts']).compose(indexReadonlyArray(this.activePartIdx)).compose(PartLens('notes')).modify(
+        notes => [...notes, { pitch: Math.round(startPitch), start: startSubdiv * ppsd, length: length * ppsd, notation: undefined }]
+      );
+      return [op(project), false];
     };
   }
-
-  startDrag(project: Project, startTime: number, startPitch: number): DragHandler {
-    // add new note
-    return (endTime: number, endPitch: number) => [project, true];
-  }
 }
-//   const activePartIdx = this.activePartIdx;
-//   if (activePartIdx === undefined) return;
-//   const hoveredNoteStart = this.hoveredNote();
-//   if (!hoveredNoteStart) return;
-
-//   event.preventDefault();
-
-//   this.clickStartNote = hoveredNoteStart;
-//   try {
-//     await rxjs.firstValueFrom(rxjs.fromEvent(document, 'mouseup'));
-//     const hoveredNoteEnd = this.hoveredNote();
-//     if (!hoveredNoteEnd) return;
-//     const clickedNote = clickDragNote(hoveredNoteStart, hoveredNoteEnd);
-//     if (!clickedNote) return;
-//     this.project.currentProjectRaw()?.modify(
-//       ProjectLens(['parts']).compose(indexReadonlyArray(activePartIdx)).compose(PartLens('notes')).modify(
-//         notes => [...notes, clickedNote]
-//       )
-//     )
-//   } finally {
-//     this.clickStartNote = undefined;
-//   }
-
-// const clickDragNote = (start: Note, end: Note): Note | undefined => {
-//   const length = end.start + end.length - start.start;
-//   return length > 0 ? { ...start, length, pitch: end.pitch } : undefined;
-// };
 
 class Selection implements EditorState {
   readonly #selectionRect = signal<SpecTileWindow | undefined>(undefined);
@@ -573,15 +550,15 @@ class Selection implements EditorState {
         if (false /* is mouse over drag handle */) {
           cursor = "ew-resize";
         }
-        if (false /* is mosue over this note */ && isNoteSelected) {
+        if (false /* is mouse over this note */ && isNoteSelected) {
           cursor = "move";
         }
       }
     }
-    if (dragging() && this.#selectionRect() !== undefined) {
+    if (dragging && this.#selectionRect() !== undefined) {
       // draw selection rect
     }
-    return [cursor, monoid.concatAll(DrawableMonoid)(drawables)];
+    return [cursor, drawableMergeAll(drawables)];
   }
 
   startDrag(project: Project, startTime: number, startPitch: number): DragHandler {
@@ -677,7 +654,14 @@ function note2rect(viewport: Viewport, meter: Meter, note: Note): Rect {
 }
 
 type Drawable = (canvasCtx: CanvasRenderingContext2D) => void;
-const DrawableMonoid: monoid.Monoid<Drawable> = f.getMonoid(VoidMonoid)();
+const drawableMergeAll = (drawables: Iterable<Drawable>): Drawable => canvasCtx => {
+  for (const d of drawables) {
+    d(canvasCtx)
+  }
+}
+
+// problems:
+// - hovered note looks bad when overlapping a real note
 
 // code problems:
 // - canvas devicepixelsize repeated
