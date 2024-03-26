@@ -94,13 +94,13 @@ export class PianoRollEditorComponent {
     const [editorState, projectHolder] = editorState_;
 
     const projectStart = projectHolder.project();
-    const dragHandler = editorState.startDrag(projectStart, downMousePos[0], downMousePos[1]);
+    const dragHandler = editorState.startDrag(projectStart, downMousePos[0], downMousePos[1], event.shiftKey, event.ctrlKey);
     const dragResult = () => {
       const viewport = this.viewport.viewport();
       const newMousePos = this.#mousePos();
       if (newMousePos === undefined) return;
       // largest movement axis determined by drag amount in current viewport
-      const lockAxis = !this.keyboardState.shiftKey() ? undefined :
+      const lockAxis = () => !this.keyboardState.shiftKey() ? undefined :
         (Math.abs(newMousePos[0] - downMousePos[0]) * viewport.pixelsPerTime > Math.abs(newMousePos[1] - downMousePos[1]) * viewport.pixelsPerTime) ? "x" : "y";
       return dragHandler(newMousePos[0], newMousePos[1], lockAxis);
     }
@@ -284,15 +284,6 @@ export class PianoRollEditorComponent {
   //   }
   // }
 
-  // get selectionStartRectStyle() {
-  //   if (this.selectionStart === undefined || this.mouseX() === undefined || this.mouseY() === undefined) return;
-  //   const x = Math.min(this.mouseX()!, this.selectionStart[0]);
-  //   const xMax = Math.max(this.mouseX()!, this.selectionStart[0]);
-  //   const y = Math.min(this.mouseY()!, this.selectionStart[1]);
-  //   const yMax = Math.max(this.mouseY()!, this.selectionStart[1]);
-  //   return rect2style({ x, y, width: xMax - x, height: yMax - y });
-  // }
-
   // get selectionResizeIndicatorStyle() {
   //   const project = this.project.currentProjectRaw()?.project();
   //   if (!project || this.draggedNotes !== undefined) return;
@@ -346,15 +337,6 @@ export class PianoRollEditorComponent {
   //   );
   // }
 
-  // get resizeNoteStyle() {
-  //   const n = this.resizeNote;
-  //   return n && this.noteStyle(n);
-  // }
-
-  // draggedNotes?: ReadonlyArray<readonly [number, Note]>;
-
-  // private readonly keyboardShiftKey = toObservable(this.keyboardState.shiftKey);
-
   // async onSelectedNoteMouseDown(partIdx: number, noteIdx: number, event: MouseEvent) {
   //   const project = this.project.currentProjectRaw()?.project();
   //   if (!project || !project.meter || event.button !== 0 || this.mouseX() === undefined || this.mouseY() === undefined) return;
@@ -407,14 +389,7 @@ export class PianoRollEditorComponent {
   //     onInputSub.unsubscribe();
   //   }
   // }
-
-  // trackIdx(idx: number, _item: unknown) { return idx }
 }
-
-// const clickDragNote = (start: Note, end: Note): Note | undefined => {
-//   const length = end.start + end.length - start.start;
-//   return length > 0 ? { ...start, length, pitch: end.pitch } : undefined;
-// };
 
 // const doResizeNote = (meter: Meter, origNote: Note, which: 0 | 1, time: number): Note => {
 //   const ppsd = PULSES_PER_BEAT / meter.subdivision;
@@ -454,11 +429,11 @@ type Rect = { x: number; y: number; width: number; height: number; };
 // const rect2style = ({ x, y, width, height }: Rect) =>
 //   `transform: translate(${x}px,${y}px); width: ${width}px; height: ${height}px;`;
 
-// const isNoteInRect = (rect: SpecTileWindow, note: Note) =>
-//   (rect.pitchMin <= note.pitch && note.pitch <= rect.pitchMax)
-//   && (rect.timeMin <= note.start + note.length && note.start <= rect.timeMax)
+const isNoteInRect = (rect: SpecTileWindow, note: Note, meter: Meter) =>
+  (rect.pitchMin <= note.pitch + .5 && note.pitch - .5 <= rect.pitchMax)
+  && (rect.timeMin <= pulse2time(meter, note.start + note.length) && pulse2time(meter, note.start) <= rect.timeMax)
 
-type DragHandler = (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => [Project, boolean] | undefined;
+type DragHandler = (endTime: number, endPitch: number, lockAxis: () => 'x' | 'y' | undefined) => [Project, boolean] | undefined;
 type CssCursorValue = "auto" | "pointer" | "move" | "not-allowed" | "ew-resize";
 
 type RenderParams = {
@@ -471,7 +446,7 @@ type RenderParams = {
 // if the project changes mid-drag (e.g. by undo), cancel drag
 interface EditorState {
   render(params: RenderParams): [CssCursorValue, Drawable];
-  startDrag(project: Project, startTime: number, startPitch: number): DragHandler;
+  startDrag(project: Project, startTime: number, startPitch: number, shiftKey: boolean, ctrlKey: boolean): DragHandler;
 }
 
 class Notation implements EditorState {
@@ -492,7 +467,7 @@ class Notation implements EditorState {
         const subdiv = Math.floor(meter.subdivision * time2beat(meter, mousePos[0]));
         if (subdiv < 0) return ["not-allowed", drawNotes];
         const rect = note2rect(viewport, meter, {
-          pitch : Math.round(mousePos[1]),
+          pitch: Math.round(mousePos[1]),
           start: subdiv * PULSES_PER_BEAT / meter.subdivision,
           length: PULSES_PER_BEAT / meter.subdivision,
           notation: undefined,
@@ -534,7 +509,7 @@ class Notation implements EditorState {
 }
 
 class Selection implements EditorState {
-  readonly #selectionRect = signal<SpecTileWindow | undefined>(undefined);
+  #selectionRect: SpecTileWindow | undefined;
   constructor(private readonly currentSelection: NoteSelection) {
     currentSelection.clear();
   }
@@ -555,20 +530,79 @@ class Selection implements EditorState {
         }
       }
     }
-    if (dragging && this.#selectionRect() !== undefined) {
-      // draw selection rect
+    if (!dragging) {
+      const selectedNote = this.currentSelection.asSingleton;
+      if (selectedNote !== null) {
+        const [partIdx, noteIdx] = selectedNote;
+      }
+    } else if (this.#selectionRect !== undefined) {
+      const x = viewport.time2x(this.#selectionRect.timeMin);
+      const y = viewport.pitch2y(this.#selectionRect.pitchMin);
+      const rect = [
+        x,
+        y,
+        viewport.time2x(this.#selectionRect.timeMax) - x,
+        viewport.pitch2y(this.#selectionRect.pitchMax) - y,
+      ] as const;
+      drawables.push(canvasCtx => {
+        canvasCtx.save();
+        canvasCtx.beginPath();
+        canvasCtx.rect(...rect);
+        canvasCtx.fillStyle = "#fff3";
+        canvasCtx.fill();
+        canvasCtx.lineWidth = 1;
+        canvasCtx.strokeStyle = "#fff";
+        canvasCtx.setLineDash([5, 5]);
+        canvasCtx.stroke();
+        canvasCtx.restore();
+      });
     }
     return [cursor, drawableMergeAll(drawables)];
   }
 
-  startDrag(project: Project, startTime: number, startPitch: number): DragHandler {
-    const prevSelection = this.currentSelection.clone();
+  startDrag(project: Project, startTime: number, startPitch: number, shiftKey: boolean, ctrlKey: boolean): DragHandler {
+    const meter = project.meter;
+    if (meter === undefined) return () => undefined;
+    this.#selectionRect = undefined;
     // if on drag handle, resize note (click => true no-op)
     // if on selected note, drag notes (click => change selection to the clicked note)
     // otherwise, update selection (click => treat as 0-length drag)
-    return (endTime: number, endPitch: number, lockAxis?: 'x' | 'y') => {
-      return [project, true];
-    };
+    if (false /* is over drag handle */) {
+      return (endTime: number, endPitch: number) => {
+        return [project, true];
+      };
+    } else if (false /* is over selected note */) {
+      return (endTime: number, endPitch: number, lockAxis: () => 'x' | 'y' | undefined) => {
+        return [project, true];
+      };
+    } else {
+      const prevSelection = this.currentSelection.clone();
+      this.#selectionRect = { timeMin: startTime, timeMax: startTime, pitchMin: startPitch, pitchMax: startPitch };
+      return (endTime: number, endPitch: number) => {
+        const selRect = {
+          timeMin: Math.min(startTime, endTime),
+          timeMax: Math.max(startTime, endTime),
+          pitchMin: Math.min(startPitch, endPitch),
+          pitchMax: Math.max(startPitch, endPitch),
+        };
+        this.#selectionRect = selRect;
+        this.currentSelection.setFromIterable(function* () {
+          for (const [partIdx, part] of project.parts.entries()) {
+            yield [partIdx, function* () {
+              for (const [noteIdx, note] of part.notes.entries()) {
+                if (isNoteInRect(selRect, note, meter)) yield noteIdx;
+              }
+            }()];
+          }
+        }());
+        if (ctrlKey) {
+          this.currentSelection.xorWith(prevSelection);
+        } else if (shiftKey) {
+          this.currentSelection.unionWith(prevSelection);
+        }
+        return undefined;
+      };
+    }
   }
 }
 
@@ -583,8 +617,8 @@ const DEFAULT_BORDER: OutsetBorderStyle = {
   borderOpacity: 8 / 15,
 };
 const SELECTED_BORDER: OutsetBorderStyle = {
-  borderColor1: "#EEEEEEE",
-  borderColor2: "#9A9A9A9",
+  borderColor1: "#EEEEEE",
+  borderColor2: "#9A9A9A",
   borderOpacity: 12 / 15,
 };
 
