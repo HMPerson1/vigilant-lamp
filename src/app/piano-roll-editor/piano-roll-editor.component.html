@@ -1,7 +1,8 @@
 <div class="canvas-box fill-container" [style.transform]="viewport.viewportTransform()">
   <canvas #canvas></canvas>
 </div>
-<div class="click-handler" (mousedown)="onMouseDown($event)" [style.transform]="viewport.viewportTransform()" [style.cursor]="styleCursor()"></div>
+<div class="click-handler" (mousedown)="onMouseDown($event)" [style.transform]="viewport.viewportTransform()"
+  [style.cursor]="styleCursor() ?? 'not-allowed'"></div>
 <!-- 
 <div class="part-container" [class.hide-selected-notes]="hideSelectedNotes">
   <div class="part-container" *ngFor="let part of projectParts(); trackBy: trackIdx; let pIdx = index">
