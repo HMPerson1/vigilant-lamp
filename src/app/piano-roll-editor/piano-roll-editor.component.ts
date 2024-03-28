@@ -30,7 +30,7 @@ export class PianoRollEditorComponent {
     const editorState_ = this.#editorState();
     if (editorState_ === undefined) return undefined;
     const [editorState, projectHolder] = editorState_;
-    return editorState.startDrag(projectHolder.project(), mousePos[0], mousePos[1], false, false)?.cursor;
+    return editorState.startDrag(projectHolder.project(), mousePos[0], mousePos[1], this.viewport.pxPerTime(), false, false)?.cursor;
   });
 
   constructor(
@@ -95,7 +95,7 @@ export class PianoRollEditorComponent {
     const [editorState, projectHolder] = editorState_;
 
     const projectStart = projectHolder.project();
-    const dragHandler = editorState.startDrag(projectStart, downMousePos[0], downMousePos[1], event.shiftKey, event.ctrlKey);
+    const dragHandler = editorState.startDrag(projectStart, downMousePos[0], downMousePos[1], this.viewport.pxPerTime(), event.shiftKey, event.ctrlKey);
     if (dragHandler === undefined) {
       return
     } else if (dragHandler.type === 's') {
@@ -109,7 +109,6 @@ export class PianoRollEditorComponent {
     } else {
       let everMoved = false;
       const dragResult = () => {
-        const viewport = this.viewport.viewport();
         const newMousePos = this.#mousePos();
         if (newMousePos === undefined) {
           everMoved = true;
@@ -117,8 +116,10 @@ export class PianoRollEditorComponent {
         }
         everMoved ||= newMousePos[0] !== downMousePos[0] || newMousePos[1] !== downMousePos[1];
         // largest movement axis determined by drag amount in current viewport
-        const lockAxis = () => !this.keyboardState.shiftKey() ? undefined :
-          (Math.abs(newMousePos[0] - downMousePos[0]) * viewport.pixelsPerTime > Math.abs(newMousePos[1] - downMousePos[1]) * viewport.pixelsPerTime) ? "x" : "y";
+        const lockAxis = () => !this.keyboardState.shiftKey() ? undefined
+          : (Math.abs(newMousePos[0] - downMousePos[0]) * this.viewport.pxPerTime()
+            > Math.abs(newMousePos[1] - downMousePos[1]) * this.viewport.pxPerPitch())
+            ? "x" : "y";
         return dragHandler.next(newMousePos[0], newMousePos[1], lockAxis);
       };
       try {
@@ -481,7 +482,7 @@ type RenderParams = {
 // if the project changes mid-drag (e.g. by undo), cancel drag
 interface EditorState {
   render(canvasCtx: CanvasRenderingContext2D, params: RenderParams): void;
-  startDrag(project: Project, startTime: number, startPitch: number, shiftKey: boolean, ctrlKey: boolean): DragHandler;
+  startDrag(project: Project, startTime: number, startPitch: number, pxPerTime: number, shiftKey: boolean, ctrlKey: boolean): DragHandler;
 }
 
 class Notation implements EditorState {
@@ -546,7 +547,7 @@ class Selection implements EditorState {
     currentSelection.clear();
   }
 
-  render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { parts, meter }, dragging }: RenderParams) {
+  render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { parts, meter } }: RenderParams) {
     if (meter === undefined) return;
     for (const [partIdx, part] of parts.entries()) {
       for (const [noteIdx, note] of part.notes.entries()) {
@@ -554,11 +555,36 @@ class Selection implements EditorState {
         drawNoteRect(canvasCtx, note2rect(viewport, meter, note), part.color, isNoteSelected ? SELECTED_BORDER : DEFAULT_BORDER);
       }
     }
-    if (!dragging) {
-      const selectedNote = this.currentSelection.asSingleton;
-      if (selectedNote !== null) {
-        const [partIdx, noteIdx] = selectedNote;
-      }
+    const singleSelection = this.currentSelection.asSingleton;
+    if (singleSelection !== null) {
+      const [partIdx, noteIdx] = singleSelection;
+      const noteRect = note2rect(viewport, meter, parts[partIdx].notes[noteIdx]);
+      canvasCtx.save();
+      canvasCtx.beginPath();
+      canvasCtx.moveTo(noteRect.x, noteRect.y);
+      canvasCtx.lineTo(noteRect.x, noteRect.y + noteRect.height);
+      canvasCtx.moveTo(noteRect.x + noteRect.width, noteRect.y);
+      canvasCtx.lineTo(noteRect.x + noteRect.width, noteRect.y + noteRect.height);
+      canvasCtx.strokeStyle = "#fff";
+      canvasCtx.lineWidth = 2;
+      canvasCtx.stroke();
+      canvasCtx.restore();
+    }
+  }
+
+  #isOverDragHandle(parts: Project["parts"], meter: Meter, time: number, pitch: number, pxPerTime: number): [0 | 1, readonly [number, number]] | undefined {
+    const singleSelection = this.currentSelection.asSingleton;
+    if (singleSelection === null) return undefined;
+    const [partIdx, noteIdx] = singleSelection;
+    const note = parts[partIdx].notes[noteIdx];
+    if (Math.round(pitch) !== note.pitch) {
+      return undefined;
+    } else if (Math.abs(pulse2time(meter, note.start) - time) * pxPerTime < 8) {
+      return [0, singleSelection];
+    } else if (Math.abs(pulse2time(meter, note.start + note.length) - time) * pxPerTime < 8) {
+      return [1, singleSelection];
+    } else {
+      return undefined;
     }
   }
 
@@ -574,18 +600,34 @@ class Selection implements EditorState {
     return false;
   }
 
-  startDrag(project: Project, startTime: number, startPitch: number, shiftKey: boolean, ctrlKey: boolean): DragHandler {
+  startDrag(project: Project, startTime: number, startPitch: number, pxPerTime: number, shiftKey: boolean, ctrlKey: boolean): DragHandler {
     const meter = project.meter;
     if (meter === undefined) return undefined;
     // if on drag handle, resize note (click => true no-op)
     // if on selected note, drag notes (click => change selection to the clicked note)
     // otherwise, update selection (click => treat as 0-length drag)
-    if (false /* is over drag handle */) {
+    const hoveredDragHandle = this.#isOverDragHandle(project.parts, meter, startTime, startPitch, pxPerTime);
+    if (hoveredDragHandle !== undefined) {
+      const [which, [partIdx, noteIdx]] = hoveredDragHandle;
+      const origNote = project.parts[partIdx].notes[noteIdx];
+      const ppsd = PULSES_PER_BEAT / meter.subdivision;
+      const startPulse = time2pulse(meter, startTime);
       return {
         type: 'm',
         cursor: 'ew-resize',
-        next: (endTime, endPitch) => {
-          return [project, true];
+        next: endTime => {
+          const deltaPulseRaw = time2pulse(meter, endTime) - startPulse;
+          const deltaPulse = Math.round(deltaPulseRaw / ppsd) * ppsd;
+          if (deltaPulse === 0) return undefined;
+          const newNoteT1 = origNote.start + (1 - which) * origNote.length;
+          const newNoteT2_ = origNote.start + which * origNote.length + deltaPulse;
+          const newNoteT2 = newNoteT2_ !== newNoteT1 ? newNoteT2_
+            : newNoteT1 + ppsd * (newNoteT2_ - deltaPulse + deltaPulseRaw >= newNoteT1 ? +1 : -1);
+          const [start, length] = newNoteT2 >= newNoteT1 ? [newNoteT1, newNoteT2 - newNoteT1] : [newNoteT2, newNoteT1 - newNoteT2];
+          const op = ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).modify(
+            note => ({ ...note, start, length })
+          );
+          return [op(project), true];
         },
       };
     } else if (this.#isOverSelectedNote(project.parts, meter, startTime, startPitch)) {
@@ -600,7 +642,7 @@ class Selection implements EditorState {
             Math.round((time2pulse(meter, endTime) - startPulse) / ppsd) * ppsd;
           const deltaPitch = lockAxis === 'x' ? 0 :
             Math.round(endPitch - startPitch);
-          if (deltaPulse === 0 && deltaPitch === 0) return [project, true];
+          if (deltaPulse === 0 && deltaPitch === 0) return undefined;
           return [{
             ...project,
             parts: project.parts.map((part, partIdx) => {
@@ -608,9 +650,10 @@ class Selection implements EditorState {
               return !selPart ? part : {
                 ...part,
                 notes: part.notes.map((note, noteIdx) =>
+                  // TODO: validate pitch/pulse ranges
                   !selPart.has(noteIdx) ? note : { ...note, start: note.start + deltaPulse, pitch: note.pitch + deltaPitch }),
               };
-            })
+            }),
           }, true];
         },
         click: () => this.#startSelectionDrag(project.parts, meter, startTime, startPitch, shiftKey, ctrlKey).next([startTime, startPitch]),
@@ -764,11 +807,6 @@ function note2rect(viewport: Viewport, meter: Meter, note: Note): Rect {
 }
 
 type Drawable = (canvasCtx: CanvasRenderingContext2D) => void;
-const drawableMergeAll = (drawables: Iterable<Drawable>): Drawable => canvasCtx => {
-  for (const d of drawables) {
-    d(canvasCtx)
-  }
-}
 
 // problems:
 // - hovered note looks bad when overlapping a real note
