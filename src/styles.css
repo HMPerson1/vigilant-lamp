@@ -10,7 +10,7 @@ html {
 }
 
 .canvas-box {
-  contain: strict;
+  contain: size layout style;
 }
 
 .crosshair {
