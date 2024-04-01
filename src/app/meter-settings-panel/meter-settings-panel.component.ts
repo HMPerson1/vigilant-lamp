@@ -1,13 +1,13 @@
 import { CdkPortal } from '@angular/cdk/portal';
 import { Component, EventEmitter, Input, Output, TemplateRef, ViewChild, computed, effect } from '@angular/core';
-import { FormControl, FormControlState, ValidatorFn, Validators } from '@angular/forms';
+import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
+import * as O from 'fp-ts/Option';
 import { flow, pipe } from 'fp-ts/function';
-import { Lens, Optional } from 'monocle-ts';
+import { Optional } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../services/project.service';
-import { Meter, MeterLens, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectLens, ProjectOptional, defaultMeter } from '../ui-common';
-import * as O from 'fp-ts/Option';
+import { Meter, MeterLens, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectOptional } from '../ui-common';
 import { isNonnull } from '../utils/ho-signals';
 
 @Component({
@@ -16,16 +16,16 @@ import { isNonnull } from '../utils/ho-signals';
   styleUrls: ['./meter-settings-panel.component.css']
 })
 export class MeterSettingsPanelComponent {
-  @Input() modalEdit?: ModalSpectrogramEdit;
+  @Input({ required: true }) modalEdit!: ModalSpectrogramEdit;
 
-  @Output() liveMeter = new EventEmitter<Partial<Meter>>();
+  @Output() readonly liveMeter = new EventEmitter<Partial<Meter>>();
 
   @ViewChild("portalHelpOffset") portalHelpOffset!: CdkPortal;
   @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
   @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
   @ViewChild("portalHelpTempoEdit") portalHelpTempoEdit!: CdkPortal;
 
-  constructor(private project: ProjectService, private dialog: MatDialog) {
+  constructor(private readonly project: ProjectService, private readonly dialog: MatDialog) {
     effect(() => {
       if (this.isMeterActive()) {
         this.projectMeterCtrls.bpm.enable({ emitEvent: false })
@@ -40,17 +40,18 @@ export class MeterSettingsPanelComponent {
     });
   }
 
-  projectMeterCtrls = new ProjectMeterCtrls(this.project);
+  readonly projectMeterCtrls = new ProjectMeterCtrls(this.project);
 
   readonly isMeterSet = computed(() => this.project.currentProjectRaw()?.project()?.meter !== undefined)
   readonly isMeterActive = computed(() => this.project.currentProjectRaw()?.project()?.meter?.state === 'active')
   readonly isMeterLocked = computed(() => this.project.currentProjectRaw()?.project()?.meter?.state === 'locked')
 
   async onPickAllClick() {
-    if (!this.modalEdit) return;
+    const projectHolder = this.project.currentProjectRaw();
+    if (projectHolder === undefined) return;
 
     try {
-      const initMeter0 = this.project.currentProjectRaw()?.project().meter;
+      const initMeter0 = projectHolder.project().meter;
       const initMeter1: Partial<Meter> = { ...initMeter0, state: 'active', bpm: undefined, startOffset: undefined };
 
       const newOffset = await this.modalEdit.click(
@@ -70,7 +71,7 @@ export class MeterSettingsPanelComponent {
       );
       if (beat2 === undefined) return;
 
-      this.project.currentProjectRaw()?.modify(p => ({
+      projectHolder.modify(p => ({
         ...p,
         meter: {
           state: 'active',
@@ -81,16 +82,17 @@ export class MeterSettingsPanelComponent {
         },
       }));
     } finally {
-      this.liveMeter.emit(this.project.currentProjectRaw()?.project().meter ?? {});
+      this.liveMeter.emit(projectHolder.project().meter ?? {});
     }
   }
 
   async onOffsetEditClick(event: MouseEvent) {
-    event.preventDefault();
     event.stopPropagation();
 
-    const initMeter = this.project.currentProjectRaw()?.project().meter;
-    if (!this.modalEdit || !initMeter) return;
+    const projectHolder = this.project.currentProjectRaw();
+    if (!projectHolder) return;
+    const initMeter = projectHolder.project().meter;
+    if (!initMeter) return;
 
     try {
       const offsetOffset = await this.modalEdit.drag(
@@ -102,20 +104,21 @@ export class MeterSettingsPanelComponent {
       );
       if (offsetOffset === undefined) return;
 
-      this.project.currentProjectRaw()?.modify(
+      projectHolder.modify(
         ProjectOptional(['meter', 'startOffset']).modify(o => Math.round((o + offsetOffset) * 100000) / 100000),
       );
     } finally {
-      this.liveMeter.emit(this.project.currentProjectRaw()?.project().meter ?? {});
+      this.liveMeter.emit(projectHolder.project().meter ?? {});
     }
   }
 
   async onTempoEditClick(event: MouseEvent) {
-    event.preventDefault();
     event.stopPropagation();
 
-    const initMeter = this.project.currentProjectRaw()?.project().meter;
-    if (!this.modalEdit || !initMeter) return;
+    const projectHolder = this.project.currentProjectRaw();
+    if (!projectHolder) return;
+    const initMeter = projectHolder.project().meter;
+    if (!initMeter) return;
 
     try {
       const tempoScaleLn = await this.modalEdit.drag(
@@ -127,11 +130,11 @@ export class MeterSettingsPanelComponent {
       );
       if (tempoScaleLn === undefined) return;
 
-      this.project.currentProjectRaw()?.modify(
+      projectHolder.modify(
         ProjectOptional(['meter', 'bpm']).modify(bpm => Math.round(100 * bpm * Math.exp(tempoScaleLn)) / 100),
       );
     } finally {
-      this.liveMeter.emit(this.project.currentProjectRaw()?.project().meter ?? {});
+      this.liveMeter.emit(projectHolder.project().meter ?? {});
     }
   }
 
@@ -155,15 +158,18 @@ export class MeterSettingsPanelComponent {
   @ViewChild('meterUnlockDialog') meterUnlockDialog!: TemplateRef<this>;
 
   onToggleLockClick() {
-    if (!this.isMeterSet()) return;
-    if (this.isMeterLocked()) {
+    const projectHolder = this.project.currentProjectRaw();
+    if (!projectHolder) return;
+    const meter = projectHolder.project().meter;
+    if (!meter) return;
+    if (meter.state === 'locked') {
       this.dialog.open(this.meterUnlockDialog).afterClosed().subscribe(v => {
         if (v) {
-          this.project.currentProjectRaw()?.modify(ProjectOptional(['meter', 'state']).set('active'));
+          projectHolder.modify(ProjectOptional(['meter', 'state']).set('active'));
         }
       });
     } else {
-      this.project.currentProjectRaw()?.modify(ProjectOptional(['meter', 'state']).set('locked'));
+      projectHolder.modify(ProjectOptional(['meter', 'state']).set('locked'));
     }
   }
 
