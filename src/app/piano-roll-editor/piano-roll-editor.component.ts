@@ -1,10 +1,14 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Signal, ViewChild, computed, effect, input, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, NgZone, Signal, ViewChild, computed, effect, input, signal } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import * as t from 'io-ts';
+import { identity, isEqual, max, min } from 'lodash-es';
+import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
 import { NoteSelection, ProjectService } from '../services/project.service';
-import { Meter, Note, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { Meter, Note, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -14,6 +18,9 @@ import { Meter, Note, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport,
     'class': 'canvas-box',
     '[style.cursor]': 'styleCursor()',
     '(mousedown)': 'onMouseDown($event)',
+    '(window:copy)': 'onCopy($event)',
+    '(window:cut)': 'onCopy($event)',
+    '(window:paste)': 'onPaste($event)',
   },
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -24,7 +31,7 @@ export class PianoRollEditorComponent {
     const projectHolder = this.project.currentProjectRaw();
     const activePartIdx = this.activePartIdx();
     return projectHolder && [
-      activePartIdx === undefined ? new Selection(projectHolder.currentSelection) : new Notation(activePartIdx),
+      identity<EditorState>(activePartIdx === undefined ? new Selection(projectHolder.currentSelection) : new Notation(activePartIdx)),
       projectHolder,
     ] as const;
   });
@@ -53,7 +60,9 @@ export class PianoRollEditorComponent {
     private readonly project: ProjectService,
     readonly viewport: AudioVisualizationComponent,
     private readonly keyboardState: KeyboardStateService,
+    private readonly snackBar: MatSnackBar,
     hostElem: ElementRef<HTMLElement>,
+    ngZone: NgZone,
   ) {
     const canvasSize = elemBoxSizeSignal(hostElem.nativeElement, 'device-pixel-content-box');
     effect(() => {
@@ -73,6 +82,14 @@ export class PianoRollEditorComponent {
       addDrawable?.(canvasCtx);
     });
     effect(() => this.#dragState()?.addEffect?.());
+
+    Mousetrap.bind(["del", "backspace"], () => ngZone.run(() => {
+      const editorState_ = this.#editorState();
+      if (editorState_ === undefined) return;
+      const [editorState, projectHolder] = editorState_;
+      const op = editorState.deleteSelection?.();
+      if (op) projectHolder.modify(op[0], { preserveSelection: op[1] });
+    }));
   }
 
   @ViewChild('canvas') canvas!: ElementRef<HTMLCanvasElement>;
@@ -139,6 +156,40 @@ export class PianoRollEditorComponent {
       }
     }
   }
+
+  onCopy(event: ClipboardEvent) {
+    const editorState_ = this.#editorState();
+    if (editorState_ === undefined) return;
+    const [editorState, projectHolder] = editorState_;
+    if (editorState.copySelection === undefined) return;
+    if (event.clipboardData == null) throw new Error("could not copy to clipboard");
+    event.preventDefault();
+    const isCut = event.type === 'cut';
+    const copyData = editorState.copySelection(projectHolder.project(), isCut);
+    event.clipboardData.setData("application/json", JSON.stringify(copyData));
+    if (isCut) {
+      const op = editorState.deleteSelection?.();
+      if (op) projectHolder.modify(op[0], { preserveSelection: op[1] });
+    }
+  }
+
+  onPaste(event: ClipboardEvent) {
+    const editorState_ = this.#editorState();
+    if (editorState_ === undefined) return;
+    const [editorState, projectHolder] = editorState_;
+    if (editorState.paste === undefined) return;
+    if (event.clipboardData == null) return;
+    event.preventDefault();
+    const pasteData = event.clipboardData.getData("application/json");
+    if (pasteData.length === 0) return;
+    try {
+      const op = editorState.paste(JSON.parse(pasteData));
+      if (op) projectHolder.modify(op[0], { preserveSelection: op[1] });
+    } catch (e) {
+      console.error(e);
+      this.snackBar.open("Error pasting from clipboard.");
+    }
+  }
 }
 
 type DragHandlerCooked =
@@ -169,6 +220,9 @@ type RenderParams = {
 interface EditorState {
   render(canvasCtx: CanvasRenderingContext2D, params: RenderParams): void;
   startDrag(project: Project, startTime: number, startPitch: number, pxPerTime: number, shiftKey: boolean, ctrlKey: boolean): DragHandler;
+  copySelection?(project: Project, isCut: boolean): any;
+  paste?(pasteData: any): [(a: Project) => Project, boolean] | undefined;
+  deleteSelection?(): [(a: Project) => Project, boolean] | undefined;
 }
 
 class Notation implements EditorState {
@@ -226,6 +280,7 @@ class Notation implements EditorState {
 }
 
 class Selection implements EditorState {
+  #lastPaste?: { data: any, repeatCount: number };
   constructor(private readonly currentSelection: NoteSelection) {
     currentSelection.clear();
   }
@@ -300,6 +355,7 @@ class Selection implements EditorState {
         cursor: 'ew-resize',
         next: endTime => {
           const deltaPulseRaw = time2pulse(meter, endTime) - startPulse;
+          // TODO: endpoint should be rounded, not delta
           const deltaPulse = Math.round(deltaPulseRaw / ppsd) * ppsd;
           if (deltaPulse === 0) return undefined;
           const newNoteT1 = origNote.start + (1 - which) * origNote.length;
@@ -406,6 +462,74 @@ class Selection implements EditorState {
       },
     };
   }
+
+  copySelection(project: Project, isCut: boolean): ClipboardNoteData {
+    const currentSelection = this.currentSelection;
+    const ret = Object.fromEntries(function* () {
+      for (const [partIdx, part] of project.parts.entries()) {
+        const selPart = currentSelection.withFirst(partIdx);
+        if (selPart !== undefined) {
+          yield [partIdx, part.notes.filter((_note, noteIdx) => selPart.has(noteIdx))];
+        }
+      }
+    }());
+    this.#lastPaste = { data: ret, repeatCount: isCut ? 0 : 1 };
+    return ret as any;
+  }
+
+  paste(pasteData: any): [(a: Project) => Project, boolean] | undefined {
+    const dataObj = decodeOrThrow(ClipboardNoteData, pasteData, "error parsing pasted data");
+    const data = Object.entries(dataObj);
+    if (data.length === 0) return undefined;
+    const duration = max(data.flatMap(([, notes]) => notes.map(n => n.start + n.length)))! - min(data.flatMap(([, notes]) => notes.map(n => n.start)))!;
+    let pasteOffset = 0;
+    if (this.#lastPaste !== undefined && isEqual(pasteData, this.#lastPaste.data)) {
+      pasteOffset = this.#lastPaste.repeatCount++;
+    }
+    return [project => {
+      if (project.meter === undefined) return project;
+      const ppmm = project.meter.measureLength * PULSES_PER_BEAT;
+      const stride = duration > ppmm ? Math.ceil(duration / ppmm) * ppmm : duration;
+      const offset = stride * pasteOffset;
+      const newParts = project.parts.map((part, partIdx) => {
+        const partData = dataObj[partIdx];
+        return partData === undefined ? [part, undefined] as const : [{
+          ...part, notes: [
+            ...part.notes,
+            ...partData.map(note => ({ ...note, start: note.start + offset })),
+          ],
+        }, [part.notes.length, partData.length]] as const;
+      });
+      this.currentSelection.setFromIterable(function* () {
+        for (const [partIdx, [, partRange]] of newParts.entries()) {
+          if (partRange !== undefined) {
+            const [start, length] = partRange;
+            yield [partIdx, function* () {
+              for (let i = start; i < start + length; i++) yield i;
+            }()];
+          }
+        }
+      }());
+      return {
+        ...project, parts: newParts.map(v => v[0]),
+      };
+    }, false];
+  }
+
+  deleteSelection(): [(a: Project) => Project, boolean] | undefined {
+    if (this.currentSelection.isEmpty) return undefined;
+    const selection = this.currentSelection.clone();
+    return [project => ({
+      ...project,
+      parts: project.parts.map((part, partIdx) => {
+        const selPart = selection.withFirst(partIdx);
+        return !selPart ? part : {
+          ...part,
+          notes: part.notes.filter((_note, noteIdx) => !selPart.has(noteIdx)),
+        };
+      }),
+    }), false];
+  }
 }
 
 type OutsetBorderStyle = {
@@ -476,9 +600,6 @@ function drawNoteRect(ctx: OffscreenCanvasRenderingContext2D | CanvasRenderingCo
   ctx.restore();
 }
 
-// TODO: copy-paste
-// TODO: delete notes
-
 function note2rect(viewport: Viewport, meter: Meter, note: Note): Rect {
   const x = Math.round(viewport.time2x(pulse2time(meter, note.start)));
   const y = Math.round(viewport.pitch2y(note.pitch + .5));
@@ -499,6 +620,9 @@ const isNoteInRect = (rect: SpecTileWindow, note: Note, meter: Meter) =>
 type Rect = { x: number; y: number; width: number; height: number; };
 type CssCursorValue = "auto" | "pointer" | "move" | "not-allowed" | "ew-resize";
 type Drawable = (canvasCtx: CanvasRenderingContext2D) => void;
+
+type ClipboardNoteData = t.TypeOf<typeof ClipboardNoteData>;
+const ClipboardNoteData = t.record(t.string, t.array(Note));
 
 // code problems:
 // - canvas devicepixelsize repeated

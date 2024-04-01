@@ -6,7 +6,7 @@ import { NonEmptyArray } from 'fp-ts/NonEmptyArray';
 import { pipe } from 'fp-ts/function';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { AudioSamples } from '../common';
-import { Meter, Project } from '../ui-common';
+import { Meter, Project, decodeOrThrow } from '../ui-common';
 import { signalDefined, signalFiltered } from '../utils/ho-signals';
 import { PairsSet } from '../utils/pairs-set';
 
@@ -24,10 +24,9 @@ export class ProjectService {
   }
 
   async fromBlob(blob: Blob) {
-    const projHolder = new ProjectHolder(pipe(
-      Project.decode(await msgpack.decodeAsync(blob.stream()) as any),
-      getOrElseW((e) => { console.log("fromBlob:", e); throw new Error(`${e[0].context.at(-1)?.key}:${e[0].value}`); })
-    ));
+    const projHolder = new ProjectHolder(
+      decodeOrThrow(Project, await msgpack.decodeAsync(blob.stream()), "error parsing project data")
+    );
     this.#currentProject$.next(projHolder);
     return projHolder;
   }
@@ -79,9 +78,12 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
 
   /** if the previous modification had the same fusion tag, a new undo state may not be created */
   modify(op: (a: Project) => Project, opts?: ModifyOpts) {
+    const preserveSelection = !!opts?.preserveSelection;
+    if (!preserveSelection) {
+      this.currentSelection?.clear();
+    }
     const next = op(this.#projectInternal);
     const modTime = performance.now();
-    const preserveSelection = !!opts?.preserveSelection;
     if (
       this.#prevModFusionTag !== undefined
       && this.#prevModFusionTag === opts?.fusionTag // implies `fusionTag !== undefined`
@@ -99,9 +101,6 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     this.#prevModFusionTag = opts?.fusionTag;
     this.#prevModTime = modTime;
     this.#project$.next(this.#projectInternal);
-    if (!preserveSelection) {
-      this.currentSelection?.clear();
-    }
   }
 
   canUndo() { return this.#current > 0 }
@@ -109,11 +108,11 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   undo() {
     if (!this.canUndo()) return;
     this.#prevModFusionTag = undefined;
-    this.#current--;
-    this.#project$.next(this.#projectInternal);
-    if (!this.#history[this.#current + 1][1]) {
+    if (!this.#history[this.#current][1]) {
       this.currentSelection?.clear();
     }
+    this.#current--;
+    this.#project$.next(this.#projectInternal);
   }
 
   canRedo() { return this.#current < this.#history.length - 1 }
@@ -121,11 +120,11 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   redo() {
     if (!this.canRedo()) return;
     this.#prevModFusionTag = undefined;
-    this.#current++;
-    this.#project$.next(this.#projectInternal);
-    if (!this.#history[this.#current][1]) {
+    if (!this.#history[this.#current + 1][1]) {
       this.currentSelection?.clear();
     }
+    this.#current++;
+    this.#project$.next(this.#projectInternal);
   }
 
   markSaved() {

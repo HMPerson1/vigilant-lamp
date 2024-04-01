@@ -2,11 +2,13 @@ import { FocusOrigin } from '@angular/cdk/a11y';
 import { Portal } from '@angular/cdk/portal';
 import { Signal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { absurd } from 'fp-ts/function';
+import { absurd, pipe } from 'fp-ts/function';
 import * as t from 'io-ts';
 import { Lens, Optional } from 'monocle-ts';
 import { Observable, map } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
+import { either } from 'fp-ts';
+import { PathReporter } from 'io-ts/PathReporter';
 
 // TODO: tempo changes? time sig changes?
 
@@ -21,7 +23,7 @@ export const Note = t.readonly(t.type({
   /** in MIDI pitch */
   pitch: t.number,
   notation: t.union([t.undefined, t.null]), // TODO
-}));
+}), "Note");
 
 export enum Instruments {
   DEFAULT = 'default_synth',
@@ -156,4 +158,14 @@ export interface Viewport {
   time2x(t: number): number;
   y2pitch(y: number): number;
   pitch2y(p: number): number;
+}
+
+export function decodeOrThrow<IOT extends t.Any>(codec: IOT, value: unknown, consoleMsg: string): t.TypeOf<IOT> {
+  return pipe(
+    codec.decode(value),
+    either.getOrElseW(e => {
+      console.error(consoleMsg + ':\n', e);
+      throw new Error(PathReporter.report(either.left(e)).join('\n'))
+    }),
+  );
 }
