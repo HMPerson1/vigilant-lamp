@@ -1,14 +1,15 @@
 import { ChangeDetectionStrategy, Component, ElementRef, NgZone, Signal, ViewChild, computed, effect, input, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import * as t from 'io-ts';
-import { identity, isEqual, max, min } from 'lodash-es';
+import { flatmap, imap, map, max, min, some } from 'itertools';
+import { clamp, identity, isEqual } from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
 import { NoteSelection, ProjectService } from '../services/project.service';
-import { Meter, Note, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -330,13 +331,8 @@ class Selection implements EditorState {
   #isOverSelectedNote(parts: Project["parts"], meter: Meter, time: number, pitch: number): boolean {
     const startPulse = time2pulse(meter, time);
     const startPitchInt = Math.round(pitch);
-    for (const [partIdx, noteIdx] of this.currentSelection) {
-      const note = parts[partIdx].notes[noteIdx];
-      if (note.start <= startPulse && startPulse <= note.start + note.length && note.pitch === startPitchInt) {
-        return true;
-      }
-    }
-    return false;
+    return some(this.#selectedNotes(parts), note =>
+      note.start <= startPulse && startPulse <= note.start + note.length && note.pitch === startPitchInt);
   }
 
   startDrag(project: Project, startTime: number, startPitch: number, pxPerTime: number, shiftKey: boolean, ctrlKey: boolean): DragHandler {
@@ -354,14 +350,12 @@ class Selection implements EditorState {
         type: 'm',
         cursor: 'ew-resize',
         next: endTime => {
-          const deltaPulseRaw = time2pulse(meter, endTime) - startPulse;
-          // TODO: endpoint should be rounded, not delta
-          const deltaPulse = Math.round(deltaPulseRaw / ppsd) * ppsd;
-          if (deltaPulse === 0) return undefined;
+          const deltaPulse = time2pulse(meter, endTime) - startPulse;
           const newNoteT1 = origNote.start + (1 - which) * origNote.length;
-          const newNoteT2_ = origNote.start + which * origNote.length + deltaPulse;
+          const newNoteT2Raw = origNote.start + which * origNote.length + deltaPulse;
+          const newNoteT2_ = Math.round(newNoteT2Raw / ppsd) * ppsd;
           const newNoteT2 = newNoteT2_ !== newNoteT1 ? newNoteT2_
-            : newNoteT1 + ppsd * (newNoteT2_ - deltaPulse + deltaPulseRaw >= newNoteT1 ? +1 : -1);
+            : newNoteT1 + ppsd * (newNoteT2Raw >= newNoteT1 ? +1 : -1);
           const [start, length] = newNoteT2 >= newNoteT1 ? [newNoteT1, newNoteT2 - newNoteT1] : [newNoteT2, newNoteT1 - newNoteT2];
           const op = ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).modify(
             note => ({ ...note, start, length })
@@ -372,6 +366,11 @@ class Selection implements EditorState {
       };
     } else if (this.#isOverSelectedNote(project.parts, meter, startTime, startPitch)) {
       // move notes
+      const selection = this.currentSelection.clone();
+      const selPulseMin = min(imap(this.#selectedNotes(project.parts), n => n.start))!;
+      // const selPulseMax = max(imap(this.#selectedNotes(project.parts), n => n.start + n.length))!;
+      const selPitchMin = min(imap(this.#selectedNotes(project.parts), n => n.pitch))!;
+      const selPitchMax = max(imap(this.#selectedNotes(project.parts), n => n.pitch))!;
       const ppsd = PULSES_PER_BEAT / meter.subdivision;
       const startPulse = time2pulse(meter, startTime);
       return {
@@ -379,15 +378,17 @@ class Selection implements EditorState {
         cursor: 'move',
         next: (endTime, endPitch, lockAxis_) => {
           const lockAxis = lockAxis_();
-          const deltaPulse = lockAxis === 'y' ? 0 :
+          const deltaPulse0 = lockAxis === 'y' ? 0 :
             Math.round((time2pulse(meter, endTime) - startPulse) / ppsd) * ppsd;
-          const deltaPitch = lockAxis === 'x' ? 0 :
+          const deltaPitch0 = lockAxis === 'x' ? 0 :
             Math.round(endPitch - startPitch);
+          const deltaPulse = Math.max(deltaPulse0, -selPulseMin);
+          const deltaPitch = clamp(deltaPitch0, -selPitchMin, PITCH_MAX - selPitchMax);
           if (deltaPulse === 0 && deltaPitch === 0) return undefined;
           return [{
             ...project,
             parts: project.parts.map((part, partIdx) => {
-              const selPart = this.currentSelection.withFirst(partIdx);
+              const selPart = selection.withFirst(partIdx);
               return !selPart ? part : {
                 ...part,
                 notes: part.notes.map((note, noteIdx) =>
@@ -481,7 +482,7 @@ class Selection implements EditorState {
     const dataObj = decodeOrThrow(ClipboardNoteData, pasteData, "error parsing pasted data");
     const data = Object.entries(dataObj);
     if (data.length === 0) return undefined;
-    const duration = max(data.flatMap(([, notes]) => notes.map(n => n.start + n.length)))! - min(data.flatMap(([, notes]) => notes.map(n => n.start)))!;
+    const duration = max(flatmap(data, ([, notes]) => map(notes, n => n.start + n.length)))! - min(flatmap(data, ([, notes]) => map(notes, n => n.start)))!;
     let pasteOffset = 0;
     if (this.#lastPaste !== undefined && isEqual(pasteData, this.#lastPaste.data)) {
       pasteOffset = this.#lastPaste.repeatCount++;
@@ -529,6 +530,12 @@ class Selection implements EditorState {
         };
       }),
     }), false];
+  }
+
+  *#selectedNotes(parts: Project["parts"]) {
+    for (const [partIdx, noteIdx] of this.currentSelection) {
+      yield parts[partIdx].notes[noteIdx];
+    }
   }
 }
 
