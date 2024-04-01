@@ -27,7 +27,7 @@ export class MeterSettingsPanelComponent {
 
   constructor(private project: ProjectService, private dialog: MatDialog) {
     effect(() => {
-      if (this.isMeterSet()) {
+      if (this.isMeterActive()) {
         this.projectMeterCtrls.bpm.enable({ emitEvent: false })
         this.projectMeterCtrls.startOffset.enable({ emitEvent: false })
       } else {
@@ -178,7 +178,7 @@ const bindProjectCtrl =
           pipe(
             O.fromNullable(this.project.currentProjectRaw()?.project()),
             O.flatMap(lens.getOption),
-            O.matchW(() => ({ value: null, disabled: true }), v => ({ value: v, disabled: false })),
+            O.toNullable,
           ),
           { emitEvent: false },
         );
