@@ -1,29 +1,38 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { Portal } from '@angular/cdk/portal';
-import { Signal, computed, signal } from '@angular/core';
+import { Signal, computed } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { absurd, pipe } from 'fp-ts/function';
+import { either } from 'fp-ts';
+import { absurd, identity, pipe } from 'fp-ts/function';
 import * as t from 'io-ts';
+import { PathReporter } from 'io-ts/PathReporter';
 import { Lens, Optional } from 'monocle-ts';
 import { Observable, map } from "rxjs";
 import { AudioSamples, t_Uint8Array } from "./common";
-import { either } from 'fp-ts';
-import { PathReporter } from 'io-ts/PathReporter';
 
 // TODO: tempo changes? time sig changes?
+
+// msgpack always coerces `undefined` to `null`, so coerce we it back here
+const t_nullable = <C extends t.Any>(codec: C) => new t.Type<t.TypeOf<C> | undefined>(
+  codec.name,
+  (u): u is t.TypeOf<C> | undefined => u === undefined || codec.is(u),
+  (i, ctx) => i == null ? t.success(undefined) : codec.validate(i, ctx),
+  identity,
+);
 
 export const PULSES_PER_BEAT = 96;
 
 export interface Note extends t.TypeOf<typeof Note> { }
 export const Note = t.readonly(t.type({
   /** in pulses */
-  start: t.number,
+  start: t.Integer,
   /** in pulses */
-  length: t.number,
+  length: t.Integer,
   /** in MIDI pitch */
-  pitch: t.number,
-  notation: t.union([t.undefined, t.null]), // TODO
+  pitch: t.Integer,
+  notation: t_nullable(t.type({})), // TODO
 }), "Note");
+export const NoteLens = Lens.fromProp<Note>();
 
 export enum Instruments {
   DEFAULT = 'default_synth',
@@ -35,7 +44,7 @@ export const Part = t.readonly(t.type({
   name: t.string,
   instrument: t.literal(Instruments.DEFAULT), // TODO: instruments?
   /// #ff0000
-  color: t.string,
+  color: t.refinement(t.string, s => /^#[0-9a-fA-F]{6}$/.test(s)),
   /// 0...1
   gain: t.number,
   visible: t.boolean,
@@ -55,17 +64,10 @@ export const Meter = t.readonly(t.type({
   state: t.union([t.literal('active'), t.literal('locked')]),
   startOffset: t.number,
   bpm: t.number,
-  measureLength: t.number,
-  subdivision: t.number,
+  measureLength: t.Integer,
+  subdivision: t.Integer,
 }));
 export const MeterLens = Lens.fromProp<Meter>();
-export const defaultMeter: Meter = {
-  state: 'active',
-  startOffset: 0,
-  bpm: 120,
-  measureLength: 4,
-  subdivision: 2,
-}
 
 export type MinMeter = Pick<Meter, "bpm" | "startOffset">;
 export const isMinMeter = (meter: Partial<Meter>): meter is Partial<Meter> & MinMeter => meter.bpm !== undefined && meter.startOffset !== undefined;
@@ -79,7 +81,7 @@ export interface Project extends t.TypeOf<typeof Project> { }
 export const Project = t.readonly(t.type({
   audioFile: t_Uint8Array,
   audio: AudioSamples,
-  meter: t.union([Meter, t.undefined]),
+  meter: t_nullable(Meter),
   parts: t.readonlyArray(Part),
 }));
 export const ProjectLens = Lens.fromPath<Project>();
@@ -110,6 +112,7 @@ export function resizeSignal(elem: Element, options?: ResizeObserverOptions): Si
   return toSignal(resizeObservable(elem, options));
 }
 
+// ~21.1 kHz
 export const PITCH_MAX = 136;
 
 export interface ModalSpectrogramEdit {
