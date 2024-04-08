@@ -42,6 +42,7 @@
   <div>
     <div>Adjust meter while keeping notes</div>
     <div class="icon-button-row">
+      <!-- hold shift to bump a measure? -->
       <button mat-icon-button (click)="onOffsetBumpBeat(-1)" matTooltip="Back one beat" [disabled]="!isMeterSet()">
         <mat-icon>keyboard_arrow_left</mat-icon>
       </button>

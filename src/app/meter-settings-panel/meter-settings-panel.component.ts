@@ -2,12 +2,14 @@ import { CdkPortal } from '@angular/cdk/portal';
 import { Component, EventEmitter, Input, Output, TemplateRef, ViewChild, computed, effect } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import * as O from 'fp-ts/Option';
+import * as RA from 'fp-ts/ReadonlyArray';
 import { flow, pipe } from 'fp-ts/function';
-import { Optional } from 'monocle-ts';
+import { Optional, fromTraversable } from 'monocle-ts';
 import * as rxjs from 'rxjs';
 import { ProjectService } from '../services/project.service';
-import { Meter, MeterLens, ModalSpectrogramEdit, PULSES_PER_BEAT, Project, ProjectOptional } from '../ui-common';
+import { Meter, MeterLens, ModalSpectrogramEdit, NoteLens, PULSES_PER_BEAT, PartLens, Project, ProjectLens, ProjectOptional } from '../ui-common';
 import { isNonnull } from '../utils/ho-signals';
 
 @Component({
@@ -25,7 +27,11 @@ export class MeterSettingsPanelComponent {
   @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
   @ViewChild("portalHelpTempoEdit") portalHelpTempoEdit!: CdkPortal;
 
-  constructor(private readonly project: ProjectService, private readonly dialog: MatDialog) {
+  constructor(
+    private readonly project: ProjectService,
+    private readonly dialog: MatDialog,
+    private readonly snackBar: MatSnackBar,
+  ) {
     effect(() => {
       if (this.isMeterActive()) {
         this.projectMeterCtrls.bpm.enable({ emitEvent: false })
@@ -139,20 +145,43 @@ export class MeterSettingsPanelComponent {
   }
 
   onOffsetBumpBeat(dir: number) {
-    if (!this.isMeterSet()) return;
-    this.project.currentProjectRaw()?.modify(
-      ProjectOptional(['meter']).modify(m => MeterLens('startOffset').modify(x => x + dir * 60 / m.bpm)(m)),
-      { fusionTag: 'startOffsetBump' },
-    );
-    // TODO: this should adjust the representation of notes so that the real time stays constant
+    const projectHolder = this.project.currentProjectRaw();
+    if (!projectHolder) return;
+    const meter = projectHolder.project().meter;
+    if (!meter) return;
+    const offset = dir * 60 / meter.bpm;
+    try {
+      projectHolder.modify(
+        flow(
+          ProjectAllNotes.composeLens(NoteLens('start')).modify(s => assertNonnegative(s - dir * PULSES_PER_BEAT)),
+          ProjectOptional(['meter']).composeLens(MeterLens('startOffset')).modify(x => x + offset)
+        ),
+        { fusionTag: 'startOffsetBump' },
+      );
+    } catch (e) {
+      if (e !== assertNonnegativeThrown) throw e;
+      this.snackBar.open("This action could not be performed because it would invalidate some existing notes.");
+    }
   }
+
   onTempoMult(factor: number, dir: 1 | -1) {
-    if (!this.isMeterSet()) return;
-    this.project.currentProjectRaw()?.modify(flow(
-      ProjectOptional(['meter', 'bpm']).modify(x => dir === 1 ? x * factor : x / factor),
-      ProjectOptional(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : x % factor === 0 ? x / factor : x),
-    ));
-    // TODO: this should adjust the representation of notes so that the real time stays constant
+    const projectHolder = this.project.currentProjectRaw();
+    if (!projectHolder) return;
+    if (!projectHolder.project().meter) return;
+    try {
+      projectHolder.modify(flow(
+        ProjectAllNotes.composeLens(NoteLens('start')).modify(s => assertIntegral(dir === 1 ? s * factor : s / factor)),
+        ProjectAllNotes.composeLens(NoteLens('length')).modify(l => assertIntegral(dir === 1 ? l * factor : l / factor)),
+        ProjectOptional(['meter', 'bpm']).modify(x => dir === 1 ? x * factor : x / factor),
+        // try to keep measures the same real length
+        ProjectOptional(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : (x % factor === 0 ? x / factor : x)),
+        // try to keep subdivisions the same real length
+        ProjectOptional(['meter', 'subdivision']).modify(x => dir === 1 ? (x % factor === 0 ? x / factor : x) : (PULSES_PER_BEAT % x * factor === 0 ? x * factor : x)),
+      ));
+    } catch (e) {
+      if (e !== assertIntegralThrown) throw e;
+      this.snackBar.open("This action could not be performed because it would invalidate some existing notes.");
+    }
   }
 
   @ViewChild('meterUnlockDialog') meterUnlockDialog!: TemplateRef<this>;
@@ -175,6 +204,8 @@ export class MeterSettingsPanelComponent {
 
   readonly PULSES_PER_BEAT = PULSES_PER_BEAT;
 }
+
+const ProjectAllNotes = ProjectLens(["parts"]).composeTraversal(fromTraversable(RA.Traversable)()).composeLens(PartLens('notes')).composeTraversal(fromTraversable(RA.Traversable)());
 
 const bindProjectCtrl =
   <U extends {}>(lens: Optional<Project, U>, fusionTag?: string): (this: { project: ProjectService; }, formCtrl: FormControl<U | null>) => FormControl<U | null> =>
@@ -221,4 +252,18 @@ class ProjectMeterCtrls {
 }
 
 const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });
-const validSubdivision: ValidatorFn = (x) => (96 % x.value == 0 ? null : { 'validSubdivision': x.value });
+const validSubdivision: ValidatorFn = (x) => (PULSES_PER_BEAT % x.value == 0 ? null : { 'validSubdivision': x.value });
+
+const assertNonnegativeThrown = Symbol();
+/// does not throw an `Error`
+function assertNonnegative(x: number) {
+  if (x < 0) throw assertNonnegativeThrown;
+  return x;
+}
+
+const assertIntegralThrown = Symbol();
+/// does not throw an `Error`
+function assertIntegral(x: number) {
+  if (!Number.isInteger(x)) throw assertIntegralThrown;
+  return x;
+}
