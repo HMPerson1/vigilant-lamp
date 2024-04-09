@@ -54,7 +54,10 @@ export class PianoRollEditorComponent {
 
   readonly styleCursor = computed(() =>
     this.#dragState()?.cursor ??
-    (this.#mousePos() && (this.#hover()?.[0]?.cursor ?? 'not-allowed'))
+    (() => {
+      const hover = this.#hover();
+      return hover && (hover[0]?.cursor ?? 'not-allowed');
+    })()
   );
 
   constructor(
@@ -337,7 +340,7 @@ class Selection implements EditorState {
 
   startDrag(project: Project, startTime: number, startPitch: number, pxPerTime: number, shiftKey: boolean, ctrlKey: boolean): DragHandler {
     const meter = project.meter;
-    if (meter === undefined) return undefined;
+    if (meter === undefined) return { type: 's', cursor: 'auto', next: () => () => () => { } };
 
     const hoveredDragHandle = this.#isOverDragHandle(project.parts, meter, startTime, startPitch, pxPerTime);
     if (hoveredDragHandle !== undefined) {

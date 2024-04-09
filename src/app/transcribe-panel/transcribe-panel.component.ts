@@ -70,4 +70,6 @@ export class TranscribePanelComponent {
       }));
     }
   }
+
+  trackIdx(idx: number, _item: any) { return idx }
 }

@@ -1,5 +1,5 @@
 import { CdkPortal } from '@angular/cdk/portal';
-import { Component, EventEmitter, Input, Output, TemplateRef, ViewChild, computed, effect } from '@angular/core';
+import { Component, EventEmitter, Input, Output, Signal, TemplateRef, ViewChild, computed, effect } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -32,15 +32,20 @@ export class MeterSettingsPanelComponent {
     private readonly dialog: MatDialog,
     private readonly snackBar: MatSnackBar,
   ) {
-    effect(() => {
-      if (this.isMeterActive()) {
-        this.projectMeterCtrls.bpm.enable({ emitEvent: false })
-        this.projectMeterCtrls.startOffset.enable({ emitEvent: false })
-      } else {
-        this.projectMeterCtrls.bpm.disable({ emitEvent: false })
-        this.projectMeterCtrls.startOffset.disable({ emitEvent: false })
-      }
-    });
+    const bindFormCtrlEnabled = (ctrl: FormControl, signal: Signal<boolean>) =>
+      effect(() => {
+        if (signal()) {
+          ctrl.enable({ emitEvent: false });
+        } else {
+          ctrl.disable({ emitEvent: false });
+        }
+      });
+
+    bindFormCtrlEnabled(this.projectMeterCtrls.bpm, this.isMeterActive);
+    bindFormCtrlEnabled(this.projectMeterCtrls.startOffset, this.isMeterActive);
+    bindFormCtrlEnabled(this.projectMeterCtrls.measureLength, this.isMeterSet);
+    bindFormCtrlEnabled(this.projectMeterCtrls.subdivision, this.isMeterSet);
+
     effect(() => {
       this.liveMeter.emit(project.currentProjectRaw()?.project().meter ?? {})
     });

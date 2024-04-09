@@ -18,6 +18,7 @@ export class AudioWaveformComponent {
 
   constructor(project: ProjectService, audioVizContainer: AudioVisualizationComponent, hostElem: ElementRef<HTMLElement>, destroyRef: DestroyRef) {
     const wasmWaveRenderer$ = (() => {
+      const audioData$ = computed(() => project.currentProjectRaw()?.project()?.audio);
       // TODO: `free`ing is no longer necessary after rust wasm-bindgen finalizers
       let lastRenderer: wasm_module.WaveformRenderer | undefined;
       destroyRef.onDestroy(() => {
@@ -27,7 +28,7 @@ export class AudioWaveformComponent {
       return computed(() => {
         lastRenderer?.free();
         lastRenderer = undefined;
-        const audioData = project.currentProjectRaw()?.project()?.audio; // TODO: don't rerun on all changes
+        const audioData = audioData$();
         if (audioData !== undefined) {
           console.log('new data');
           const wasmBuffer = new wasm_module.AudioBuffer(audioData.samples, audioData.sampleRate);
