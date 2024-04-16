@@ -1,11 +1,12 @@
-import { CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-drop';
-import { Component, Input } from '@angular/core';
+import { CdkDragDrop } from '@angular/cdk/drag-drop';
+import { Component, Input, computed } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { flow } from 'fp-ts/function';
+import { imap, max } from 'itertools';
 import * as rxjs from 'rxjs';
 import { PartDialogComponent } from '../part-dialog/part-dialog.component';
 import { ProjectService } from '../services/project.service';
-import { ProjectLens, ProjectOptional, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray } from '../ui-common';
+import { ProjectLens, ProjectOptional, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray, sortPartsDisplay } from '../ui-common';
 
 @Component({
   selector: 'app-transcribe-panel',
@@ -18,6 +19,8 @@ export class TranscribePanelComponent {
   @Input() startTranscribing?: StartTranscribing;
   @Input() transcribeModeState?: TranscribeModeState;
 
+  readonly partsDisplay = computed(() => sortPartsDisplay(this.project.currentProjectRaw()?.project().parts ?? []));
+
   async onAddPartClick() {
     const projectHolder = this.project.currentProjectRaw();
     if (projectHolder === undefined || projectHolder.project()?.meter === undefined) return;
@@ -27,17 +30,13 @@ export class TranscribePanelComponent {
     if (res !== undefined) {
       projectHolder.modify(flow(
         ProjectOptional(['meter', 'state']).set('locked'),
-        ProjectLens(['parts']).modify(parts => [...parts, res]),
+        ProjectLens(['parts']).modify(parts => [...parts, { ...res, displayIndex: 1 + (max(imap(parts, p => p.displayIndex)) ?? -1) }]),
       ));
     }
   }
 
   onDeletePartClick(idx: number) {
-    this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => {
-      const ret = [...parts];
-      ret.splice(idx, 1);
-      return ret;
-    }));
+    this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => parts.toSpliced(idx, 1)));
   }
 
   async onPartEditClick(idx: number) {
@@ -60,16 +59,22 @@ export class TranscribePanelComponent {
   }
 
   drop(event: CdkDragDrop<any>) {
-    // TODO: don't "physically" move parts, just change order in UI
-    if (event.currentIndex !== event.previousIndex) {
-      this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => {
-        const ret = [...parts];
-        // cdkDropList doesn't handle column-reverse well
-        moveItemInArray(ret, ret.length - 1 - event.previousIndex, ret.length - 1 - event.currentIndex);
-        return ret;
-      }));
+    const idxFrom = event.previousIndex;
+    const idxTo = event.currentIndex;
+    if (idxTo === idxFrom) return;
+    const rotate = idxTo > idxFrom ?
+      ((i: number) => i === idxFrom ? idxTo : idxFrom < i && i <= idxTo ? i - 1 : i) :
+      ((i: number) => i === idxFrom ? idxTo : idxTo <= i && i < idxFrom ? i + 1 : i);
+    const partsDisplay = this.partsDisplay();
+    const partsLength = partsDisplay.length;
+    const physIdxToNewDispIdx = Array.from({ length: partsLength }, () => NaN);
+    for (const [fixedDispIdx, { idx: physIdx }] of partsDisplay.entries()) {
+      physIdxToNewDispIdx[physIdx] = partsLength - 1 - rotate(partsLength - 1 - fixedDispIdx);
     }
+    this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts =>
+      parts.map((p, i) => ({ ...p, displayIndex: physIdxToNewDispIdx[i] }))
+    ));
   }
 
-  trackIdx(idx: number, _item: any) { return idx }
+  trackItemIdx(_i: number, { idx }: { idx: number }) { return idx }
 }

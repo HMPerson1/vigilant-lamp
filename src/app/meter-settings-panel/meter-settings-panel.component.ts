@@ -159,7 +159,7 @@ export class MeterSettingsPanelComponent {
       projectHolder.modify(
         flow(
           ProjectAllNotes.composeLens(NoteLens('start')).modify(s => assertNonnegative(s - dir * PULSES_PER_BEAT)),
-          ProjectOptional(['meter']).composeLens(MeterLens('startOffset')).modify(x => x + offset)
+          ProjectOptional(['meter', 'startOffset']).modify(x => x + offset)
         ),
         { fusionTag: 'startOffsetBump' },
       );

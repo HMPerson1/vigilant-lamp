@@ -45,12 +45,14 @@ export const Part = t.readonly(t.type({
   instrument: t.literal(Instruments.DEFAULT), // TODO: instruments?
   /// #ff0000
   color: t.refinement(t.string, s => /^#[0-9a-fA-F]{6}$/.test(s)),
+  displayIndex: t.Integer,
+  // displayIndex: t_nullable(t.Integer).pipe(new t.Type<number, number, number | undefined>("", (x): x is number => true, x => t.success(x ?? 0), identity)),
   /// 0...1
   gain: t.number,
   visible: t.boolean,
-}));
+}), "Part");
 export const PartLens = Lens.fromProp<Part>();
-export const defaultPart: Part = {
+export const defaultPart: Omit<Part, 'displayIndex'> = {
   notes: [],
   name: 'New Part',
   instrument: Instruments.DEFAULT,
@@ -66,7 +68,7 @@ export const Meter = t.readonly(t.type({
   bpm: t.number,
   measureLength: t.Integer,
   subdivision: t.Integer,
-}));
+}), "Meter");
 export const MeterLens = Lens.fromProp<Meter>();
 
 export type MinMeter = Pick<Meter, "bpm" | "startOffset">;
@@ -83,7 +85,7 @@ export const Project = t.readonly(t.type({
   audio: AudioSamples,
   meter: t_nullable(Meter),
   parts: t.readonlyArray(Part),
-}));
+}), "Project");
 export const ProjectLens = Lens.fromPath<Project>();
 export const ProjectOptional = Optional.fromPath<Project>();
 
@@ -143,12 +145,7 @@ export interface TranscribeModeState {
 export const indexReadonlyArray: <T>(i: number) => Lens<ReadonlyArray<T>, T> =
   i => new Lens(
     s => s[i],
-    a => s => {
-      if (a === s[i]) return s;
-      const s2 = [...s];
-      s2[i] = a;
-      return s2;
-    },
+    a => s => a === s[i] ? s : s.with(i, a),
   )
 
 export const imageDataToBitmapFast = (image: ImageData, canvasComposite: boolean = false): Promise<ImageBitmap> =>
@@ -167,8 +164,13 @@ export function decodeOrThrow<IOT extends t.Any>(codec: IOT, value: unknown, con
   return pipe(
     codec.decode(value),
     either.getOrElseW(e => {
-      console.error(consoleMsg + ':\n', e);
-      throw new Error(PathReporter.report(either.left(e)).join('\n'))
+      const fullPathError = PathReporter.report(either.left(e)).join("\n");
+      console.error(consoleMsg + ":\n" + fullPathError + "\n", e);
+      throw new Error("could not decode value")
     }),
   );
+}
+
+export function sortPartsDisplay(parts: ReadonlyArray<Part>): (Part & { idx: number })[] {
+  return parts.map((p, i) => ({ ...p, idx: i })).sort((a, b) => a.displayIndex - b.displayIndex);
 }

@@ -99,6 +99,7 @@ export class AppComponent {
 
   transcribePanelExpanded: boolean = false;
 
+  // TODO: signalify
   uiMode: UiMode;
   get activePartIdx() { return this.uiMode && this.uiMode.mode === 'noting' ? this.uiMode.partIdx : undefined; }
 
@@ -122,7 +123,7 @@ export class AppComponent {
     } catch (e) {
       console.log("error new project:", e);
       if (!isUserAbortException(e)) {
-        this.snackBar.open(`Error creating a new project: ${e}`);
+        this.snackBar.open("Error creating a new project");
       }
     }
     this.loading = undefined
@@ -140,7 +141,7 @@ export class AppComponent {
     } catch (e) {
       console.log("error load project:", e);
       if (!isUserAbortException(e)) {
-        this.snackBar.open(`Error opening project: ${e}`);
+        this.snackBar.open("Error opening project");
       }
     }
     this.loading = undefined

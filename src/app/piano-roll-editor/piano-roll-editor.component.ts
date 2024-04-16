@@ -9,7 +9,7 @@ import { AudioVisualizationComponent } from '../audio-visualization/audio-visual
 import { SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
 import { NoteSelection, ProjectService } from '../services/project.service';
-import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, time2beat, time2pulse } from '../ui-common';
+import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, sortPartsDisplay, time2beat, time2pulse } from '../ui-common';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -234,7 +234,7 @@ class Notation implements EditorState {
 
   render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { meter, parts }, dragging, mousePos: mousePos_ }: RenderParams) {
     if (meter === undefined) return;
-    for (const part of parts) {
+    for (const part of sortPartsDisplay(parts)) {
       for (const note of part.notes) {
         drawNoteRect(canvasCtx, note2rect(viewport, meter, note), part.color);
       }
@@ -291,9 +291,9 @@ class Selection implements EditorState {
 
   render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { parts, meter } }: RenderParams) {
     if (meter === undefined) return;
-    for (const [partIdx, part] of parts.entries()) {
+    for (const part of sortPartsDisplay(parts)) {
       for (const [noteIdx, note] of part.notes.entries()) {
-        const isNoteSelected = this.currentSelection.has([partIdx, noteIdx]);
+        const isNoteSelected = this.currentSelection.has([part.idx, noteIdx]);
         drawNoteRect(canvasCtx, note2rect(viewport, meter, note), part.color, isNoteSelected ? SELECTED_BORDER : DEFAULT_BORDER);
       }
     }
