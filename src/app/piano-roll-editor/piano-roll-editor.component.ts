@@ -250,6 +250,7 @@ class Notation implements EditorState {
           length: PULSES_PER_BEAT / meter.subdivision,
           notation: undefined,
         });
+        if (rect.width === 0 || rect.height === 0) return;
         const newLayer = new OffscreenCanvas(rect.width, rect.height);
         drawNoteRect(newLayer.getContext("2d")!, { ...rect, x: 0, y: 0 }, parts[this.activePartIdx].color);
         canvasCtx.save();
