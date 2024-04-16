@@ -136,6 +136,9 @@
             <mat-panel-title>
               Parts
             </mat-panel-title>
+            <mat-panel-description *ngIf="activePartIdx !== undefined" style="display: block; overflow: hidden; text-wrap: nowrap; text-overflow: ellipsis;">
+              TRANSCRIBING: {{ project.currentProjectRaw()?.project()?.parts?.[activePartIdx]?.name }}
+            </mat-panel-description>
           </mat-expansion-panel-header>
           <app-transcribe-panel [startTranscribing]="startTranscribing"
             [transcribeModeState]="uiMode && uiMode.mode === 'noting' ? uiMode : undefined"></app-transcribe-panel>
