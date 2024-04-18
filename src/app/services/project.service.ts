@@ -1,14 +1,11 @@
-import { Injectable, Signal, WritableSignal, computed, signal } from '@angular/core';
+import { Injectable, Signal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import * as msgpack from '@msgpack/msgpack';
-import { getOrElseW } from 'fp-ts/Either';
 import { NonEmptyArray } from 'fp-ts/NonEmptyArray';
-import { pipe } from 'fp-ts/function';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { AudioSamples } from '../common';
 import { Meter, Project, decodeOrThrow } from '../ui-common';
 import { signalDefined, signalFiltered } from '../utils/ho-signals';
-import { PairsSet } from '../utils/pairs-set';
 
 @Injectable({
   providedIn: 'root'
@@ -32,9 +29,10 @@ export class ProjectService {
   }
 }
 
-type ModifyOpts = {
+export type ModifyOpts = {
   fusionTag?: string;
   preserveSelection?: boolean;
+  preservePartIdx?: boolean;
 };
 
 export interface FilteredProjectHolder<T> {
@@ -42,10 +40,14 @@ export interface FilteredProjectHolder<T> {
   modify(op: (a: Project & T) => Project, opts?: ModifyOpts): void;
 }
 
-export type NoteSelection = PairsSet<number, number>;
+const enum PreserveLevel {
+  None = 0,
+  Parts = 1,
+  Notes = 2,
+}
 
 export class ProjectHolder implements FilteredProjectHolder<unknown> {
-  #history: NonEmptyArray<[Project, boolean]>;
+  #history: NonEmptyArray<[Project, PreserveLevel]>;
   #current: number = 0;
   get #projectInternal(): Project { return this.#history[this.#current][0] }
   readonly #project$: BehaviorSubject<Project>;
@@ -58,12 +60,15 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   #prevModFusionTag?: string;
   #prevModTime?: number;
 
-  readonly currentSelection: NoteSelection = PairsSet.empty();
+  readonly #partIdxInvalidated$ = new Subject<void>();
+  readonly partIdxInvalidated$ = this.#partIdxInvalidated$.asObservable();
+  readonly #noteIdxInvalidated$ = new Subject<void>();
+  readonly noteIdxInvalidated$ = this.#noteIdxInvalidated$.asObservable();
 
   readonly withMeter: Signal<FilteredProjectHolder<WithMeter> | undefined>;
 
   constructor(prj: Project) {
-    this.#history = [[prj, false]];
+    this.#history = [[prj, 0]];
     this.#project$ = new BehaviorSubject(this.#projectInternal);
     this.project$ = this.#project$.asObservable();
     const projectW = signal(this.#projectInternal);
@@ -76,12 +81,19 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     return new Blob([msgpack.encode(Project.encode(this.#projectInternal))]);
   }
 
+  #emitInvalidations(preserveLevel: PreserveLevel) {
+    if (preserveLevel < PreserveLevel.Notes) {
+      this.#noteIdxInvalidated$.next();
+    }
+    if (preserveLevel < PreserveLevel.Parts) {
+      this.#partIdxInvalidated$.next();
+    }
+  }
+
   /** if the previous modification had the same fusion tag, a new undo state may not be created */
   modify(op: (a: Project) => Project, opts?: ModifyOpts) {
-    const preserveSelection = !!opts?.preserveSelection;
-    if (!preserveSelection) {
-      this.currentSelection?.clear();
-    }
+    const preserveLevel = opts?.preserveSelection ? PreserveLevel.Notes : opts?.preservePartIdx ? PreserveLevel.Parts : PreserveLevel.None;
+    this.#emitInvalidations(preserveLevel);
     const next = op(this.#projectInternal);
     const modTime = performance.now();
     if (
@@ -91,11 +103,11 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
       && modTime - this.#prevModTime <= MAX_FUSION_TIMEOUT
       && this.#current === this.#history.length - 1
     ) {
-      const lastPS = this.#history[this.#current][1]
-      this.#history[this.#current] = [next, preserveSelection && lastPS];
+      const lastPL = this.#history[this.#current][1]
+      this.#history[this.#current] = [next, Math.min(lastPL, preserveLevel)];
     } else {
       this.#current++;
-      this.#history.splice(this.#current, Infinity, [next, preserveSelection]);
+      this.#history.splice(this.#current, Infinity, [next, preserveLevel]);
     }
     // always reset timestamp to allow "chaining" changes
     this.#prevModFusionTag = opts?.fusionTag;
@@ -108,9 +120,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   undo() {
     if (!this.canUndo()) return;
     this.#prevModFusionTag = undefined;
-    if (!this.#history[this.#current][1]) {
-      this.currentSelection?.clear();
-    }
+    this.#emitInvalidations(this.#history[this.#current][1]);
     this.#current--;
     this.#project$.next(this.#projectInternal);
   }
@@ -120,9 +130,7 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
   redo() {
     if (!this.canRedo()) return;
     this.#prevModFusionTag = undefined;
-    if (!this.#history[this.#current + 1][1]) {
-      this.currentSelection?.clear();
-    }
+    this.#emitInvalidations(this.#history[this.#current + 1][1]);
     this.#current++;
     this.#project$.next(this.#projectInternal);
   }

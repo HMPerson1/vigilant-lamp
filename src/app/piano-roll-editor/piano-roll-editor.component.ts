@@ -1,15 +1,16 @@
 import { ChangeDetectionStrategy, Component, ElementRef, NgZone, Signal, ViewChild, computed, effect, input, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import * as t from 'io-ts';
-import { flatmap, imap, map, max, min, some } from 'itertools';
+import { flatmap, imap, map, max, min, range, some } from 'itertools';
 import { clamp, identity, isEqual } from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
-import { NoteSelection, ProjectService } from '../services/project.service';
+import { ModifyOpts, ProjectService } from '../services/project.service';
 import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, sortPartsDisplay, time2beat, time2pulse } from '../ui-common';
+import { PairsSet } from '../utils/pairs-set';
 
 @Component({
   selector: 'app-piano-roll-editor',
@@ -28,11 +29,18 @@ import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, PartLens, Project, ProjectLens
 export class PianoRollEditorComponent {
   readonly activePartIdx = input<number>();
 
-  readonly #editorState = computed(() => {
+  readonly #selectionState = computed(() => {
     const projectHolder = this.project.currentProjectRaw();
+    return projectHolder && [new Selection(projectHolder.noteIdxInvalidated$), projectHolder] as const;
+  });
+
+  readonly #editorState = computed(() => {
+    const selectionState_ = this.#selectionState();
+    if (selectionState_ === undefined) return undefined;
+    const [selectionState, projectHolder] = selectionState_;
     const activePartIdx = this.activePartIdx();
-    return projectHolder && [
-      identity<EditorState>(activePartIdx === undefined ? new Selection(projectHolder.currentSelection) : new Notation(activePartIdx)),
+    return [
+      identity<EditorState>(activePartIdx === undefined ? selectionState : new Notation(activePartIdx)),
       projectHolder,
     ] as const;
   });
@@ -92,7 +100,7 @@ export class PianoRollEditorComponent {
       if (editorState_ === undefined) return;
       const [editorState, projectHolder] = editorState_;
       const op = editorState.deleteSelection?.();
-      if (op) projectHolder.modify(op[0], { preserveSelection: op[1] });
+      if (op) projectHolder.modify(op[0], op[1]);
     }));
   }
 
@@ -154,7 +162,7 @@ export class PianoRollEditorComponent {
             throw new Error("project unexpectedly modified mid-drag");
           }
           return projectNext[0];
-        }, { preserveSelection: projectNext[1] });
+        }, projectNext[1]);
       } finally {
         this.#dragState.set(undefined);
       }
@@ -173,7 +181,7 @@ export class PianoRollEditorComponent {
     event.clipboardData.setData("application/json", JSON.stringify(copyData));
     if (isCut) {
       const op = editorState.deleteSelection?.();
-      if (op) projectHolder.modify(op[0], { preserveSelection: op[1] });
+      if (op) projectHolder.modify(op[0], op[1]);
     }
   }
 
@@ -188,7 +196,7 @@ export class PianoRollEditorComponent {
     if (pasteData.length === 0) return;
     try {
       const op = editorState.paste(JSON.parse(pasteData));
-      if (op) projectHolder.modify(op[0], { preserveSelection: op[1] });
+      if (op) projectHolder.modify(op[0], op[1]);
     } catch (e) {
       console.error(e);
       this.snackBar.open("Error pasting from clipboard.");
@@ -197,7 +205,7 @@ export class PianoRollEditorComponent {
 }
 
 type DragHandlerCooked =
-  { type: "m"; cursor: CssCursorValue; next(): [Project, boolean] | undefined; addEffect(): void; } |
+  { type: "m"; cursor: CssCursorValue; next(): [Project, ModifyOpts] | undefined; addEffect(): void; } |
   { type: "s", cursor: CssCursorValue, next(): ((v: Viewport) => Drawable) | undefined; addEffect?: undefined };
 
 
@@ -209,7 +217,7 @@ type SelectingDrag = {
 type ModifyingDrag = {
   type: "m",
   cursor: CssCursorValue,
-  next(endTime: number, endPitch: number, lockAxis: () => 'x' | 'y' | undefined): [Project, boolean] | undefined;
+  next(endTime: number, endPitch: number, lockAxis: () => 'x' | 'y' | undefined): [Project, ModifyOpts] | undefined;
   click?(): void;
 }
 type DragHandler = SelectingDrag | ModifyingDrag | undefined;
@@ -225,8 +233,8 @@ interface EditorState {
   render(canvasCtx: CanvasRenderingContext2D, params: RenderParams): void;
   startDrag(project: Project, startTime: number, startPitch: number, pxPerTime: number, shiftKey: boolean, ctrlKey: boolean): DragHandler;
   copySelection?(project: Project, isCut: boolean): any;
-  paste?(pasteData: any): [(a: Project) => Project, boolean] | undefined;
-  deleteSelection?(): [(a: Project) => Project, boolean] | undefined;
+  paste?(pasteData: any): [(a: Project) => Project, ModifyOpts] | undefined;
+  deleteSelection?(): [(a: Project) => Project, ModifyOpts] | undefined;
 }
 
 class Notation implements EditorState {
@@ -278,7 +286,7 @@ class Notation implements EditorState {
         const op = ProjectLens(['parts']).compose(indexReadonlyArray(this.activePartIdx)).compose(PartLens('notes')).modify(
           notes => [...notes, { pitch: Math.round(startPitch), start: startSubdiv * ppsd, length: length * ppsd, notation: undefined }]
         );
-        return [op(project), false];
+        return [op(project), { preservePartIdx: true }];
       },
     };
   }
@@ -286,19 +294,20 @@ class Notation implements EditorState {
 
 class Selection implements EditorState {
   #lastPaste?: { data: any, repeatCount: number };
-  constructor(private readonly currentSelection: NoteSelection) {
-    currentSelection.clear();
+  #currentSelection: NoteSelection = PairsSet.empty();
+  constructor(noteIdxInvalidated: rxjs.Observable<void>) {
+    noteIdxInvalidated.subscribe(() => this.#currentSelection.clear());
   }
 
   render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { parts, meter } }: RenderParams) {
     if (meter === undefined) return;
     for (const part of sortPartsDisplay(parts)) {
       for (const [noteIdx, note] of part.notes.entries()) {
-        const isNoteSelected = this.currentSelection.has([part.idx, noteIdx]);
+        const isNoteSelected = this.#currentSelection.has([part.idx, noteIdx]);
         drawNoteRect(canvasCtx, note2rect(viewport, meter, note), part.color, isNoteSelected ? SELECTED_BORDER : DEFAULT_BORDER);
       }
     }
-    const singleSelection = this.currentSelection.asSingleton;
+    const singleSelection = this.#currentSelection.asSingleton;
     if (singleSelection !== null) {
       // draw resize handles
       const [partIdx, noteIdx] = singleSelection;
@@ -317,7 +326,7 @@ class Selection implements EditorState {
   }
 
   #isOverDragHandle(parts: Project["parts"], meter: Meter, time: number, pitch: number, pxPerTime: number): [0 | 1, readonly [number, number]] | undefined {
-    const singleSelection = this.currentSelection.asSingleton;
+    const singleSelection = this.#currentSelection.asSingleton;
     if (singleSelection === null) return undefined;
     const [partIdx, noteIdx] = singleSelection;
     const note = parts[partIdx].notes[noteIdx];
@@ -364,13 +373,13 @@ class Selection implements EditorState {
           const op = ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).modify(
             note => ({ ...note, start, length })
           );
-          return [op(project), true];
+          return [op(project), { preserveSelection: true }];
         },
         click() { },
       };
     } else if (this.#isOverSelectedNote(project.parts, meter, startTime, startPitch)) {
       // move notes
-      const selection = this.currentSelection.clone();
+      const selection = this.#currentSelection.clone();
       const selPulseMin = min(imap(this.#selectedNotes(project.parts), n => n.start))!;
       // const selPulseMax = max(imap(this.#selectedNotes(project.parts), n => n.start + n.length))!;
       const selPitchMin = min(imap(this.#selectedNotes(project.parts), n => n.pitch))!;
@@ -400,7 +409,7 @@ class Selection implements EditorState {
                   !selPart.has(noteIdx) ? note : { ...note, start: note.start + deltaPulse, pitch: note.pitch + deltaPitch }),
               };
             }),
-          }, true];
+          }, { preserveSelection: true }];
         },
         click: () => this.#startSelectionDrag(project.parts, meter, startTime, startPitch, shiftKey, ctrlKey).next([startTime, startPitch]),
       };
@@ -410,17 +419,17 @@ class Selection implements EditorState {
   }
 
   #startSelectionDrag(parts: Project["parts"], meter: Meter, startTime: number, startPitch: number, shiftKey: boolean, ctrlKey: boolean): SelectingDrag {
-    const prevSelection = this.currentSelection.clone();
+    const prevSelection = this.#currentSelection.clone();
     return {
       type: 's',
       cursor: 'auto',
       next: mousePos => {
         if (mousePos === undefined) {
-          this.currentSelection.clear();
+          this.#currentSelection.clear();
           if (ctrlKey) {
-            this.currentSelection.xorWith(prevSelection);
+            this.#currentSelection.xorWith(prevSelection);
           } else if (shiftKey) {
-            this.currentSelection.unionWith(prevSelection);
+            this.#currentSelection.unionWith(prevSelection);
           }
           return () => () => { };
         }
@@ -431,7 +440,7 @@ class Selection implements EditorState {
           pitchMin: Math.min(startPitch, endPitch),
           pitchMax: Math.max(startPitch, endPitch),
         };
-        this.currentSelection.setFromIterable(function* () {
+        this.#currentSelection.setFromIterable(function* () {
           for (const [partIdx, part] of parts.entries()) {
             yield [partIdx, function* () {
               for (const [noteIdx, note] of part.notes.entries()) {
@@ -441,9 +450,9 @@ class Selection implements EditorState {
           }
         }());
         if (ctrlKey) {
-          this.currentSelection.xorWith(prevSelection);
+          this.#currentSelection.xorWith(prevSelection);
         } else if (shiftKey) {
-          this.currentSelection.unionWith(prevSelection);
+          this.#currentSelection.unionWith(prevSelection);
         }
         return viewport => canvasCtx => {
           canvasCtx.save();
@@ -469,7 +478,7 @@ class Selection implements EditorState {
   }
 
   copySelection(project: Project, isCut: boolean): ClipboardNoteData {
-    const currentSelection = this.currentSelection;
+    const currentSelection = this.#currentSelection;
     const ret = Object.fromEntries(function* () {
       for (const [partIdx, part] of project.parts.entries()) {
         const selPart = currentSelection.withFirst(partIdx);
@@ -479,10 +488,10 @@ class Selection implements EditorState {
       }
     }());
     this.#lastPaste = { data: ret, repeatCount: isCut ? 0 : 1 };
-    return ret as any;
+    return ret;
   }
 
-  paste(pasteData: any): [(a: Project) => Project, boolean] | undefined {
+  paste(pasteData: any): [(a: Project) => Project, ModifyOpts] | undefined {
     const dataObj = decodeOrThrow(ClipboardNoteData, pasteData, "error parsing pasted data");
     const data = Object.entries(dataObj);
     if (data.length === 0) return undefined;
@@ -505,25 +514,23 @@ class Selection implements EditorState {
           ],
         }, [part.notes.length, partData.length]] as const;
       });
-      this.currentSelection.setFromIterable(function* () {
+      this.#currentSelection.setFromIterable(function* () {
         for (const [partIdx, [, partRange]] of newParts.entries()) {
           if (partRange !== undefined) {
             const [start, length] = partRange;
-            yield [partIdx, function* () {
-              for (let i = start; i < start + length; i++) yield i;
-            }()];
+            yield [partIdx, range(start, start + length)];
           }
         }
       }());
       return {
         ...project, parts: newParts.map(v => v[0]),
       };
-    }, false];
+    }, { preservePartIdx: true }];
   }
 
-  deleteSelection(): [(a: Project) => Project, boolean] | undefined {
-    if (this.currentSelection.isEmpty) return undefined;
-    const selection = this.currentSelection.clone();
+  deleteSelection(): [(a: Project) => Project, ModifyOpts] | undefined {
+    if (this.#currentSelection.isEmpty) return undefined;
+    const selection = this.#currentSelection.clone();
     return [project => ({
       ...project,
       parts: project.parts.map((part, partIdx) => {
@@ -533,11 +540,11 @@ class Selection implements EditorState {
           notes: part.notes.filter((_note, noteIdx) => !selPart.has(noteIdx)),
         };
       }),
-    }), false];
+    }), { preservePartIdx: true }];
   }
 
   *#selectedNotes(parts: Project["parts"]) {
-    for (const [partIdx, noteIdx] of this.currentSelection) {
+    for (const [partIdx, noteIdx] of this.#currentSelection) {
       yield parts[partIdx].notes[noteIdx];
     }
   }
@@ -631,6 +638,8 @@ const isNoteInRect = (rect: SpecTileWindow, note: Note, meter: Meter) =>
 type Rect = { x: number; y: number; width: number; height: number; };
 type CssCursorValue = "auto" | "pointer" | "move" | "not-allowed" | "ew-resize";
 type Drawable = (canvasCtx: CanvasRenderingContext2D) => void;
+
+type NoteSelection = PairsSet<number, number>;
 
 type ClipboardNoteData = t.TypeOf<typeof ClipboardNoteData>;
 const ClipboardNoteData = t.record(t.string, t.array(Note));

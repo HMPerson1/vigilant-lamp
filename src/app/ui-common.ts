@@ -12,7 +12,7 @@ import { AudioSamples, t_Uint8Array } from "./common";
 
 // TODO: tempo changes? time sig changes?
 
-// msgpack always coerces `undefined` to `null`, so coerce we it back here
+// msgpack always coerces `undefined` to `null`, so coerce it back here
 const t_nullable = <C extends t.Any>(codec: C) => new t.Type<t.TypeOf<C> | undefined>(
   codec.name,
   (u): u is t.TypeOf<C> | undefined => u === undefined || codec.is(u),

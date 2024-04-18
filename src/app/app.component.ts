@@ -38,8 +38,9 @@ export class AppComponent {
         removeEventListener('beforeunload', beforeUnloadListener);
       }
     });
+    project.currentProject$.pipe(rxjs.switchMap(projHolder => projHolder.partIdxInvalidated$)).subscribe(() => this.uiModeAsNoting()?.cancel());
 
-    Mousetrap.bind('esc', () => ngZone.run(() => { this.uiMode?.cancel() }));
+    Mousetrap.bind('esc', () => ngZone.run(() => { this.uiMode()?.cancel() }));
     Mousetrap.bind('mod+s', () => ngZone.run(() => { this.saveProject(); return false }));
     Mousetrap.bind('mod+z', () => ngZone.run(() => { project.currentProjectRaw()?.undo() }));
     Mousetrap.bind('mod+shift+z', () => ngZone.run(() => { project.currentProjectRaw()?.redo() }));
@@ -87,8 +88,8 @@ export class AppComponent {
   visMouseX?: number;
   /** offset space of `visElem` */
   visMouseY?: number;
-  userShowCrosshair: boolean = true;
-  get showCrosshair(): boolean { return this.uiMode?.mode !== 'timing' && this.userShowCrosshair }
+  readonly userShowCrosshair = signal(true);
+  readonly showCrosshair = computed(() => this.uiMode()?.mode !== 'timing' && this.userShowCrosshair());
   showOvertones: boolean = false;
 
   debug_downsample: number = 0;
@@ -99,9 +100,11 @@ export class AppComponent {
 
   transcribePanelExpanded: boolean = false;
 
-  // TODO: signalify
-  uiMode: UiMode;
-  get activePartIdx() { return this.uiMode && this.uiMode.mode === 'noting' ? this.uiMode.partIdx : undefined; }
+  readonly uiMode = signal<UiMode>(undefined);
+  readonly uiModeAsNoting = computed(() => { const m = this.uiMode(); return m?.mode === 'noting' ? m : undefined });
+  readonly uiModeAsTiming = computed(() => { const m = this.uiMode(); return m?.mode === 'timing' ? m : undefined });
+  readonly activePartIdx = computed(() => this.uiModeAsNoting()?.partIdx);
+  readonly activePartLabel = computed(() => { const a = this.activePartIdx(); return a !== undefined ? this.project.currentProjectRaw()?.project().parts[a].name : undefined; });
 
   sidenavWidth = 360;
   private settingsPanelResizeObserver = new ResizeObserver(([{ borderBoxSize }]) => { this.sidenavWidth = borderBoxSize[0].inlineSize });
@@ -178,13 +181,13 @@ export class AppComponent {
       this.portalOutlet.portal = drawerContents;
       this.drawer.open(openedVia);
       this.drawerElem.nativeElement.focus();
-      this.uiMode = { mode: 'timing', doneClick, cancel: () => { this.drawer.close() }, };
+      this.uiMode.set({ mode: 'timing', doneClick, cancel: () => { this.drawer.close() }, });
       return await Promise.race([
         donePromise,
         rxjs.firstValueFrom(this.drawer.closedStart, { defaultValue: undefined }).then(() => undefined),
       ]);
     } finally {
-      this.uiMode = undefined;
+      this.uiMode.set(undefined);
       this.drawer.close().then(v => { if (v === 'close') this.portalOutlet.detach() });
     }
   }
@@ -280,7 +283,7 @@ export class AppComponent {
   }
 
   readonly startTranscribing: StartTranscribing = (partIdx: number) => {
-    this.uiMode = { mode: 'noting', partIdx, cancel: () => { this.uiMode = undefined }, };
+    this.uiMode.set({ mode: 'noting', partIdx, cancel: () => { this.uiMode.set(undefined) }, });
   }
 }
 

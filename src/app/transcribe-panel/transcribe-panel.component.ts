@@ -73,7 +73,7 @@ export class TranscribePanelComponent {
     }
     this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts =>
       parts.map((p, i) => ({ ...p, displayIndex: physIdxToNewDispIdx[i] }))
-    ));
+    ), { preserveSelection: true });
   }
 
   trackItemIdx(_i: number, { idx }: { idx: number }) { return idx }
