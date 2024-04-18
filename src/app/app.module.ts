@@ -31,8 +31,8 @@ import { AudioWaveformComponent } from './audio-waveform/audio-waveform.componen
 import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
 import { PartDialogComponent } from './part-dialog/part-dialog.component';
 import { PianoRollEditorComponent } from './piano-roll-editor/piano-roll-editor.component';
+import { SnackbarErrorHandlerService } from './services/snackbar-error-handler.service';
 import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
-import { SnackbarErrorHandlerService } from './transcribe-panel/snackbar-error-handler.service';
 import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
 
 @NgModule({
