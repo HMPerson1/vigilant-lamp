@@ -25,23 +25,43 @@ mat-card {
   cursor: initial;
 }
 
-mat-card-header {
-  @include mat.icon-button-density(-4);
-}
-
 mat-card-header:not(:first-child) {
   padding-top: 0;
 }
 
-mat-card-title {
+[mat-card-avatar] {
+  contain: strict;
+  @include mat.icon-button-density(-2);
+}
+
+[mat-card-avatar]>*:not(:first-child) {
+  position: absolute;
+  inset: 0;
+}
+
+.visibility-button {
+  display: none;
+}
+
+mat-card:hover .visibility-button {
+  display: block;
+}
+
+mat-card-title, mat-card-subtitle {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.card-overflow-menu {
+.card-header-right {
+  flex: 1;
+  height: 40px;
   margin-inline-end: -10px;
-  margin-block-start: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  @include mat.icon-button-density(-4);
 }
 
 button.full-width {

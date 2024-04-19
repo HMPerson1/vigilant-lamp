@@ -243,6 +243,7 @@ class Notation implements EditorState {
   render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { meter, parts }, dragging, mousePos: mousePos_ }: RenderParams) {
     if (meter === undefined) return;
     for (const part of sortPartsDisplay(parts)) {
+      if (!part.visible) continue;
       for (const note of part.notes) {
         drawNoteRect(canvasCtx, note2rect(viewport, meter, note), part.color);
       }
@@ -302,6 +303,7 @@ class Selection implements EditorState {
   render(canvasCtx: CanvasRenderingContext2D, { viewport, project: { parts, meter } }: RenderParams) {
     if (meter === undefined) return;
     for (const part of sortPartsDisplay(parts)) {
+      if (!part.visible) continue;
       for (const [noteIdx, note] of part.notes.entries()) {
         const isNoteSelected = this.#currentSelection.has([part.idx, noteIdx]);
         drawNoteRect(canvasCtx, note2rect(viewport, meter, note), part.color, isNoteSelected ? SELECTED_BORDER : DEFAULT_BORDER);
@@ -405,7 +407,6 @@ class Selection implements EditorState {
               return !selPart ? part : {
                 ...part,
                 notes: part.notes.map((note, noteIdx) =>
-                  // TODO: validate pitch/pulse ranges
                   !selPart.has(noteIdx) ? note : { ...note, start: note.start + deltaPulse, pitch: note.pitch + deltaPitch }),
               };
             }),
@@ -442,6 +443,7 @@ class Selection implements EditorState {
         };
         this.#currentSelection.setFromIterable(function* () {
           for (const [partIdx, part] of parts.entries()) {
+            if (!part.visible) continue;
             yield [partIdx, function* () {
               for (const [noteIdx, note] of part.notes.entries()) {
                 if (isNoteInRect(selRect, note, meter)) yield noteIdx;

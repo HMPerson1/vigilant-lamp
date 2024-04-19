@@ -6,7 +6,7 @@ import { imap, max } from 'itertools';
 import * as rxjs from 'rxjs';
 import { PartDialogComponent } from '../part-dialog/part-dialog.component';
 import { ProjectService } from '../services/project.service';
-import { ProjectLens, ProjectOptional, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray, sortPartsDisplay } from '../ui-common';
+import { PartLens, ProjectLens, ProjectOptional, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray, sortPartsDisplay } from '../ui-common';
 
 @Component({
   selector: 'app-transcribe-panel',
@@ -14,7 +14,7 @@ import { ProjectLens, ProjectOptional, StartTranscribing, TranscribeModeState, d
   styleUrls: ['./transcribe-panel.component.scss']
 })
 export class TranscribePanelComponent {
-  constructor(readonly project: ProjectService, private dialog: MatDialog) { }
+  constructor(readonly project: ProjectService, private readonly dialog: MatDialog) { }
 
   @Input() startTranscribing?: StartTranscribing;
   @Input() transcribeModeState?: TranscribeModeState;
@@ -48,6 +48,13 @@ export class TranscribePanelComponent {
     if (res !== undefined) {
       projectHolder.modify(ProjectLens(['parts']).compose(indexReadonlyArray(idx)).set(res));
     }
+  }
+
+  onToggleVisibilityClick(idx: number) {
+    this.project.currentProjectRaw()?.modify(
+      ProjectLens(['parts']).compose(indexReadonlyArray(idx)).compose(PartLens('visible')).modify(x => !x),
+      { preservePartIdx: true },
+    );
   }
 
   onPartButtonClick(idx: number) {
