@@ -7,11 +7,12 @@
         <div class="card-inside">
           <mat-icon class="drag-handle"><span #drag_handle cdkDragHandle>drag_handle</span></mat-icon>
           <mat-card-header>
-            <div mat-card-avatar>
-              <div [style.background-color]="part.color" style="height: 100%;"></div>
+            <div mat-card-avatar [style.background-color]="part.color">
               <button mat-icon-button class="visibility-button" [style.display]="part.visible ? '' : 'block'"
                 matTooltip="Toggle visibility" (click)="onToggleVisibilityClick(part.idx)">
-                <mat-icon>{{part.visible ? 'visibility' : 'visibility_off'}}</mat-icon>
+                <mat-icon [class.icon-dark-bg]="part.isDark">
+                  {{part.visible ? 'visibility' : 'visibility_off'}}
+                </mat-icon>
               </button>
             </div>
             <mat-card-title>{{ part.name }}</mat-card-title>

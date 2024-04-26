@@ -1,6 +1,7 @@
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
 import { Component, Input, computed } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { OKLab, sRGB } from 'colorjs.io/fn';
 import { flow } from 'fp-ts/function';
 import { imap, max } from 'itertools';
 import * as rxjs from 'rxjs';
@@ -19,7 +20,7 @@ export class TranscribePanelComponent {
   @Input() startTranscribing?: StartTranscribing;
   @Input() transcribeModeState?: TranscribeModeState;
 
-  readonly partsDisplay = computed(() => sortPartsDisplay(this.project.currentProjectRaw()?.project().parts ?? []));
+  readonly partsDisplay = computed(() => sortPartsDisplay(this.project.currentProjectRaw()?.project().parts ?? []).map(x => ({ ...x, isDark: isDark(x.color) })));
 
   async onAddPartClick() {
     const projectHolder = this.project.currentProjectRaw();
@@ -85,3 +86,5 @@ export class TranscribePanelComponent {
 
   trackItemIdx(_i: number, { idx }: { idx: number }) { return idx }
 }
+
+const isDark = (color: string) => OKLab.from({ ...sRGB.formats['hex'].parse!(color), space: sRGB })[0] < .5;

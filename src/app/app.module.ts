@@ -10,7 +10,7 @@ import { MatDialogModule } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
+import { MAT_ICON_DEFAULT_OPTIONS, MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -79,6 +79,7 @@ import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.co
     { provide: ErrorStateMatcher, useClass: ShowOnDirtyErrorStateMatcher },
     { provide: MAT_TOOLTIP_DEFAULT_OPTIONS, useValue: { showDelay: 500 } },
     { provide: ErrorHandler, useClass: SnackbarErrorHandlerService },
+    { provide: MAT_ICON_DEFAULT_OPTIONS, useValue: { fontSet: 'material-symbols-outlined' } },
   ],
   bootstrap: [AppComponent]
 })

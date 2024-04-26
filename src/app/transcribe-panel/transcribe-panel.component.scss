@@ -34,20 +34,21 @@ mat-card-header:not(:first-child) {
   @include mat.icon-button-density(-2);
 }
 
-[mat-card-avatar]>*:not(:first-child) {
-  position: absolute;
-  inset: 0;
-}
-
 .visibility-button {
   display: none;
+}
+
+.icon-dark-bg {
+  color: #fff;
+  font-variation-settings: 'GRAD' -25;
 }
 
 mat-card:hover .visibility-button {
   display: block;
 }
 
-mat-card-title, mat-card-subtitle {
+mat-card-title,
+mat-card-subtitle {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
