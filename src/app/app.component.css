@@ -26,11 +26,6 @@ app-audio-waveform {
   gap: 16px;
 }
 
-.file-toolbar {
-  display: flex;
-  gap: 8px;
-}
-
 .stacking {
   contain: layout;
 }

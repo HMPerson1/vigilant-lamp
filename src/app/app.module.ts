@@ -31,6 +31,8 @@ import { AudioWaveformComponent } from './audio-waveform/audio-waveform.componen
 import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
 import { PartDialogComponent } from './part-dialog/part-dialog.component';
 import { PianoRollEditorComponent } from './piano-roll-editor/piano-roll-editor.component';
+import { ClickBlockingDirective } from './project-toolbar/click-blocking.directive';
+import { ProjectToolbarComponent } from './project-toolbar/project-toolbar.component';
 import { SnackbarErrorHandlerService } from './services/snackbar-error-handler.service';
 import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
 import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
@@ -46,7 +48,9 @@ import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.co
     TranscribePanelComponent,
     PartDialogComponent,
     PianoRollEditorComponent,
-    AudioVisualizationComponent
+    AudioVisualizationComponent,
+    ClickBlockingDirective,
+    ProjectToolbarComponent
   ],
   imports: [
     FormsModule,

@@ -1,0 +1,99 @@
+import { Component, NgZone, computed, output, viewChildren } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
+import * as Mousetrap from 'mousetrap';
+import { downsampleAudio, loadAudio } from '../load-audio';
+import { AudioContextService } from '../services/audio-context.service';
+import { ProjectService } from '../services/project.service';
+import { ClickBlockingDirective } from './click-blocking.directive';
+
+@Component({
+  selector: 'app-project-toolbar',
+  templateUrl: './project-toolbar.component.html',
+  styleUrl: './project-toolbar.component.css'
+})
+export class ProjectToolbarComponent {
+  readonly audioBuffer = output<AudioBuffer | undefined>();
+  readonly projectFilename = output<string | undefined>();
+
+  constructor(
+    readonly project: ProjectService,
+    private readonly audioContextSvc: AudioContextService,
+    private readonly snackBar: MatSnackBar,
+    ngZone: NgZone,
+  ) {
+    Mousetrap.bind('mod+s', () => ngZone.run(() => { this.saveProject(); return false }));
+    Mousetrap.bind('mod+z', () => ngZone.run(() => { project.currentProjectRaw()?.undo() }));
+    Mousetrap.bind('mod+shift+z', () => ngZone.run(() => { project.currentProjectRaw()?.redo() }));
+  }
+
+  readonly browserFsApiSupported = browserFsApiSupported;
+  readonly anyTaskActive = computed(() => this.blockingButtons().some(cb => cb.taskActive()));
+
+  // FIXME: avoid resampling
+  readonly outputSampleRate = this.audioContextSvc.audioContext.sampleRate;
+
+  readonly blockingButtons = viewChildren(ClickBlockingDirective);
+
+  projectFileHandle?: FileSystemFileHandle;
+
+  readonly newProject = async () => {
+    try {
+      const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' });
+      this.audioBuffer.emit(undefined);
+      const audioFile = new Uint8Array(await fh.arrayBuffer());
+      const audioBuffer = await loadAudio(audioFile.slice().buffer, this.outputSampleRate);
+      const audioData = await downsampleAudio(audioBuffer);
+      this.project.newProject(audioFile, audioData);
+      this.projectFileHandle = undefined;
+      this.projectFilename.emit(undefined);
+      this.audioBuffer.emit(audioBuffer);
+    } catch (e) {
+      console.log("error new project:", e);
+      if (!isUserAbortException(e)) {
+        this.snackBar.open("Error creating a new project");
+      }
+    }
+  }
+
+  readonly loadProject = async () => {
+    try {
+      const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' });
+      this.audioBuffer.emit(undefined);
+      const project = await this.project.fromBlob(projectFile);
+      project.markSaved();
+      this.projectFileHandle = projectFile.handle;
+      this.projectFilename.emit(this.projectFileHandle?.name);
+      const audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.outputSampleRate);
+      this.audioBuffer.emit(audioBuffer);
+    } catch (e) {
+      console.log("error load project:", e);
+      if (!isUserAbortException(e)) {
+        this.snackBar.open("Error opening project");
+      }
+    }
+  }
+
+  readonly saveProject = (saveAs = false) => async () => {
+    const project = this.project.currentProjectRaw();
+    if (!project) { console.warn('saveProject called without project'); return; }
+    try {
+      this.projectFileHandle = await fileSave(
+        project.intoBlob(),
+        { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
+        saveAs ? null : this.projectFileHandle,
+        true,
+      ) ?? undefined
+      // TODO: there's an await between intoBlob and markSaved
+      project.markSaved();
+      this.projectFilename.emit(this.projectFileHandle?.name);
+    } catch (e) {
+      console.log("error save project:", e);
+      if (!isUserAbortException(e)) {
+        this.snackBar.open(`Error saving project: ${e}`);
+      }
+    }
+  }
+}
+
+const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");

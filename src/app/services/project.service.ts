@@ -27,6 +27,8 @@ export class ProjectService {
     this.#currentProject$.next(projHolder);
     return projHolder;
   }
+
+  readonly hasProject = computed(() => this.currentProjectRaw() !== undefined);
 }
 
 export type ModifyOpts = {

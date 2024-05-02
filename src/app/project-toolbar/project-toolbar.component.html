@@ -1,0 +1,23 @@
+<button mat-icon-button [appClickBlocking]="newProject" matTooltip="New Project" color="primary" [cbDisabled]="anyTaskActive()">
+  <mat-icon>note_add</mat-icon>
+</button>
+<button mat-icon-button [appClickBlocking]="loadProject" matTooltip="Open" color="primary" [cbDisabled]="anyTaskActive()">
+  <mat-icon>file_open</mat-icon>
+</button>
+<button mat-icon-button [appClickBlocking]="saveProject()" matTooltip="Save" color="primary"
+  [cbDisabled]="anyTaskActive() || !project.hasProject()" *ngIf="browserFsApiSupported">
+  <mat-icon>save</mat-icon>
+</button>
+<button mat-icon-button [appClickBlocking]="saveProject(true)" matTooltip="Save As" color="primary"
+  [cbDisabled]="anyTaskActive() || !project.hasProject()">
+  <mat-icon>save_as</mat-icon>
+</button>
+<div style="flex: 1;"></div>
+<button mat-icon-button matTooltip="Undo" color="primary" (click)="project.currentProjectRaw()?.undo()"
+  [disabled]="!project.currentProjectRaw()?.canUndo()">
+  <mat-icon>undo</mat-icon>
+</button>
+<button mat-icon-button matTooltip="Redo" color="primary" (click)="project.currentProjectRaw()?.redo()"
+  [disabled]="!project.currentProjectRaw()?.canRedo()">
+  <mat-icon>redo</mat-icon>
+</button>

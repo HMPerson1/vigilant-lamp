@@ -17,46 +17,11 @@
       </app-audio-visualization>
     </div>
     <div class="groove-border settings-panel" #settings_panel>
-      <div class="file-toolbar">
-        <!-- TODO: make this a component -->
-        <div class="stacking">
-          <button mat-icon-button matTooltip="New Project" color="primary"
-            (click)="newProject(); settings_panel.offsetWidth" [disabled]="!!loading">
-            <mat-icon>note_add</mat-icon>
-          </button>
-          <div style="padding: 4px;" [hidden]="loading !== 'new'">
-            <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
-          </div>
-        </div>
-        <div class="stacking">
-          <button mat-icon-button matTooltip="Open" color="primary" (click)="loadProject()" [disabled]="!!loading">
-            <mat-icon>file_open</mat-icon>
-          </button>
-          <div style="padding: 4px;" [hidden]="loading !== 'open'">
-            <mat-progress-spinner mode="indeterminate" diameter="40"></mat-progress-spinner>
-          </div>
-        </div>
-        <button mat-icon-button *ngIf="browserFsApiSupported" matTooltip="Save" color="primary" (click)="saveProject()"
-          [disabled]="!hasProject()">
-          <mat-icon>save</mat-icon>
-        </button>
-        <button mat-icon-button matTooltip="Save As" color="primary" (click)="saveProject(true)"
-          [disabled]="!hasProject()">
-          <mat-icon>save_as</mat-icon>
-        </button>
-        <div style="flex: 1;"></div>
-        <button mat-icon-button matTooltip="Undo" color="primary" (click)="project.currentProjectRaw()?.undo()"
-          [disabled]="!project.currentProjectRaw()?.canUndo()">
-          <mat-icon>undo</mat-icon>
-        </button>
-        <button mat-icon-button matTooltip="Redo" color="primary" (click)="project.currentProjectRaw()?.redo()"
-          [disabled]="!project.currentProjectRaw()?.canRedo()">
-          <mat-icon>redo</mat-icon>
-        </button>
-      </div>
-      <app-audio-player [audioBuffer]="audioBuffer" #audioPlayer></app-audio-player>
+      <app-project-toolbar (audioBuffer)="audioBuffer.set($event)" (projectFilename)="projectFilename.set($event)">
+      </app-project-toolbar>
+      <app-audio-player [audioBuffer]="audioBuffer()" #audioPlayer></app-audio-player>
       <mat-accordion>
-        <mat-expansion-panel [disabled]="!hasProject()">
+        <mat-expansion-panel [disabled]="!project.hasProject()">
           <mat-expansion-panel-header>
             <mat-panel-title>
               View Settings
@@ -122,7 +87,7 @@
             </mat-button-toggle-group>
           </label>
         </mat-expansion-panel>
-        <mat-expansion-panel [disabled]="!hasProject()" [(expanded)]="meterPanelExpanded">
+        <mat-expansion-panel [disabled]="!project.hasProject()" [(expanded)]="meterPanelExpanded">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Meter Settings

@@ -2,14 +2,11 @@ import { FocusOrigin } from '@angular/cdk/a11y';
 import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
 import { Component, ElementRef, NgZone, ViewChild, computed, effect, signal } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
-import { MatSnackBar } from '@angular/material/snack-bar';
 import { Title } from '@angular/platform-browser';
-import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
 import { AudioVisualizationComponent } from './audio-visualization/audio-visualization.component';
 import { audioSamplesDuration } from './common';
-import { downsampleAudio, loadAudio } from './load-audio';
 import { AudioContextService } from './services/audio-context.service';
 import { ProjectService } from './services/project.service';
 import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
@@ -21,7 +18,6 @@ import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from '
 })
 export class AppComponent {
   constructor(
-    private readonly snackBar: MatSnackBar,
     readonly project: ProjectService,
     private readonly audioContextSvc: AudioContextService,
     titleService: Title,
@@ -29,7 +25,7 @@ export class AppComponent {
   ) {
     const globalIsUnsaved = computed(() => project.currentProjectRaw()?.isUnsaved() ?? false);
     effect(() => {
-      titleService.setTitle(`${this.#projectName() ?? '(unsaved project)'}${globalIsUnsaved() ? '*' : ''} - Vigilant Lamp`)
+      titleService.setTitle(`${this.projectFilename() ?? '(unsaved project)'}${globalIsUnsaved() ? '*' : ''} - Vigilant Lamp`)
     });
     effect(() => {
       if (globalIsUnsaved()) {
@@ -39,11 +35,9 @@ export class AppComponent {
       }
     });
     project.currentProject$.pipe(rxjs.switchMap(projHolder => projHolder.partIdxInvalidated$)).subscribe(() => this.uiModeAsNoting()?.cancel());
+    project.currentProject$.subscribe(projectHolder => this.audioVizContainer.onAudioLoad(audioSamplesDuration(projectHolder.project().audio)));
 
     Mousetrap.bind('esc', () => ngZone.run(() => { this.uiMode()?.cancel() }));
-    Mousetrap.bind('mod+s', () => ngZone.run(() => { this.saveProject(); return false }));
-    Mousetrap.bind('mod+z', () => ngZone.run(() => { project.currentProjectRaw()?.undo() }));
-    Mousetrap.bind('mod+shift+z', () => ngZone.run(() => { project.currentProjectRaw()?.redo() }));
   }
 
   readonly TIME_STEP_INPUT_MAX = 5
@@ -51,8 +45,6 @@ export class AppComponent {
   readonly secCtx = window.isSecureContext
   readonly coi = window.crossOriginIsolated
   readonly hwCcur = navigator.hardwareConcurrency
-  readonly browserFsApiSupported = browserFsApiSupported
-
   readonly outputSampleRate = this.audioContextSvc.audioContext.sampleRate;
 
   specDbMin: number = -60
@@ -67,21 +59,13 @@ export class AppComponent {
 
   @ViewChild('audioVizContainer') audioVizContainer!: AudioVisualizationComponent;
 
-  #projectName = signal<string | undefined>(undefined);
-  #projectFileHandle?: FileSystemFileHandle;
-  get projectFileHandle() { return this.#projectFileHandle }
-  set projectFileHandle(p) {
-    this.#projectFileHandle = p;
-    this.#projectName.set(p?.name);
-  }
+  readonly projectFilename = signal<string | undefined>(undefined);
 
-  readonly hasProject = computed(() => !!this.project.currentProjectRaw())
   readonly hasProjectMeter = computed(() => !!this.project.currentProjectRaw()?.project().meter)
 
-  audioBuffer?: AudioBuffer;
-  loading?: 'new' | 'open'
+  readonly audioBuffer = signal<AudioBuffer | undefined>(undefined);
 
-  playheadPos = signal(0);
+  readonly playheadPos = signal(0);
 
   visCursor = "auto";
   /** offset space of `visElem` */
@@ -111,63 +95,6 @@ export class AppComponent {
   @ViewChild('settings_panel') set settingsPanel(elemRef: ElementRef<HTMLElement>) {
     this.settingsPanelResizeObserver.disconnect();
     this.settingsPanelResizeObserver.observe(elemRef.nativeElement);
-  }
-
-  async newProject() {
-    this.loading = 'new'
-    try {
-      const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' })
-      const audioFile = new Uint8Array(await fh.arrayBuffer());
-      this.audioBuffer = await loadAudio(audioFile.slice().buffer, this.outputSampleRate)
-      const audioData = await downsampleAudio(this.audioBuffer)
-      this.project.newProject(audioFile, audioData)
-      this.projectFileHandle = undefined;
-      this.audioVizContainer.onAudioLoad(this.audioBuffer.duration);
-    } catch (e) {
-      console.log("error new project:", e);
-      if (!isUserAbortException(e)) {
-        this.snackBar.open("Error creating a new project");
-      }
-    }
-    this.loading = undefined
-  }
-
-  async loadProject() {
-    this.loading = 'open'
-    try {
-      const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' })
-      const project = await this.project.fromBlob(projectFile)
-      project.markSaved();
-      this.projectFileHandle = projectFile.handle
-      this.audioVizContainer.onAudioLoad(audioSamplesDuration(project.project().audio));
-      this.audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.outputSampleRate)
-    } catch (e) {
-      console.log("error load project:", e);
-      if (!isUserAbortException(e)) {
-        this.snackBar.open("Error opening project");
-      }
-    }
-    this.loading = undefined
-  }
-
-  async saveProject(saveAs = false) {
-    const project = this.project.currentProjectRaw();
-    if (!project) { console.warn('saveProject called without project'); return; }
-    try {
-      this.projectFileHandle = await fileSave(
-        project.intoBlob(),
-        { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
-        saveAs ? null : this.projectFileHandle,
-        true,
-      ) ?? undefined
-      // TODO: there's an await between intoBlob and markSaved
-      project.markSaved();
-    } catch (e) {
-      console.log("error save project:", e);
-      if (!isUserAbortException(e)) {
-        this.snackBar.open(`Error saving project: ${e}`);
-      }
-    }
   }
 
   @ViewChild('visElem', { read: ElementRef }) visElem!: ElementRef<HTMLElement>;
@@ -286,8 +213,6 @@ export class AppComponent {
     this.uiMode.set({ mode: 'noting', partIdx, cancel: () => { this.uiMode.set(undefined) }, });
   }
 }
-
-const isUserAbortException = (e: unknown) => (e instanceof DOMException && e.name === "AbortError" && e.message === "The user aborted a request.");
 
 // https://developer.mozilla.org/en-US/docs/Web/API/Window/beforeunload_event
 const beforeUnloadListener = (ev: BeforeUnloadEvent) => { ev.preventDefault(); return (ev.returnValue = ""); }
