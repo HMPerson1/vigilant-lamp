@@ -28,6 +28,10 @@ export class ProjectService {
     return projHolder;
   }
 
+  static intoBlob(project: Project): Blob {
+    return new Blob([msgpack.encode(Project.encode(project))]);
+  }
+
   readonly hasProject = computed(() => this.currentProjectRaw() !== undefined);
 }
 
@@ -77,10 +81,6 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     this.#project$.subscribe(v => projectW.set(v));
     this.project = projectW.asReadonly();
     this.withMeter = this.filterProject<WithMeter>((a): a is Project & WithMeter => a.meter !== undefined);
-  }
-
-  intoBlob(): Blob {
-    return new Blob([msgpack.encode(Project.encode(this.#projectInternal))]);
   }
 
   #emitInvalidations(preserveLevel: PreserveLevel) {
@@ -137,8 +137,8 @@ export class ProjectHolder implements FilteredProjectHolder<unknown> {
     this.#project$.next(this.#projectInternal);
   }
 
-  markSaved() {
-    this.#lastSaved.set(this.#projectInternal);
+  markSaved(project: Project) {
+    this.#lastSaved.set(project);
   }
 
   filterProject<T>(filter: (a: Project) => a is Project & T): Signal<FilteredProjectHolder<T> | undefined> {

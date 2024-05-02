@@ -61,7 +61,7 @@ export class ProjectToolbarComponent {
       const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' });
       this.audioBuffer.emit(undefined);
       const project = await this.project.fromBlob(projectFile);
-      project.markSaved();
+      project.markSaved(project.project());
       this.projectFileHandle = projectFile.handle;
       this.projectFilename.emit(this.projectFileHandle?.name);
       const audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.outputSampleRate);
@@ -75,17 +75,17 @@ export class ProjectToolbarComponent {
   }
 
   readonly saveProject = (saveAs = false) => async () => {
-    const project = this.project.currentProjectRaw();
-    if (!project) { console.warn('saveProject called without project'); return; }
+    const projectHolder = this.project.currentProjectRaw();
+    if (!projectHolder) { console.warn('saveProject called without project'); return; }
     try {
+      const project = projectHolder.project();
       this.projectFileHandle = await fileSave(
-        project.intoBlob(),
+        ProjectService.intoBlob(project),
         { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
         saveAs ? null : this.projectFileHandle,
         true,
-      ) ?? undefined
-      // TODO: there's an await between intoBlob and markSaved
-      project.markSaved();
+      ) ?? undefined;
+      projectHolder.markSaved(project);
       this.projectFilename.emit(this.projectFileHandle?.name);
     } catch (e) {
       console.log("error save project:", e);
