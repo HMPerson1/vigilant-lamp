@@ -1,3 +1,4 @@
+import { parseBuffer } from 'music-metadata/lib/core';
 import { AudioSamples } from './common';
 
 /// detaches `arrBuf`
@@ -22,5 +23,8 @@ export function downsampleAudio(audioBuffer: AudioBuffer): Promise<AudioSamples>
     }
     dsWorker.postMessage(monoAudioBuffer.getChannelData(0))
   })
+}
 
+export async function audioFileSampleRate(arr: Uint8Array, path: string): Promise<number | undefined> {
+  return (await parseBuffer(arr, { path }, { skipCovers: true })).format.sampleRate;
 }

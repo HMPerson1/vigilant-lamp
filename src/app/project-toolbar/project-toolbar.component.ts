@@ -2,7 +2,7 @@ import { Component, NgZone, computed, output, viewChildren } from '@angular/core
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as Mousetrap from 'mousetrap';
-import { downsampleAudio, loadAudio } from '../load-audio';
+import { audioFileSampleRate, downsampleAudio, loadAudio } from '../load-audio';
 import { AudioContextService } from '../services/audio-context.service';
 import { ProjectService } from '../services/project.service';
 import { ClickBlockingDirective } from './click-blocking.directive';
@@ -20,7 +20,7 @@ export class ProjectToolbarComponent {
     readonly project: ProjectService,
     private readonly audioContextSvc: AudioContextService,
     private readonly snackBar: MatSnackBar,
-    ngZone: NgZone,
+    private readonly ngZone: NgZone,
   ) {
     Mousetrap.bind('mod+s', () => ngZone.run(() => { this.saveProject(); return false }));
     Mousetrap.bind('mod+z', () => ngZone.run(() => { project.currentProjectRaw()?.undo() }));
@@ -30,7 +30,6 @@ export class ProjectToolbarComponent {
   readonly browserFsApiSupported = browserFsApiSupported;
   readonly anyTaskActive = computed(() => this.blockingButtons().some(cb => cb.taskActive()));
 
-  // FIXME: avoid resampling
   readonly outputSampleRate = this.audioContextSvc.audioContext.sampleRate;
 
   readonly blockingButtons = viewChildren(ClickBlockingDirective);
@@ -42,11 +41,24 @@ export class ProjectToolbarComponent {
       const fh = await fileOpen({ description: "Audio Files", mimeTypes: ["audio/*"], id: 'project-new-audio' });
       this.audioBuffer.emit(undefined);
       const audioFile = new Uint8Array(await fh.arrayBuffer());
-      const audioBuffer = await loadAudio(audioFile.slice().buffer, this.outputSampleRate);
-      const audioData = await downsampleAudio(audioBuffer);
+      // neither WebAudio nor WebCodecs allows decoding a whole audio file without resampling
+      // so we have to do this whole mess manually
+      // also music-metadata uses so much async/await that disabling zone.js here is a 50% speedup
+      const detectedSampleRate = await this.ngZone.runOutsideAngular(() => audioFileSampleRate(audioFile, fh.name));
+      if (detectedSampleRate === undefined) {
+        this.snackBar.open(`Audio file was resampled to ${this.outputSampleRate} because its native sample rate could not be determined`);
+      }
+      const audioBufferRaw = await loadAudio(audioFile.slice().buffer, detectedSampleRate ?? this.outputSampleRate);
+      const audioData = await downsampleAudio(audioBufferRaw);
       this.project.newProject(audioFile, audioData);
       this.projectFileHandle = undefined;
       this.projectFilename.emit(undefined);
+      // the AudioBuffer used for playback should use the audio output sample rate
+      // in theory we could do SRC manually to avoid decoding the audio file twice,
+      // but the browser's built-in decode + resample is probably faster anyway
+      const audioBuffer = audioBufferRaw.sampleRate === this.outputSampleRate
+        ? audioBufferRaw
+        : await loadAudio(audioFile.slice().buffer, this.outputSampleRate);
       this.audioBuffer.emit(audioBuffer);
     } catch (e) {
       console.log("error new project:", e);
