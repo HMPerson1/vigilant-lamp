@@ -1,7 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { Writable } from 'type-fest';
-import { Instruments, Part } from '../ui-common';
+import { Instruments, Part } from '../../model/project';
 
 @Component({
   selector: 'app-part-dialog',

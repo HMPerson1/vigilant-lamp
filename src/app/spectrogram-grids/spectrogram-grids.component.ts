@@ -1,9 +1,10 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Input, ViewChild, WritableSignal, computed, effect, signal } from '@angular/core';
 import { midiToNoteName } from '@tonaljs/midi';
 import * as lodash from 'lodash-es';
+import { Meter, beat2time, isMinMeter, time2beat } from '../../model/project';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile, SpecTileWindow } from '../common';
-import { Meter, MinMeter, PitchLabelType, beat2time, elemBoxSizeSignal, isMinMeter, time2beat } from '../ui-common';
+import { PitchLabelType, elemBoxSizeSignal } from '../ui-common';
 
 @Component({
   selector: 'app-spectrogram-grids',
@@ -43,7 +44,7 @@ export class SpectrogramGridsComponent {
       const canvasCtx = canvas.getContext('2d', { alpha: true })!;
       canvasCtx.imageSmoothingEnabled = false;
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
-      const canvasTile = new GenSpecTile(viewportParams(), {width: canvasSize().inlineSize, height: canvasSize().blockSize});
+      const canvasTile = new GenSpecTile(viewportParams(), { width: canvasSize().inlineSize, height: canvasSize().blockSize });
       this.renderPitchGrid(canvasTile, canvasCtx);
       this.renderBeatGrid(canvasTile, canvasCtx);
     })

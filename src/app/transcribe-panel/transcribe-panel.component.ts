@@ -5,9 +5,10 @@ import { OKLab, sRGB } from 'colorjs.io/fn';
 import { flow } from 'fp-ts/function';
 import { imap, max } from 'itertools';
 import * as rxjs from 'rxjs';
+import { PartL, ProjectLop, ProjectLp, defaultPart } from '../../model/project';
 import { PartDialogComponent } from '../part-dialog/part-dialog.component';
 import { ProjectService } from '../services/project.service';
-import { PartLens, ProjectLens, ProjectOptional, StartTranscribing, TranscribeModeState, defaultPart, indexReadonlyArray, sortPartsDisplay } from '../ui-common';
+import { StartTranscribing, TranscribeModeState, indexReadonlyArray, sortPartsDisplay } from '../ui-common';
 
 @Component({
   selector: 'app-transcribe-panel',
@@ -30,14 +31,14 @@ export class TranscribePanelComponent {
     );
     if (res !== undefined) {
       projectHolder.modify(flow(
-        ProjectOptional(['meter', 'state']).set('locked'),
-        ProjectLens(['parts']).modify(parts => [...parts, { ...res, displayIndex: 1 + (max(imap(parts, p => p.displayIndex)) ?? -1) }]),
+        ProjectLop(['meter', 'state']).set('locked'),
+        ProjectLp(['parts']).modify(parts => [...parts, { ...res, displayIndex: 1 + (max(imap(parts, p => p.displayIndex)) ?? -1) }]),
       ));
     }
   }
 
   onDeletePartClick(idx: number) {
-    this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts => parts.toSpliced(idx, 1)));
+    this.project.currentProjectRaw()?.modify(ProjectLp(['parts']).modify(parts => parts.toSpliced(idx, 1)));
   }
 
   async onPartEditClick(idx: number) {
@@ -47,13 +48,13 @@ export class TranscribePanelComponent {
       this.dialog.open(PartDialogComponent, { data: { add: false, part: projectHolder.project().parts[idx] } }).afterClosed()
     );
     if (res !== undefined) {
-      projectHolder.modify(ProjectLens(['parts']).compose(indexReadonlyArray(idx)).set(res));
+      projectHolder.modify(ProjectLp(['parts']).compose(indexReadonlyArray(idx)).set(res));
     }
   }
 
   onToggleVisibilityClick(idx: number) {
     this.project.currentProjectRaw()?.modify(
-      ProjectLens(['parts']).compose(indexReadonlyArray(idx)).compose(PartLens('visible')).modify(x => !x),
+      ProjectLp(['parts']).compose(indexReadonlyArray(idx)).compose(PartL('visible')).modify(x => !x),
       { preservePartIdx: true },
     );
   }
@@ -79,7 +80,7 @@ export class TranscribePanelComponent {
     for (const [fixedDispIdx, { idx: physIdx }] of partsDisplay.entries()) {
       physIdxToNewDispIdx[physIdx] = partsLength - 1 - rotate(partsLength - 1 - fixedDispIdx);
     }
-    this.project.currentProjectRaw()?.modify(ProjectLens(['parts']).modify(parts =>
+    this.project.currentProjectRaw()?.modify(ProjectLp(['parts']).modify(parts =>
       parts.map((p, i) => ({ ...p, displayIndex: physIdxToNewDispIdx[i] }))
     ), { preserveSelection: true });
   }

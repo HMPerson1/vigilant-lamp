@@ -5,11 +5,11 @@ import { MatDrawer } from '@angular/material/sidenav';
 import { Title } from '@angular/platform-browser';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
+import { Meter, audioSamplesDuration } from '../model/project';
 import { AudioVisualizationComponent } from './audio-visualization/audio-visualization.component';
-import { audioSamplesDuration } from './common';
 import { AudioContextService } from './services/audio-context.service';
 import { ProjectService } from './services/project.service';
-import { Meter, ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
+import { ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
 
 @Component({
   selector: 'app-root',

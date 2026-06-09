@@ -1,23 +1,6 @@
-import * as t from 'io-ts';
-import { fromRefinement } from 'io-ts-types/fromRefinement';
+import type { AudioSamples } from '../model/project';
 
-export const t_Uint8Array = fromRefinement("Uint8Array", (u): u is Uint8Array => u instanceof Uint8Array);
-export const t_Float32Array = new t.Type<Float32Array, Uint8Array, Uint8Array>(
-  "Float32Array",
-  (u): u is Float32Array => u instanceof Float32Array,
-  (i, ctx) => t.success(new Float32Array(i.slice().buffer)),
-  (a) => new Uint8Array(a.buffer, a.byteOffset, a.byteLength),
-);
-
-export interface AudioSamples extends t.TypeOf<typeof AudioSamples> { }
-export const AudioSamples = t.readonly(t.type({
-  sampleRate: t.number,
-  samples: t_Uint8Array.pipe(t_Float32Array),
-  samples_ds2: t_Uint8Array.pipe(t_Float32Array),
-  samples_ds4: t_Uint8Array.pipe(t_Float32Array),
-}));
-
-export const audioSamplesDuration = (a: AudioSamples): number => a.samples.length / a.sampleRate;
+export type { AudioSamples } from '../model/project';
 
 export type SpecFftParams = { lgWindowSize: number, lgExtraPad: number }
 

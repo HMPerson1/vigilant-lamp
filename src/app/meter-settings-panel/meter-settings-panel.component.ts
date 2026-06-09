@@ -8,8 +8,9 @@ import * as RA from 'fp-ts/ReadonlyArray';
 import { flow, pipe } from 'fp-ts/function';
 import { Optional, fromTraversable } from 'monocle-ts';
 import * as rxjs from 'rxjs';
+import { Meter, NoteL, PULSES_PER_BEAT, PartL, Project, ProjectLop, ProjectLp } from '../../model/project';
 import { ProjectService } from '../services/project.service';
-import { Meter, MeterLens, ModalSpectrogramEdit, NoteLens, PULSES_PER_BEAT, PartLens, Project, ProjectLens, ProjectOptional } from '../ui-common';
+import { ModalSpectrogramEdit } from '../ui-common';
 import { isNonnull } from '../utils/ho-signals';
 
 @Component({
@@ -116,7 +117,7 @@ export class MeterSettingsPanelComponent {
       if (offsetOffset === undefined) return;
 
       projectHolder.modify(
-        ProjectOptional(['meter', 'startOffset']).modify(o => Math.round((o + offsetOffset) * 100000) / 100000),
+        ProjectLop(['meter', 'startOffset']).modify(o => Math.round((o + offsetOffset) * 100000) / 100000),
       );
     } finally {
       this.liveMeter.emit(projectHolder.project().meter ?? {});
@@ -142,7 +143,7 @@ export class MeterSettingsPanelComponent {
       if (tempoScaleLn === undefined) return;
 
       projectHolder.modify(
-        ProjectOptional(['meter', 'bpm']).modify(bpm => Math.round(100 * bpm * Math.exp(tempoScaleLn)) / 100),
+        ProjectLop(['meter', 'bpm']).modify(bpm => Math.round(100 * bpm * Math.exp(tempoScaleLn)) / 100),
       );
     } finally {
       this.liveMeter.emit(projectHolder.project().meter ?? {});
@@ -158,8 +159,8 @@ export class MeterSettingsPanelComponent {
     try {
       projectHolder.modify(
         flow(
-          ProjectAllNotes.composeLens(NoteLens('start')).modify(s => assertNonnegative(s - dir * PULSES_PER_BEAT)),
-          ProjectOptional(['meter', 'startOffset']).modify(x => x + offset)
+          ProjectAllNotes.composeLens(NoteL('start')).modify(s => assertNonnegative(s - dir * PULSES_PER_BEAT)),
+          ProjectLop(['meter', 'startOffset']).modify(x => x + offset)
         ),
         { fusionTag: 'startOffsetBump' },
       );
@@ -175,13 +176,13 @@ export class MeterSettingsPanelComponent {
     if (!projectHolder.project().meter) return;
     try {
       projectHolder.modify(flow(
-        ProjectAllNotes.composeLens(NoteLens('start')).modify(s => assertIntegral(dir === 1 ? s * factor : s / factor)),
-        ProjectAllNotes.composeLens(NoteLens('length')).modify(l => assertIntegral(dir === 1 ? l * factor : l / factor)),
-        ProjectOptional(['meter', 'bpm']).modify(x => dir === 1 ? x * factor : x / factor),
+        ProjectAllNotes.composeLens(NoteL('start')).modify(s => assertIntegral(dir === 1 ? s * factor : s / factor)),
+        ProjectAllNotes.composeLens(NoteL('length')).modify(l => assertIntegral(dir === 1 ? l * factor : l / factor)),
+        ProjectLop(['meter', 'bpm']).modify(x => dir === 1 ? x * factor : x / factor),
         // try to keep measures the same real length
-        ProjectOptional(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : (x % factor === 0 ? x / factor : x)),
+        ProjectLop(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : (x % factor === 0 ? x / factor : x)),
         // try to keep subdivisions the same real length
-        ProjectOptional(['meter', 'subdivision']).modify(x => dir === 1 ? (x % factor === 0 ? x / factor : x) : (PULSES_PER_BEAT % x * factor === 0 ? x * factor : x)),
+        ProjectLop(['meter', 'subdivision']).modify(x => dir === 1 ? (x % factor === 0 ? x / factor : x) : (PULSES_PER_BEAT % x * factor === 0 ? x * factor : x)),
       ));
     } catch (e) {
       if (e !== assertIntegralThrown) throw e;
@@ -199,18 +200,18 @@ export class MeterSettingsPanelComponent {
     if (meter.state === 'locked') {
       this.dialog.open(this.meterUnlockDialog).afterClosed().subscribe(v => {
         if (v) {
-          projectHolder.modify(ProjectOptional(['meter', 'state']).set('active'));
+          projectHolder.modify(ProjectLop(['meter', 'state']).set('active'));
         }
       });
     } else {
-      projectHolder.modify(ProjectOptional(['meter', 'state']).set('locked'));
+      projectHolder.modify(ProjectLop(['meter', 'state']).set('locked'));
     }
   }
 
   readonly PULSES_PER_BEAT = PULSES_PER_BEAT;
 }
 
-const ProjectAllNotes = ProjectLens(["parts"]).composeTraversal(fromTraversable(RA.Traversable)()).composeLens(PartLens('notes')).composeTraversal(fromTraversable(RA.Traversable)());
+const ProjectAllNotes = ProjectLp(["parts"]).composeTraversal(fromTraversable(RA.Traversable)()).composeLens(PartL('notes')).composeTraversal(fromTraversable(RA.Traversable)());
 
 const bindProjectCtrl =
   <U extends {}>(lens: Optional<Project, U>, fusionTag?: string): (this: { project: ProjectService; }, formCtrl: FormControl<U | null>) => FormControl<U | null> =>
@@ -237,7 +238,7 @@ const bindProjectCtrl =
 
 const bindProjectMeterCtrl = <Name extends keyof Meter>(useFusionTag: boolean = false) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<Meter[Name] | null>> & { name: Name }) => {
   const fieldName: Name = ctxt.name;
-  return bindProjectCtrl(ProjectOptional(['meter', fieldName]), useFusionTag ? fieldName : undefined)
+  return bindProjectCtrl(ProjectLop(['meter', fieldName]), useFusionTag ? fieldName : undefined)
 }
 
 class ProjectMeterCtrls {

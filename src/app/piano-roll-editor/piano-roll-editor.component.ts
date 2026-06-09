@@ -5,11 +5,13 @@ import { flatmap, imap, map, max, min, range, some } from 'itertools';
 import { clamp, identity, isEqual } from 'lodash-es';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
+import { Meter, Note, PULSES_PER_BEAT, PartL, Project, ProjectLp, pulse2time, time2beat, time2pulse } from '../../model/project';
+import { decodeOrThrow } from '../../model/utils';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { SpecTileWindow } from '../common';
 import { KeyboardStateService } from '../services/keyboard-state.service';
 import { ModifyOpts, ProjectService } from '../services/project.service';
-import { Meter, Note, PITCH_MAX, PULSES_PER_BEAT, PartLens, Project, ProjectLens, Viewport, decodeOrThrow, elemBoxSizeSignal, indexReadonlyArray, pulse2time, sortPartsDisplay, time2beat, time2pulse } from '../ui-common';
+import { PITCH_MAX, Viewport, elemBoxSizeSignal, indexReadonlyArray, sortPartsDisplay, } from '../ui-common';
 import { PairsSet } from '../utils/pairs-set';
 
 @Component({
@@ -284,7 +286,7 @@ class Notation implements EditorState {
         const ppsd = PULSES_PER_BEAT / meter.subdivision;
         const length = endSubdiv - startSubdiv;
         if (length <= 0) return undefined;
-        const op = ProjectLens(['parts']).compose(indexReadonlyArray(this.activePartIdx)).compose(PartLens('notes')).modify(
+        const op = ProjectLp(['parts']).compose(indexReadonlyArray(this.activePartIdx)).compose(PartL('notes')).modify(
           notes => [...notes, { pitch: Math.round(startPitch), start: startSubdiv * ppsd, length: length * ppsd, notation: undefined }]
         );
         return [op(project), { preservePartIdx: true }];
@@ -372,7 +374,7 @@ class Selection implements EditorState {
           const newNoteT2 = newNoteT2_ !== newNoteT1 ? newNoteT2_
             : newNoteT1 + ppsd * (newNoteT2Raw >= newNoteT1 ? +1 : -1);
           const [start, length] = newNoteT2 >= newNoteT1 ? [newNoteT1, newNoteT2 - newNoteT1] : [newNoteT2, newNoteT1 - newNoteT2];
-          const op = ProjectLens(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartLens('notes')).compose(indexReadonlyArray(noteIdx)).modify(
+          const op = ProjectLp(['parts']).compose(indexReadonlyArray(partIdx)).compose(PartL('notes')).compose(indexReadonlyArray(noteIdx)).modify(
             note => ({ ...note, start, length })
           );
           return [op(project), { preserveSelection: true }];

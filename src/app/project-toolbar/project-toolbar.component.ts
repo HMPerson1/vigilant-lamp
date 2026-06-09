@@ -2,6 +2,7 @@ import { Component, NgZone, computed, output, viewChildren } from '@angular/core
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as Mousetrap from 'mousetrap';
+import { fromBlob, intoBlob } from '../../model/project';
 import { audioFileSampleRate, downsampleAudio, loadAudio } from '../load-audio';
 import { AudioContextService } from '../services/audio-context.service';
 import { ProjectService } from '../services/project.service';
@@ -72,11 +73,12 @@ export class ProjectToolbarComponent {
     try {
       const projectFile = await fileOpen({ description: "Vigilant Lamp files", extensions: [".vtlamp"], id: 'project' });
       this.audioBuffer.emit(undefined);
-      const project = await this.project.fromBlob(projectFile);
-      project.markSaved(project.project());
+      const projectData = await fromBlob(projectFile);
+      const projectHolder = this.project.loadProject(projectData);
+      projectHolder.markSaved(projectData);
       this.projectFileHandle = projectFile.handle;
       this.projectFilename.emit(this.projectFileHandle?.name);
-      const audioBuffer = await loadAudio(project.project().audioFile.slice().buffer, this.outputSampleRate);
+      const audioBuffer = await loadAudio(projectData.audioFile.slice().buffer, this.outputSampleRate);
       this.audioBuffer.emit(audioBuffer);
     } catch (e) {
       console.log("error load project:", e);
@@ -92,7 +94,7 @@ export class ProjectToolbarComponent {
     try {
       const project = projectHolder.project();
       this.projectFileHandle = await fileSave(
-        ProjectService.intoBlob(project),
+        intoBlob(project),
         { description: "Vigilant Lamp file", extensions: [".vtlamp"], id: 'project' },
         saveAs ? null : this.projectFileHandle,
         true,

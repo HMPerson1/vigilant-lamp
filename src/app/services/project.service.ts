@@ -1,10 +1,8 @@
 import { Injectable, Signal, computed, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import * as msgpack from '@msgpack/msgpack';
 import { NonEmptyArray } from 'fp-ts/NonEmptyArray';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { AudioSamples } from '../common';
-import { Meter, Project, decodeOrThrow } from '../ui-common';
+import { AudioSamples, Meter, Project, fromBlob } from '../../model/project';
 import { signalDefined, signalFiltered } from '../utils/ho-signals';
 
 @Injectable({
@@ -20,16 +18,10 @@ export class ProjectService {
     this.#currentProject$.next(new ProjectHolder({ audioFile, audio, meter: undefined, parts: [] }))
   }
 
-  async fromBlob(blob: Blob) {
-    const projHolder = new ProjectHolder(
-      decodeOrThrow(Project, await msgpack.decodeAsync(blob.stream()), "error parsing project data")
-    );
+  loadProject(project: Project): ProjectHolder {
+    const projHolder = new ProjectHolder(project);
     this.#currentProject$.next(projHolder);
     return projHolder;
-  }
-
-  static intoBlob(project: Project): Blob {
-    return new Blob([msgpack.encode(Project.encode(project))]);
   }
 
   readonly hasProject = computed(() => this.currentProjectRaw() !== undefined);
