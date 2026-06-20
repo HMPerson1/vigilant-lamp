@@ -1,6 +1,6 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
-import { Component, ElementRef, NgZone, ViewChild, computed, effect, signal } from '@angular/core';
+import { Component, ElementRef, NgZone, ViewChild, computed, effect, signal, ChangeDetectionStrategy } from '@angular/core';
 import { MatDrawer } from '@angular/material/sidenav';
 import { Title } from '@angular/platform-browser';
 import * as Mousetrap from 'mousetrap';
@@ -12,9 +12,11 @@ import { ProjectService } from './services/project.service';
 import { ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
 
 @Component({
-  selector: 'app-root',
-  templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']
+    selector: 'app-root',
+    templateUrl: './app.component.html',
+    styleUrls: ['./app.component.css'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class AppComponent {
   constructor(
@@ -107,7 +109,6 @@ export class AppComponent {
     try {
       this.portalOutlet.portal = drawerContents;
       this.drawer.open(openedVia);
-      this.drawerElem.nativeElement.focus();
       this.uiMode.set({ mode: 'timing', doneClick, cancel: () => { this.drawer.close() }, });
       return await Promise.race([
         donePromise,

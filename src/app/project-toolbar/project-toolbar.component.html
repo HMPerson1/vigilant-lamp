@@ -4,10 +4,12 @@
 <button mat-icon-button [appClickBlocking]="loadProject" matTooltip="Open" color="primary" [cbDisabled]="anyTaskActive()">
   <mat-icon>file_open</mat-icon>
 </button>
-<button mat-icon-button [appClickBlocking]="saveProject()" matTooltip="Save" color="primary"
-  [cbDisabled]="anyTaskActive() || !project.hasProject()" *ngIf="browserFsApiSupported">
-  <mat-icon>save</mat-icon>
-</button>
+@if (browserFsApiSupported) {
+  <button mat-icon-button [appClickBlocking]="saveProject()" matTooltip="Save" color="primary"
+    [cbDisabled]="anyTaskActive() || !project.hasProject()">
+    <mat-icon>save</mat-icon>
+  </button>
+}
 <button mat-icon-button [appClickBlocking]="saveProject(true)" matTooltip="Save As" color="primary"
   [cbDisabled]="anyTaskActive() || !project.hasProject()">
   <mat-icon>save_as</mat-icon>

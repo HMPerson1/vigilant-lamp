@@ -5,10 +5,11 @@ import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-
 import { GenSpecTile, SpecTileWindow } from '../common';
 
 @Component({
-  selector: 'app-audio-visualization',
-  templateUrl: './audio-visualization.component.html',
-  styleUrls: ['./audio-visualization.component.css'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-audio-visualization',
+    templateUrl: './audio-visualization.component.html',
+    styleUrls: ['./audio-visualization.component.css'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class AudioVisualizationComponent {
   readonly #canvasWidth = signal(1);

@@ -19,10 +19,11 @@ type SpecTileBitmap = GenSpecTile<ImageBitmap>
 type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
 
 @Component({
-  selector: 'app-audio-spectrogram',
-  templateUrl: './audio-spectrogram.component.html',
-  styles: [':host{display:block; position: absolute; inset: 0}'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-audio-spectrogram',
+    templateUrl: './audio-spectrogram.component.html',
+    styles: [':host{display:block; position: absolute; inset: 0}'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class AudioSpectrogramComponent {
   @ViewChild('spectrogram_canvas') spectrogramCanvas!: ElementRef<HTMLCanvasElement>;

@@ -7,11 +7,12 @@ import { GenSpecTile, SpecTileWindow } from '../common';
 import { PitchLabelType, elemBoxSizeSignal } from '../ui-common';
 
 @Component({
-  selector: 'app-spectrogram-grids',
-  templateUrl: './spectrogram-grids.component.html',
-  styleUrls: ['./spectrogram-grids.component.css'],
-  styles: [':host{ display:block; position:absolute; inset:0; pointer-events:none }'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-spectrogram-grids',
+    templateUrl: './spectrogram-grids.component.html',
+    styleUrls: ['./spectrogram-grids.component.css'],
+    styles: [':host{ display:block; position:absolute; inset:0; pointer-events:none }'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class SpectrogramGridsComponent {
   readonly #showPitchGrid$ = signal(false);
@@ -190,8 +191,6 @@ export class SpectrogramGridsComponent {
     const oy = this.viewport.viewportOffsetY() + (this.viewport.visMouseY() ?? 0) - this.viewport.viewportSize().blockSize;
     return `translate(${ox}px,${oy}px)`;
   });
-
-  trackIdx(idx: number, _item: any) { return idx }
 }
 
 function pitchLabel(label: PitchLabelType, pitch: number): string {

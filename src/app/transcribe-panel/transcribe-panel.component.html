@@ -1,44 +1,48 @@
 <div class="container">
-  <div class="container" *ngIf="partsDisplay().length !== 0" cdkDropList (cdkDropListDropped)="drop($event)">
-    <mat-card *ngFor="let part of partsDisplay(); trackBy: trackItemIdx" cdkDrag cdkDragLockAxis="y"
-      cdkDragBoundary=".container">
-      <div matRipple [matRippleTrigger]="drag_handle">
-        <!-- extra div so that the ripple doesn't break :nth-child styles -->
-        <div class="card-inside">
-          <mat-icon class="drag-handle"><span #drag_handle cdkDragHandle>drag_handle</span></mat-icon>
-          <mat-card-header>
-            <div mat-card-avatar [style.background-color]="part.color">
-              <button mat-icon-button class="visibility-button" [style.display]="part.visible ? '' : 'block'"
-                matTooltip="Toggle visibility" (click)="onToggleVisibilityClick(part.idx)">
-                <mat-icon [class.icon-dark-bg]="part.isDark">
-                  {{part.visible ? 'visibility' : 'visibility_off'}}
-                </mat-icon>
-              </button>
+  @if (partsDisplay().length !== 0) {
+    <div class="container" cdkDropList (cdkDropListDropped)="drop($event)">
+      @for (part of partsDisplay(); track part.idx) {
+        <mat-card cdkDrag cdkDragLockAxis="y"
+          cdkDragBoundary=".container">
+          <div matRipple [matRippleTrigger]="drag_handle">
+            <!-- extra div so that the ripple doesn't break :nth-child styles -->
+            <div class="card-inside">
+              <mat-icon class="drag-handle"><span #drag_handle cdkDragHandle>drag_handle</span></mat-icon>
+              <mat-card-header>
+                <div mat-card-avatar [style.background-color]="part.color">
+                  <button mat-icon-button class="visibility-button" [style.display]="part.visible ? '' : 'block'"
+                    matTooltip="Toggle visibility" (click)="onToggleVisibilityClick(part.idx)">
+                    <mat-icon [class.icon-dark-bg]="part.isDark">
+                      {{part.visible ? 'visibility' : 'visibility_off'}}
+                    </mat-icon>
+                  </button>
+                </div>
+                <mat-card-title>{{ part.name }}</mat-card-title>
+                <mat-card-subtitle>{{ part.instrument }}</mat-card-subtitle>
+                <div class="card-header-right">
+                  <button mat-icon-button [matMenuTriggerFor]="partCardMenu"
+                    [matMenuTriggerData]="{idx: part.idx}"><mat-icon>more_vert</mat-icon></button>
+                  </div>
+                </mat-card-header>
+                <mat-card-content>
+                  <button mat-flat-button class="full-width" color="primary" (click)="onPartButtonClick(part.idx)">
+                    <mat-icon>{{transcribeModeState?.partIdx === part.idx ? "done" : "edit"}}</mat-icon>
+                    {{transcribeModeState?.partIdx === part.idx ? "DONE" : "TRANSCRIBE"}}
+                  </button>
+                </mat-card-content>
+              </div>
             </div>
-            <mat-card-title>{{ part.name }}</mat-card-title>
-            <mat-card-subtitle>{{ part.instrument }}</mat-card-subtitle>
-            <div class="card-header-right">
-              <button mat-icon-button [matMenuTriggerFor]="partCardMenu"
-                [matMenuTriggerData]="{idx: part.idx}"><mat-icon>more_vert</mat-icon></button>
-            </div>
-          </mat-card-header>
-          <mat-card-content>
-            <button mat-flat-button class="full-width" color="primary" (click)="onPartButtonClick(part.idx)">
-              <mat-icon>{{transcribeModeState?.partIdx === part.idx ? "done" : "edit"}}</mat-icon>
-              {{transcribeModeState?.partIdx === part.idx ? "DONE" : "TRANSCRIBE"}}
-            </button>
-          </mat-card-content>
-        </div>
+          </mat-card>
+        }
       </div>
-    </mat-card>
-  </div>
-  <button mat-stroked-button class="full-width" (click)="onAddPartClick()"
-    [disabled]="project.currentProjectRaw()?.project()?.meter === undefined"><mat-icon>add</mat-icon>ADD PART</button>
-</div>
+    }
+    <button mat-stroked-button class="full-width" (click)="onAddPartClick()"
+      [disabled]="project.currentProjectRaw()?.project()?.meter === undefined"><mat-icon>add</mat-icon>ADD PART</button>
+    </div>
 
-<mat-menu #partCardMenu="matMenu">
-  <ng-template matMenuContent let-idx="idx">
-    <button mat-menu-item (click)="onPartEditClick(idx)">Edit</button>
-    <button mat-menu-item (click)="onDeletePartClick(idx)">Delete</button>
-  </ng-template>
-</mat-menu>
+    <mat-menu #partCardMenu="matMenu">
+      <ng-template matMenuContent let-idx="idx">
+        <button mat-menu-item (click)="onPartEditClick(idx)">Edit</button>
+        <button mat-menu-item (click)="onDeletePartClick(idx)">Delete</button>
+      </ng-template>
+    </mat-menu>

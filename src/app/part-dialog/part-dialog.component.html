@@ -12,7 +12,9 @@
     <mat-form-field>
       <mat-label>Instrument</mat-label>
       <mat-select [(ngModel)]="part.instrument" [ngModelOptions]="{standalone: true}">
-        <mat-option *ngFor="let inst of Instruments" [value]="inst">{{ inst }}</mat-option>
+        @for (inst of Instruments; track inst) {
+          <mat-option [value]="inst">{{ inst }}</mat-option>
+        }
       </mat-select>
     </mat-form-field>
   </div>

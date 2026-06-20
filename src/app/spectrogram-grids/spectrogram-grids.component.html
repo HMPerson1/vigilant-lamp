@@ -2,7 +2,11 @@
   <canvas #canvas></canvas>
 </div>
 
-<div *ngIf="_showOvertones$()" class="overtone-container" [style.transform]="overtoneContainerTransform()">
-  <div class="crosshair" *ngFor="let o of overtoneYOffsets(); index as idx; trackBy: trackIdx" style="height: 1px"
-    [style.opacity]=".7-idx*.05" [style.transform]="o"></div>
-</div>
+@if (_showOvertones$()) {
+  <div class="overtone-container" [style.transform]="overtoneContainerTransform()">
+    @for (o of overtoneYOffsets(); track $index; let idx = $index) {
+      <div class="crosshair" style="height: 1px"
+      [style.opacity]=".7-idx*.05" [style.transform]="o"></div>
+    }
+  </div>
+}

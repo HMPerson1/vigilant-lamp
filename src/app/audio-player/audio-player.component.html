@@ -1,15 +1,21 @@
 <div style="display: flex; align-items: center; gap: 8px;">
   <button mat-icon-button [matTooltip]="isPlaying ? 'Pause' : 'Play'" (click)="playPauseClicked()"
     [disabled]="!audioBuffer">
-    <mat-icon *ngIf="!isPlaying">play_arrow</mat-icon>
-    <mat-icon *ngIf="isPlaying">pause</mat-icon>
+    @if (!isPlaying) {
+      <mat-icon>play_arrow</mat-icon>
+    } @else {
+      <mat-icon>pause</mat-icon>
+    }
   </button>
   <button mat-icon-button matTooltip="Stop" (click)="stopClicked()" [disabled]="!isPlaying">
     <mat-icon>stop</mat-icon>
   </button>
   <button mat-icon-button [matTooltip]="muted ? 'Unmute' : 'Mute'" (click)="muteClicked()" [disabled]="!audioBuffer">
-    <mat-icon *ngIf="!muted">volume_up</mat-icon>
-    <mat-icon *ngIf="muted">volume_off</mat-icon>
+    @if (!muted) {
+      <mat-icon>volume_up</mat-icon>
+    } @else {
+      <mat-icon>volume_off</mat-icon>
+    }
   </button>
   <mat-slider style="flex: 1; margin: 0 24px;" min="0" max="100" step="1" [disabled]="!audioBuffer">
     <input matSliderThumb [(ngModel)]="volumePct" (change)="onVolumeChange()">

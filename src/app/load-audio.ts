@@ -1,4 +1,4 @@
-import { parseBuffer } from 'music-metadata/lib/core';
+import { parseBuffer } from 'music-metadata';
 import { AudioSamples } from './common';
 
 /// detaches `arrBuf`

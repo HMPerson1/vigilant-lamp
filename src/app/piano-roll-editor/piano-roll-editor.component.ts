@@ -15,18 +15,19 @@ import { PITCH_MAX, Viewport, elemBoxSizeSignal, indexReadonlyArray, sortPartsDi
 import { PairsSet } from '../utils/pairs-set';
 
 @Component({
-  selector: 'app-piano-roll-editor',
-  template: '<canvas #canvas [style.transform]="viewport.viewportTransform()"></canvas>',
-  styles: ":host { display: block; }",
-  host: {
-    'class': 'canvas-box',
-    '[style.cursor]': 'styleCursor()',
-    '(mousedown)': 'onMouseDown($event)',
-    '(window:copy)': 'onCopy($event)',
-    '(window:cut)': 'onCopy($event)',
-    '(window:paste)': 'onPaste($event)',
-  },
-  changeDetection: ChangeDetectionStrategy.OnPush,
+    selector: 'app-piano-roll-editor',
+    template: '<canvas #canvas [style.transform]="viewport.viewportTransform()"></canvas>',
+    styles: ":host { display: block; }",
+    host: {
+        'class': 'canvas-box',
+        '[style.cursor]': 'styleCursor()',
+        '(mousedown)': 'onMouseDown($event)',
+        '(window:copy)': 'onCopy($event)',
+        '(window:cut)': 'onCopy($event)',
+        '(window:paste)': 'onPaste($event)',
+    },
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    standalone: false
 })
 export class PianoRollEditorComponent {
   readonly activePartIdx = input<number>();

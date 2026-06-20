@@ -1,12 +1,14 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
 import { MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { Writable } from 'type-fest';
 import { Instruments, Part } from '../../model/project';
 
 @Component({
-  selector: 'app-part-dialog',
-  templateUrl: './part-dialog.component.html',
-  styleUrls: ['./part-dialog.component.css']
+    selector: 'app-part-dialog',
+    templateUrl: './part-dialog.component.html',
+    styleUrls: ['./part-dialog.component.css'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class PartDialogComponent {
   readonly add: boolean;

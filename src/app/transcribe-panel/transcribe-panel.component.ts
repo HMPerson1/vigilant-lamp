@@ -1,5 +1,5 @@
 import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { Component, Input, computed } from '@angular/core';
+import { Component, Input, computed, ChangeDetectionStrategy } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { OKLab, sRGB } from 'colorjs.io/fn';
 import { flow } from 'fp-ts/function';
@@ -11,9 +11,11 @@ import { ProjectService } from '../services/project.service';
 import { StartTranscribing, TranscribeModeState, indexReadonlyArray, sortPartsDisplay } from '../ui-common';
 
 @Component({
-  selector: 'app-transcribe-panel',
-  templateUrl: './transcribe-panel.component.html',
-  styleUrls: ['./transcribe-panel.component.scss']
+    selector: 'app-transcribe-panel',
+    templateUrl: './transcribe-panel.component.html',
+    styleUrls: ['./transcribe-panel.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class TranscribePanelComponent {
   constructor(readonly project: ProjectService, private readonly dialog: MatDialog) { }
@@ -84,8 +86,6 @@ export class TranscribePanelComponent {
       parts.map((p, i) => ({ ...p, displayIndex: physIdxToNewDispIdx[i] }))
     ), { preserveSelection: true });
   }
-
-  trackItemIdx(_i: number, { idx }: { idx: number }) { return idx }
 }
 
 const isDark = (color: string) => OKLab.from({ ...sRGB.formats['hex'].parse!(color), space: sRGB })[0] < .5;

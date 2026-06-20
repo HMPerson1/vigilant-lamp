@@ -1,13 +1,15 @@
-import { Component, DestroyRef, ElementRef, ViewChild, computed, effect } from '@angular/core';
+import { Component, DestroyRef, ElementRef, ViewChild, computed, effect, ChangeDetectionStrategy } from '@angular/core';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { ProjectService } from '../services/project.service';
 import { elemBoxSizeSignal, imageDataToBitmapFast } from '../ui-common';
 
 @Component({
-  selector: 'app-audio-waveform',
-  template: '<canvas #waveform_canvas></canvas>',
-  host: { class: 'canvas-box' },
+    selector: 'app-audio-waveform',
+    template: '<canvas #waveform_canvas></canvas>',
+    host: { class: 'canvas-box' },
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class AudioWaveformComponent {
   #waveCanvasCtx?: ImageBitmapRenderingContext;

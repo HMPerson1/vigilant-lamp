@@ -1,11 +1,13 @@
-import { Component, Input, NgZone, signal } from '@angular/core';
+import { Component, Input, NgZone, signal, ChangeDetectionStrategy } from '@angular/core';
 import * as Mousetrap from 'mousetrap';
 import { Subscription, animationFrames } from 'rxjs';
 import { AudioContextService } from '../services/audio-context.service';
 
 @Component({
-  selector: 'app-audio-player',
-  templateUrl: './audio-player.component.html',
+    selector: 'app-audio-player',
+    templateUrl: './audio-player.component.html',
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class AudioPlayerComponent {
   constructor(private ngZone: NgZone, private audioContextSvc: AudioContextService) {

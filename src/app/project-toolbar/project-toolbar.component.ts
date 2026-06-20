@@ -1,4 +1,4 @@
-import { Component, NgZone, computed, output, viewChildren } from '@angular/core';
+import { Component, NgZone, computed, output, viewChildren, ChangeDetectionStrategy } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as Mousetrap from 'mousetrap';
@@ -9,9 +9,11 @@ import { ProjectService } from '../services/project.service';
 import { ClickBlockingDirective } from './click-blocking.directive';
 
 @Component({
-  selector: 'app-project-toolbar',
-  templateUrl: './project-toolbar.component.html',
-  styleUrl: './project-toolbar.component.css'
+    selector: 'app-project-toolbar',
+    templateUrl: './project-toolbar.component.html',
+    styleUrl: './project-toolbar.component.css',
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class ProjectToolbarComponent {
   readonly audioBuffer = output<AudioBuffer | undefined>();

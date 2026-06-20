@@ -1,5 +1,5 @@
 import { CdkPortal } from '@angular/cdk/portal';
-import { Component, EventEmitter, Input, Output, Signal, TemplateRef, ViewChild, computed, effect } from '@angular/core';
+import { Component, EventEmitter, Input, Output, Signal, TemplateRef, ViewChild, computed, effect, ChangeDetectionStrategy } from '@angular/core';
 import { FormControl, ValidatorFn, Validators } from '@angular/forms';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -14,9 +14,11 @@ import { ModalSpectrogramEdit } from '../ui-common';
 import { isNonnull } from '../utils/ho-signals';
 
 @Component({
-  selector: 'app-meter-settings-panel',
-  templateUrl: './meter-settings-panel.component.html',
-  styleUrls: ['./meter-settings-panel.component.css']
+    selector: 'app-meter-settings-panel',
+    templateUrl: './meter-settings-panel.component.html',
+    styleUrls: ['./meter-settings-panel.component.css'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    standalone: false
 })
 export class MeterSettingsPanelComponent {
   @Input({ required: true }) modalEdit!: ModalSpectrogramEdit;

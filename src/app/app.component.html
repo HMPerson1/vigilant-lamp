@@ -6,10 +6,10 @@
         <div class="stacking" style="height: 100%;">
           <app-audio-spectrogram [specDbMin]="specDbMin" [specDbMax]="specDbMax" [fftLgWindowSize]="specLgWindowSize"
             [timeStep]="specTimeStep" [fftLgExtraPad]="specLgExtraPad" [debug_downsample]="debug_downsample"
-            #specElem></app-audio-spectrogram>
+          #specElem></app-audio-spectrogram>
           <app-piano-roll-editor [activePartIdx]="activePartIdx()"></app-piano-roll-editor>
           <app-spectrogram-grids [showPitchGrid]="showPitchGrid" [pitchLabelType]="pitchLabelType"
-            [showOvertones]="showOvertones && showCrosshair()" [meter]="displayedMeter"></app-spectrogram-grids>
+          [showOvertones]="showOvertones && showCrosshair()" [meter]="displayedMeter"></app-spectrogram-grids>
           <div [class.pointer-events-none]="uiModeAsTiming() === undefined" [style.cursor]="visCursor"
             [style.transform]="audioVizContainer.viewportTransform()" #visElem>
           </div>
@@ -67,7 +67,7 @@
           <label class="inline-comp">
             Beat Grid
             <mat-slide-toggle [(ngModel)]="userShowBeatGrid" [disabled]="!hasProjectMeter()"
-              [matTooltip]="!hasProjectMeter() ? 'Meter has not been set' : ''"></mat-slide-toggle>
+            [matTooltip]="!hasProjectMeter() ? 'Meter has not been set' : ''"></mat-slide-toggle>
           </label>
           <label class="inline-comp">
             Pitch Labels
@@ -94,20 +94,22 @@
             </mat-panel-title>
           </mat-expansion-panel-header>
           <app-meter-settings-panel [modalEdit]="modalSpectrogramEdit"
-            (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
+          (liveMeter)="liveMeter=$event"></app-meter-settings-panel>
         </mat-expansion-panel>
         <mat-expansion-panel [disabled]="!hasProjectMeter()" [(expanded)]="transcribePanelExpanded">
           <mat-expansion-panel-header>
             <mat-panel-title>
               Parts
             </mat-panel-title>
-            <mat-panel-description *ngIf="activePartLabel() as activePartLabel"
-              style="display: block; overflow: hidden; text-wrap: nowrap; text-overflow: ellipsis;">
-              TRANSCRIBING: {{ activePartLabel }}
-            </mat-panel-description>
+            @if (activePartLabel(); as activePartLabel) {
+              <mat-panel-description
+                style="display: block; overflow: hidden; text-wrap: nowrap; text-overflow: ellipsis;">
+                TRANSCRIBING: {{ activePartLabel }}
+              </mat-panel-description>
+            }
           </mat-expansion-panel-header>
           <app-transcribe-panel [startTranscribing]="startTranscribing"
-            [transcribeModeState]="uiModeAsNoting()"></app-transcribe-panel>
+          [transcribeModeState]="uiModeAsNoting()"></app-transcribe-panel>
         </mat-expansion-panel>
       </mat-accordion>
       <div style="margin-top: auto;">
@@ -118,13 +120,13 @@
       </div>
     </div>
   </mat-sidenav-content>
-  <mat-sidenav mode="over" position="end" [style.width.px]="sidenavWidth" autoFocus="dialog" #drawer>
+  <mat-sidenav mode="over" position="end" [style.width.px]="sidenavWidth" autoFocus="first-heading" #drawer>
     <div class="drawer-contents">
       <div style="width: 100%;">
         <ng-template [cdkPortalOutlet]="null" #portalOutlet="cdkPortalOutlet"></ng-template>
-        <ng-container *ngIf="uiModeAsTiming()?.doneClick as uiModeDoneClick">
+        @if (uiModeAsTiming()?.doneClick; as uiModeDoneClick) {
           <button mat-raised-button color="primary" class="drawer-done" (click)="uiModeDoneClick()">DONE</button>
-        </ng-container>
+        }
       </div>
       <button mat-stroked-button (click)="drawer.close()">CANCEL</button>
     </div>
