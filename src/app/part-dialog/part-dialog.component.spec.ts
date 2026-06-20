@@ -8,8 +8,8 @@ describe('PartDialogComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [PartDialogComponent]
-    });
+    imports: [PartDialogComponent]
+});
     fixture = TestBed.createComponent(PartDialogComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

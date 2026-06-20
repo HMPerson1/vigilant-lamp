@@ -8,8 +8,8 @@ describe('SpectrogramGridsComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [SpectrogramGridsComponent]
-    });
+    imports: [SpectrogramGridsComponent]
+});
     fixture = TestBed.createComponent(SpectrogramGridsComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

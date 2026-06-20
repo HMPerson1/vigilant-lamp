@@ -8,8 +8,8 @@ describe('PianoRollEditorComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [PianoRollEditorComponent]
-    });
+    imports: [PianoRollEditorComponent]
+});
     fixture = TestBed.createComponent(PianoRollEditorComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

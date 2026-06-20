@@ -1,8 +1,14 @@
 import { CdkPortal } from '@angular/cdk/portal';
-import { Component, EventEmitter, Input, Output, Signal, TemplateRef, ViewChild, computed, effect, ChangeDetectionStrategy } from '@angular/core';
-import { FormControl, ValidatorFn, Validators } from '@angular/forms';
-import { MatDialog } from '@angular/material/dialog';
+import { CdkScrollable } from '@angular/cdk/scrolling';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, Signal, TemplateRef, ViewChild, computed, effect } from '@angular/core';
+import { FormControl, FormsModule, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatDialog, MatDialogActions, MatDialogClose, MatDialogContent, MatDialogTitle } from '@angular/material/dialog';
+import { MatFormField, MatHint, MatLabel, MatSuffix } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
+import { MatInput } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltip } from '@angular/material/tooltip';
 import * as O from 'fp-ts/Option';
 import * as RA from 'fp-ts/ReadonlyArray';
 import { flow, pipe } from 'fp-ts/function';
@@ -18,7 +24,7 @@ import { isNonnull } from '../utils/ho-signals';
     templateUrl: './meter-settings-panel.component.html',
     styleUrls: ['./meter-settings-panel.component.css'],
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    imports: [MatButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatHint, MatIconButton, MatSuffix, MatTooltip, CdkPortal, MatDialogTitle, CdkScrollable, MatDialogContent, MatDialogActions, MatDialogClose]
 })
 export class MeterSettingsPanelComponent {
   @Input({ required: true }) modalEdit!: ModalSpectrogramEdit;

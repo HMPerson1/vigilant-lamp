@@ -1,11 +1,11 @@
-import { ChangeDetectionStrategy, Component, ElementRef, EnvironmentInjector, Input, OnInit, Signal, ViewChild, computed, effect, runInInjectionContext, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, Input, ViewChild, computed, effect, signal } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { fromWorker } from 'observable-webworker';
 import { BehaviorSubject, combineLatest, filter, map, merge, mergeMap, scan } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
 import { GenSpecTile, SpecFftParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, tag } from '../common';
-import { ProjectHolder, ProjectService } from '../services/project.service';
+import { ProjectService } from '../services/project.service';
 import { elemBoxSizeSignal, imageDataToBitmapFast } from '../ui-common';
 import { isNonnull } from '../utils/ho-signals';
 
@@ -22,8 +22,7 @@ type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
     selector: 'app-audio-spectrogram',
     templateUrl: './audio-spectrogram.component.html',
     styles: [':host{display:block; position: absolute; inset: 0}'],
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: false
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class AudioSpectrogramComponent {
   @ViewChild('spectrogram_canvas') spectrogramCanvas!: ElementRef<HTMLCanvasElement>;

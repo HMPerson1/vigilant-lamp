@@ -1,6 +1,6 @@
 import { Overlay } from '@angular/cdk/overlay';
 import { ComponentPortal } from '@angular/cdk/portal';
-import { Directive, ElementRef, input, output, signal } from '@angular/core';
+import { Directive, ElementRef, input, signal } from '@angular/core';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 
 @Directive({
@@ -8,8 +8,7 @@ import { MatProgressSpinner } from '@angular/material/progress-spinner';
     host: {
         '(click)': "onClick($event)",
         '[disabled]': "cbDisabled() || taskActive()",
-    },
-    standalone: false
+    }
 })
 export class ClickBlockingDirective {
   readonly appClickBlocking = input.required<(e: MouseEvent) => Promise<void>>();

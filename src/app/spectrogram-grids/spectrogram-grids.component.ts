@@ -11,8 +11,7 @@ import { PitchLabelType, elemBoxSizeSignal } from '../ui-common';
     templateUrl: './spectrogram-grids.component.html',
     styleUrls: ['./spectrogram-grids.component.css'],
     styles: [':host{ display:block; position:absolute; inset:0; pointer-events:none }'],
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: false
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class SpectrogramGridsComponent {
   readonly #showPitchGrid$ = signal(false);

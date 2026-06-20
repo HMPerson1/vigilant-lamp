@@ -1,5 +1,8 @@
-import { Component, NgZone, computed, output, viewChildren, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, NgZone, computed, output, viewChildren } from '@angular/core';
+import { MatIconButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltip } from '@angular/material/tooltip';
 import { supported as browserFsApiSupported, fileOpen, fileSave } from 'browser-fs-access';
 import * as Mousetrap from 'mousetrap';
 import { fromBlob, intoBlob } from '../../model/project';
@@ -13,7 +16,7 @@ import { ClickBlockingDirective } from './click-blocking.directive';
     templateUrl: './project-toolbar.component.html',
     styleUrl: './project-toolbar.component.css',
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    imports: [MatIconButton, ClickBlockingDirective, MatTooltip, MatIcon]
 })
 export class ProjectToolbarComponent {
   readonly audioBuffer = output<AudioBuffer | undefined>();

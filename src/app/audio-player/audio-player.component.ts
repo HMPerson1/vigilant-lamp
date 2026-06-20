@@ -1,4 +1,9 @@
-import { Component, Input, NgZone, signal, ChangeDetectionStrategy } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, NgZone, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatIconButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
+import { MatSlider, MatSliderThumb } from '@angular/material/slider';
+import { MatTooltip } from '@angular/material/tooltip';
 import * as Mousetrap from 'mousetrap';
 import { Subscription, animationFrames } from 'rxjs';
 import { AudioContextService } from '../services/audio-context.service';
@@ -7,7 +12,7 @@ import { AudioContextService } from '../services/audio-context.service';
     selector: 'app-audio-player',
     templateUrl: './audio-player.component.html',
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    imports: [MatIconButton, MatTooltip, MatIcon, MatSlider, MatSliderThumb, FormsModule]
 })
 export class AudioPlayerComponent {
   constructor(private ngZone: NgZone, private audioContextSvc: AudioContextService) {

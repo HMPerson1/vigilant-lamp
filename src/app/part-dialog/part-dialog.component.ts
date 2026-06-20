@@ -1,5 +1,11 @@
-import { Component, inject, ChangeDetectionStrategy } from '@angular/core';
-import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { CdkScrollable } from '@angular/cdk/scrolling';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { MatButton } from '@angular/material/button';
+import { MAT_DIALOG_DATA, MatDialogActions, MatDialogClose, MatDialogContent, MatDialogTitle } from '@angular/material/dialog';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatInput } from '@angular/material/input';
+import { MatOption, MatSelect } from '@angular/material/select';
 import { Writable } from 'type-fest';
 import { Instruments, Part } from '../../model/project';
 
@@ -8,7 +14,7 @@ import { Instruments, Part } from '../../model/project';
     templateUrl: './part-dialog.component.html',
     styleUrls: ['./part-dialog.component.css'],
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    imports: [FormsModule, MatDialogTitle, CdkScrollable, MatDialogContent, MatFormField, MatLabel, MatInput, MatSelect, MatOption, MatDialogActions, MatButton, MatDialogClose]
 })
 export class PartDialogComponent {
   readonly add: boolean;

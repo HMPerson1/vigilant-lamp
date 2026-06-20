@@ -8,8 +8,8 @@ describe('ProjectToolbarComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [ProjectToolbarComponent]
-    })
+    imports: [ProjectToolbarComponent]
+})
     .compileComponents();
     
     fixture = TestBed.createComponent(ProjectToolbarComponent);

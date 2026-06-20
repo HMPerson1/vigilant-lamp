@@ -8,8 +8,8 @@ describe('MeterSettingsPanelComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [MeterSettingsPanelComponent]
-    });
+    imports: [MeterSettingsPanelComponent]
+});
     fixture = TestBed.createComponent(MeterSettingsPanelComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

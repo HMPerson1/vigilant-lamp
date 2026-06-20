@@ -1,6 +1,12 @@
-import { CdkDragDrop } from '@angular/cdk/drag-drop';
-import { Component, Input, computed, ChangeDetectionStrategy } from '@angular/core';
+import { CdkDrag, CdkDragDrop, CdkDragHandle, CdkDropList } from '@angular/cdk/drag-drop';
+import { ChangeDetectionStrategy, Component, Input, computed } from '@angular/core';
+import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatCard, MatCardAvatar, MatCardContent, MatCardHeader, MatCardSubtitle, MatCardTitle } from '@angular/material/card';
+import { MatRipple } from '@angular/material/core';
 import { MatDialog } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
+import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
+import { MatTooltip } from '@angular/material/tooltip';
 import { OKLab, sRGB } from 'colorjs.io/fn';
 import { flow } from 'fp-ts/function';
 import { imap, max } from 'itertools';
@@ -15,7 +21,7 @@ import { StartTranscribing, TranscribeModeState, indexReadonlyArray, sortPartsDi
     templateUrl: './transcribe-panel.component.html',
     styleUrls: ['./transcribe-panel.component.scss'],
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    imports: [CdkDropList, MatCard, CdkDrag, MatRipple, MatIcon, CdkDragHandle, MatCardHeader, MatCardAvatar, MatIconButton, MatTooltip, MatCardTitle, MatCardSubtitle, MatMenuTrigger, MatCardContent, MatButton, MatMenu, MatMenuContent, MatMenuItem]
 })
 export class TranscribePanelComponent {
   constructor(readonly project: ProjectService, private readonly dialog: MatDialog) { }

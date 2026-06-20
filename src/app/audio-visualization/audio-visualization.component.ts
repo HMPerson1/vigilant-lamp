@@ -1,15 +1,16 @@
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, WritableSignal, computed, runInInjectionContext, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
+import { AudioWaveformComponent } from '../audio-waveform/audio-waveform.component';
+import { GenSpecTile } from '../common';
 import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-common';
-import { GenSpecTile, SpecTileWindow } from '../common';
 
 @Component({
     selector: 'app-audio-visualization',
     templateUrl: './audio-visualization.component.html',
     styleUrls: ['./audio-visualization.component.css'],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: false
+    imports: [AudioWaveformComponent]
 })
 export class AudioVisualizationComponent {
   readonly #canvasWidth = signal(1);

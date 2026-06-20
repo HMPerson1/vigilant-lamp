@@ -26,8 +26,7 @@ import { PairsSet } from '../utils/pairs-set';
         '(window:cut)': 'onCopy($event)',
         '(window:paste)': 'onPaste($event)',
     },
-    changeDetection: ChangeDetectionStrategy.OnPush,
-    standalone: false
+    changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class PianoRollEditorComponent {
   readonly activePartIdx = input<number>();

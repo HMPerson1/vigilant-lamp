@@ -8,8 +8,8 @@ describe('AudioVisualizationComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [AudioVisualizationComponent]
-    });
+    imports: [AudioVisualizationComponent]
+});
     fixture = TestBed.createComponent(AudioVisualizationComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();

@@ -1,7 +1,7 @@
 import { FocusOrigin } from '@angular/cdk/a11y';
 import { CdkPortalOutlet, Portal } from '@angular/cdk/portal';
 import { Component, ElementRef, NgZone, ViewChild, computed, effect, signal, ChangeDetectionStrategy } from '@angular/core';
-import { MatDrawer } from '@angular/material/sidenav';
+import { MatDrawer, MatSidenavContainer, MatSidenavContent, MatSidenav } from '@angular/material/sidenav';
 import { Title } from '@angular/platform-browser';
 import * as Mousetrap from 'mousetrap';
 import * as rxjs from 'rxjs';
@@ -10,13 +10,27 @@ import { AudioVisualizationComponent } from './audio-visualization/audio-visuali
 import { AudioContextService } from './services/audio-context.service';
 import { ProjectService } from './services/project.service';
 import { ModalSpectrogramEdit, PitchLabelType, StartTranscribing } from './ui-common';
+import { AudioSpectrogramComponent } from './audio-spectrogram/audio-spectrogram.component';
+import { PianoRollEditorComponent } from './piano-roll-editor/piano-roll-editor.component';
+import { SpectrogramGridsComponent } from './spectrogram-grids/spectrogram-grids.component';
+import { ProjectToolbarComponent } from './project-toolbar/project-toolbar.component';
+import { AudioPlayerComponent } from './audio-player/audio-player.component';
+import { MatAccordion, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, MatExpansionPanelDescription } from '@angular/material/expansion';
+import { MatSlider, MatSliderRangeThumb, MatSliderThumb } from '@angular/material/slider';
+import { FormsModule } from '@angular/forms';
+import { MatSlideToggle } from '@angular/material/slide-toggle';
+import { MatTooltip } from '@angular/material/tooltip';
+import { MatButtonToggleGroup, MatButtonToggle } from '@angular/material/button-toggle';
+import { MeterSettingsPanelComponent } from './meter-settings-panel/meter-settings-panel.component';
+import { TranscribePanelComponent } from './transcribe-panel/transcribe-panel.component';
+import { MatButton } from '@angular/material/button';
 
 @Component({
     selector: 'app-root',
     templateUrl: './app.component.html',
     styleUrls: ['./app.component.css'],
     changeDetection: ChangeDetectionStrategy.Eager,
-    standalone: false
+    imports: [MatSidenavContainer, MatSidenavContent, AudioVisualizationComponent, AudioSpectrogramComponent, PianoRollEditorComponent, SpectrogramGridsComponent, ProjectToolbarComponent, AudioPlayerComponent, MatAccordion, MatExpansionPanel, MatExpansionPanelHeader, MatExpansionPanelTitle, MatSlider, MatSliderRangeThumb, FormsModule, MatSliderThumb, MatSlideToggle, MatTooltip, MatButtonToggleGroup, MatButtonToggle, MeterSettingsPanelComponent, MatExpansionPanelDescription, TranscribePanelComponent, MatSidenav, CdkPortalOutlet, MatButton]
 })
 export class AppComponent {
   constructor(

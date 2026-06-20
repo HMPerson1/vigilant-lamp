@@ -8,8 +8,8 @@ describe('AudioSpectrogramComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      declarations: [ AudioSpectrogramComponent ]
-    })
+    imports: [AudioSpectrogramComponent]
+})
     .compileComponents();
 
     fixture = TestBed.createComponent(AudioSpectrogramComponent);

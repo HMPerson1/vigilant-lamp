@@ -8,8 +8,8 @@ describe('TranscribePanelComponent', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      declarations: [TranscribePanelComponent]
-    });
+    imports: [TranscribePanelComponent]
+});
     fixture = TestBed.createComponent(TranscribePanelComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
