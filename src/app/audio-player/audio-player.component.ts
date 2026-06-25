@@ -1,49 +1,55 @@
-import { ChangeDetectionStrategy, Component, Input, NgZone, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { form, FormField } from '@angular/forms/signals';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatSlider, MatSliderThumb } from '@angular/material/slider';
 import { MatTooltip } from '@angular/material/tooltip';
 import * as Mousetrap from 'mousetrap';
-import { Subscription, animationFrames } from 'rxjs';
+import { animationFrames, Subscription } from 'rxjs';
 import { AudioContextService } from '../services/audio-context.service';
 
 @Component({
-    selector: 'app-audio-player',
-    templateUrl: './audio-player.component.html',
-    changeDetection: ChangeDetectionStrategy.Eager,
-    imports: [MatIconButton, MatTooltip, MatIcon, MatSlider, MatSliderThumb, FormsModule]
+  selector: 'app-audio-player',
+  templateUrl: './audio-player.component.html',
+  imports: [MatIconButton, MatTooltip, MatIcon, MatSlider, MatSliderThumb, FormField]
 })
 export class AudioPlayerComponent {
-  constructor(private ngZone: NgZone, private audioContextSvc: AudioContextService) {
-    Mousetrap.bind("space", () => { ngZone.run(() => this.playPauseClicked()); return false; })
-    const gainNode = this.audioContext.createGain()
-    gainNode.connect(this.audioContext.destination)
-    this.audioOutput = gainNode;
-  }
-
-  get audioContext() { return this.audioContextSvc.audioContext }
-  audioOutput: GainNode;
-  @Input() audioBuffer?: AudioBuffer;
-  /** defined iff currently playing */
-  audioBufSrcNode?: AudioBufferSourceNode;
-  get isPlaying(): boolean { return !!this.audioBufSrcNode; }
-
-  playheadPos = signal(0);
-  seekPlayhead(v: number) {
+  public readonly audioBuffer = input<AudioBuffer | undefined>();
+  public readonly playheadPos = signal(0);
+  public seekPlayhead(v: number) {
     this.playheadPos.set(v);
-    if (this.isPlaying) {
+    if (this.isPlaying()) {
       this.stopPlayback()
       this.startPlayback()
     }
   }
-  playbackStartTime: number = 0;
-  playheadUpdateSub?: Subscription;
+
+  constructor() {
+    Mousetrap.bind("space", () => { this.playPauseClicked(); return false; })
+    const gainNode = this.#audioContext.createGain()
+    gainNode.connect(this.#audioContext.destination)
+    this.#audioOutput = gainNode;
+
+    effect(() => {
+      const v = this.#volumePct();
+      // https://www.dr-lex.be/info-stuff/volumecontrols.html
+      const amplitude = 1e-2 * Math.exp(Math.LN10 * 2e-2 * Math.max(v, 10)) * Math.min(v / 10, 1);
+      gainNode.gain.linearRampToValueAtTime(amplitude, this.#audioContext.currentTime + 0.01);
+    });
+  }
+
+  readonly #audioContext = inject(AudioContextService).audioContext;
+  readonly #audioOutput: GainNode;
+
+  /** defined iff currently playing */
+  readonly #playbackState = signal<PlaybackState | undefined>(undefined);
+  isPlaying(): boolean { return !!this.#playbackState(); }
 
   playPauseClicked() {
-    if (this.isPlaying) {
+    const playbackState = this.#playbackState();
+    if (playbackState !== undefined) {
       // pause
-      this.playheadPos.set(this.audioContext.currentTime - this.playbackStartTime)
+      this.playheadPos.set(this.#audioContext.currentTime - (playbackState.startTime - playbackState.startOffset))
       this.stopPlayback()
     } else {
       // play
@@ -56,52 +62,53 @@ export class AudioPlayerComponent {
   }
 
   startPlayback() {
-    if (!this.audioBuffer) return;
-    this.audioBufSrcNode = new AudioBufferSourceNode(this.audioContext, { buffer: this.audioBuffer })
-    // zone.js doesn't support WebAudio (https://github.com/angular/angular/issues/31736)
-    this.audioBufSrcNode.onended = () => this.ngZone.run(() => this.stopClicked())
-    this.audioBufSrcNode.connect(this.audioOutput)
-    this.playbackStartTime = this.audioContext.currentTime
-    this.audioBufSrcNode.start(this.playbackStartTime, this.playheadPos())
-    this.playbackStartTime -= this.playheadPos()
-    this.playheadUpdateSub = animationFrames().subscribe(() => {
-      const ctxtOutputTs = this.audioContext.getOutputTimestamp()
-      this.playheadPos.set((performance.now() - ctxtOutputTs.performanceTime!) / 1000 + ctxtOutputTs.contextTime! - this.playbackStartTime)
-    })
+    const audioBuffer = this.audioBuffer();
+    if (!audioBuffer) return;
+    const bufferAudioNode = new AudioBufferSourceNode(this.#audioContext, { buffer: audioBuffer })
+    bufferAudioNode.onended = () => this.stopClicked()
+    bufferAudioNode.connect(this.#audioOutput)
+    const startTime = this.#audioContext.currentTime;
+    const startOffset = this.playheadPos();
+    bufferAudioNode.start(startTime, startOffset);
+
+    const playheadUpdateSub = animationFrames().subscribe(() => {
+      const ctxtOutputTs = this.#audioContext.getOutputTimestamp();
+      if (ctxtOutputTs.performanceTime === 0) return; // if the audio context has not yet started
+      const contextTime = (performance.now() - ctxtOutputTs.performanceTime!) / 1000 + ctxtOutputTs.contextTime!;
+      this.playheadPos.set(Math.max(0, contextTime - startTime) + startOffset);
+    });
+
+    this.#playbackState.set({ bufferAudioNode, startTime, startOffset, playheadUpdateSub });
   }
   stopPlayback() {
-    if (this.audioBufSrcNode) {
-      this.audioBufSrcNode.onended = null
-      this.audioBufSrcNode.stop()
-      this.audioBufSrcNode = undefined
-    }
-    if (this.playheadUpdateSub) {
-      this.playheadUpdateSub.unsubscribe()
-      this.playheadUpdateSub = undefined
+    const playbackState = this.#playbackState();
+    if (playbackState !== undefined) {
+      this.#playbackState.set(undefined);
+      playbackState.bufferAudioNode.onended = null;
+      playbackState.bufferAudioNode.stop();
+      playbackState.playheadUpdateSub.unsubscribe();
     }
   }
 
-  savedVolumePct: number = 100;
-  #volumePct: number = 100;
-  get volumePct(): number { return this.#volumePct; }
-  set volumePct(v: number) {
-    this.#volumePct = v;
-    // https://www.dr-lex.be/info-stuff/volumecontrols.html
-    const amplitude = 1e-2 * Math.exp(Math.LN10 * 2e-2 * Math.max(v, 10)) * Math.min(v / 10, 1);
-    this.audioOutput.gain.linearRampToValueAtTime(amplitude, this.audioContext.currentTime + 0.01);
-  }
-  get muted(): boolean { return this.volumePct === 0 }
-
-  onVolumeChange() {
-    if (this.volumePct !== 0) this.savedVolumePct = this.volumePct;
-  }
+  #savedVolumePct: number = 100;
+  #volumePct = signal(100);
+  volumePctForm = form(this.#volumePct);
+  readonly muted = computed(() => this.#volumePct() === 0);
 
   muteClicked() {
-    if (this.muted) {
-      this.volumePct = this.savedVolumePct
+    if (this.muted()) {
+      this.#volumePct.set(this.#savedVolumePct !== 0 ? this.#savedVolumePct : 1);
+      this.#savedVolumePct = 0;
     } else {
-      this.savedVolumePct = this.volumePct
-      this.volumePct = 0
+      this.#savedVolumePct = this.#volumePct();
+      this.#volumePct.set(0);
     }
   }
+}
+
+type PlaybackState = {
+  bufferAudioNode: AudioBufferSourceNode,
+  playheadUpdateSub: Subscription,
+  startTime: number,
+  startOffset: number,
 }
