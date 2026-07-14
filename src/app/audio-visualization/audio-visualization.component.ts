@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, ElementRef, EnvironmentInjector, EventEmitter, HostListener, Input, Output, Signal, ViewChild, WritableSignal, computed, runInInjectionContext, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, EnvironmentInjector, HostListener, Input, Signal, ViewChild, WritableSignal, computed, input, output, runInInjectionContext, signal } from '@angular/core';
 import * as lodash from 'lodash-es';
 import * as rxjs from 'rxjs';
 import { AudioWaveformComponent } from '../audio-waveform/audio-waveform.component';
@@ -9,7 +9,6 @@ import { PITCH_MAX, elemBoxSizeSignal, mkTranslateX, mkTranslateY } from '../ui-
     selector: 'app-audio-visualization',
     templateUrl: './audio-visualization.component.html',
     styleUrls: ['./audio-visualization.component.css'],
-    changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [AudioWaveformComponent]
 })
 export class AudioVisualizationComponent {
@@ -53,8 +52,8 @@ export class AudioVisualizationComponent {
   readonly _crosshairXTransform = mkTranslateX(this.visMouseX);
   readonly _crosshairYTransform = mkTranslateY(this.visMouseY);
 
-  @Input() showCrosshair = true;
-  @Output() playheadSeek: EventEmitter<number> = new EventEmitter();
+  readonly showCrosshair = input(true);
+  readonly playheadSeek = output<number>();
 
   constructor(private readonly environmentInjector: EnvironmentInjector, private readonly changeDetectorRef: ChangeDetectorRef) { }
 

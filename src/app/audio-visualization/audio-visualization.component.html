@@ -5,9 +5,9 @@
       <ng-content></ng-content>
     </div>
     <div class="crosshair" style="height: 1px;" [style.transform]="_crosshairYTransform()"
-      [hidden]="!showCrosshair || visMouseY() === undefined"></div>
+      [hidden]="!showCrosshair() || visMouseY() === undefined"></div>
   </div>
 </div>
 <div class="crosshair" style="width: 1px; background-color: red;" [style.transform]="_playheadTransform()"></div>
 <div class="crosshair" style="width: 1px;" [style.transform]="_crosshairXTransform()"
-  [hidden]="!showCrosshair || visMouseX() === undefined"></div>
+  [hidden]="!showCrosshair() || visMouseX() === undefined"></div>
