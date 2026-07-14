@@ -1,10 +1,10 @@
-import { ChangeDetectionStrategy, Component, ElementRef, Input, ViewChild, computed, effect, signal } from '@angular/core';
+import { Component, computed, effect, ElementRef, input, ViewChild } from '@angular/core';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { fromWorker } from 'observable-webworker';
-import { BehaviorSubject, combineLatest, filter, map, merge, mergeMap, scan } from 'rxjs';
+import { combineLatest, filter, map, merge, mergeMap, scan } from 'rxjs';
 import * as wasm_module from '../../../wasm/pkg';
 import { AudioVisualizationComponent } from '../audio-visualization/audio-visualization.component';
-import { GenSpecTile, SpecFftParams, SpecTileWindow, SpecWorkerMsg, SpectrogramTileJs, SpectrogramWork, tag } from '../common';
+import { GenSpecTile, SpecFftParams, SpecTileWindow, SpectrogramTileJs, SpectrogramWork, SpecWorkerMsg, tag } from '../common';
 import { ProjectService } from '../services/project.service';
 import { elemBoxSizeSignal, imageDataToBitmapFast } from '../ui-common';
 import { isNonnull } from '../utils/ho-signals';
@@ -19,27 +19,18 @@ type SpecTileBitmap = GenSpecTile<ImageBitmap>
 type SpecTileCanvas = GenSpecTile<HTMLCanvasElement>
 
 @Component({
-    selector: 'app-audio-spectrogram',
-    templateUrl: './audio-spectrogram.component.html',
-    styles: [':host{display:block; position: absolute; inset: 0}'],
-    changeDetection: ChangeDetectionStrategy.OnPush
+  selector: 'app-audio-spectrogram',
+  templateUrl: './audio-spectrogram.component.html',
+  styles: [':host{display:block; position: absolute; inset: 0}']
 })
 export class AudioSpectrogramComponent {
-  @ViewChild('spectrogram_canvas') spectrogramCanvas!: ElementRef<HTMLCanvasElement>;
+  @ViewChild('spectrogram_canvas', { static: true }) spectrogramCanvas!: ElementRef<HTMLCanvasElement>;
 
-  @Input() set specDbMin(v: number) { this.#specDbMin$.next(v) }
-  @Input() set specDbMax(v: number) { this.#specDbMax$.next(v) }
-  readonly #specDbMin$ = new BehaviorSubject(-80);
-  readonly #specDbMax$ = new BehaviorSubject(-20);
-
-  @Input() set timeStep(v: number) { this.#timeStep$.set(v) }
-  @Input() set fftLgWindowSize(v: number) { this.#fftLgWindowSize$.set(v) }
-  @Input() set fftLgExtraPad(v: number) { this.#fftLgExtraPad$.set(v) }
-  readonly #timeStep$ = signal(2);
-  readonly #fftLgWindowSize$ = signal(14);
-  readonly #fftLgExtraPad$ = signal(0);
-
-  @Input() debug_downsample: number = 0;
+  readonly specDbMin = input(-80);
+  readonly specDbMax = input(-20);
+  readonly timeStep = input(2);
+  readonly fftLgWindowSize = input(14);
+  readonly fftLgExtraPad = input(0);
 
   constructor(
     project: ProjectService,
@@ -70,13 +61,13 @@ export class AudioSpectrogramComponent {
       merge(
         projectAudio$.pipe(map(tag("audioData"))),
         toObservable(computed<SpecFftParams>(() => (
-          { lgWindowSize: this.#fftLgWindowSize$(), lgExtraPad: this.#fftLgExtraPad$() }
+          { lgWindowSize: this.fftLgWindowSize(), lgExtraPad: this.fftLgExtraPad() }
         ))).pipe(map(tag("fftParams"))),
         toObservable(computed<SpectrogramWork>(() => (
           {
             ...viewportParams$(),
             canvasWidth: canvasSize$().inlineSize, canvasHeight: canvasSize$().blockSize,
-            timeStep: this.#timeStep$(), mode: 0,
+            timeStep: this.timeStep(), mode: 0,
           }
         ))).pipe(map(tag("work"))),
       ),
@@ -86,7 +77,7 @@ export class AudioSpectrogramComponent {
       merge(
         projectAudio$.pipe(map(tag("audioData"))),
         toObservable(computed<SpecFftParams>(() => (
-          { lgWindowSize: this.#fftLgWindowSize$(), lgExtraPad: Math.min(this.#fftLgExtraPad$(), 0) }
+          { lgWindowSize: this.fftLgWindowSize(), lgExtraPad: Math.min(this.fftLgExtraPad(), 0) }
         ))).pipe(map(tag("fftParams"))),
         toObservable(computed<SpectrogramWork>(() => (
           {
@@ -101,15 +92,17 @@ export class AudioSpectrogramComponent {
     const tileWasmToBmp = mergeMap(async ({ tile, specDbMin, specDbMax }) => {
       return new GenSpecTile(tile, await imageDataToBitmapFast(tile.tile.render(specDbMin, specDbMax), true));
     });
+    const specDbMin$ = toObservable(this.specDbMin);
+    const specDbMax$ = toObservable(this.specDbMax);
     const hiresTileBmp$ = toSignal(combineLatest({
       tile: hiresTile$,
-      specDbMin: this.#specDbMin$,
-      specDbMax: this.#specDbMax$,
+      specDbMin: specDbMin$,
+      specDbMax: specDbMax$,
     }).pipe(tileWasmToBmp));
     const loresTileBmp$ = toSignal(combineLatest({
       tile: loresTile$,
-      specDbMin: this.#specDbMin$,
-      specDbMax: this.#specDbMax$,
+      specDbMin: specDbMin$,
+      specDbMax: specDbMax$,
     }).pipe(tileWasmToBmp));
 
     let lastRafId: number | undefined = undefined;

@@ -92,8 +92,6 @@ export class AppComponent {
   readonly showCrosshair = computed(() => this.uiMode()?.mode !== 'timing' && this.userShowCrosshair());
   showOvertones: boolean = false;
 
-  debug_downsample: number = 0;
-
   meterPanelExpanded: boolean = false;
   get displayedMeter(): Partial<Meter> | undefined { return this.meterPanelExpanded ? this.liveMeter : this.userShowBeatGrid ? this.project.currentProjectRaw()?.project().meter : undefined }
   liveMeter?: Partial<Meter>;
