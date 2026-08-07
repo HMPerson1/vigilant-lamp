@@ -1,7 +1,6 @@
 import { CdkPortal } from '@angular/cdk/portal';
-import { CdkScrollable } from '@angular/cdk/scrolling';
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, Signal, TemplateRef, ViewChild, computed, effect } from '@angular/core';
-import { FormControl, FormsModule, ReactiveFormsModule, ValidatorFn, Validators } from '@angular/forms';
+import { Component, Input, TemplateRef, ViewChild, computed, effect, linkedSignal, output, untracked } from '@angular/core';
+import { FormField, disabled, form, max, min, required, validate } from '@angular/forms/signals';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog, MatDialogActions, MatDialogClose, MatDialogContent, MatDialogTitle } from '@angular/material/dialog';
 import { MatFormField, MatHint, MatLabel, MatSuffix } from '@angular/material/form-field';
@@ -9,61 +8,88 @@ import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltip } from '@angular/material/tooltip';
-import * as O from 'fp-ts/Option';
 import * as RA from 'fp-ts/ReadonlyArray';
-import { flow, pipe } from 'fp-ts/function';
-import { Optional, fromTraversable } from 'monocle-ts';
-import * as rxjs from 'rxjs';
-import { Meter, NoteL, PULSES_PER_BEAT, PartL, Project, ProjectLop, ProjectLp } from '../../model/project';
+import { flow } from 'fp-ts/function';
+import { fromTraversable } from 'monocle-ts';
+import { Meter, NoteL, PULSES_PER_BEAT, PartL, ProjectLop, ProjectLp } from '../../model/project';
 import { ProjectService } from '../services/project.service';
 import { ModalSpectrogramEdit } from '../ui-common';
-import { isNonnull } from '../utils/ho-signals';
 
 @Component({
-    selector: 'app-meter-settings-panel',
-    templateUrl: './meter-settings-panel.component.html',
-    styleUrls: ['./meter-settings-panel.component.css'],
-    changeDetection: ChangeDetectionStrategy.Eager,
-    imports: [MatButton, MatIcon, MatFormField, MatLabel, MatInput, FormsModule, ReactiveFormsModule, MatHint, MatIconButton, MatSuffix, MatTooltip, CdkPortal, MatDialogTitle, CdkScrollable, MatDialogContent, MatDialogActions, MatDialogClose]
+  selector: 'app-meter-settings-panel',
+  templateUrl: './meter-settings-panel.component.html',
+  styleUrls: ['./meter-settings-panel.component.css'],
+  imports: [MatButton, MatIcon, MatFormField, MatLabel, MatInput, MatHint, MatIconButton, MatSuffix, MatTooltip, CdkPortal, MatDialogTitle, MatDialogContent, MatDialogActions, MatDialogClose, FormField]
 })
 export class MeterSettingsPanelComponent {
   @Input({ required: true }) modalEdit!: ModalSpectrogramEdit;
 
-  @Output() readonly liveMeter = new EventEmitter<Partial<Meter>>();
+  readonly liveMeter = output<Partial<Meter>>();
 
-  @ViewChild("portalHelpOffset") portalHelpOffset!: CdkPortal;
-  @ViewChild("portalHelpTempo") portalHelpTempo!: CdkPortal;
-  @ViewChild("portalHelpOffsetEdit") portalHelpOffsetEdit!: CdkPortal;
-  @ViewChild("portalHelpTempoEdit") portalHelpTempoEdit!: CdkPortal;
+  readonly meterFormModel = linkedSignal<{ [P in keyof Meter]: Meter[P] | null }>(() => (
+    this.project.currentProjectRaw()?.project().meter
+    ?? {
+      state: null,
+      startOffset: null,
+      bpm: null,
+      measureLength: null,
+      subdivision: null
+    }
+  ));
+  readonly formTree = form(this.meterFormModel, (sp) => {
+    required(sp.startOffset);
+    disabled(sp.startOffset, { when: ctx => ctx.valueOf(sp.state) !== 'active' });
+
+    required(sp.bpm);
+    min(sp.bpm, 0);
+    disabled(sp.bpm, { when: ctx => ctx.valueOf(sp.state) !== 'active' });
+
+    required(sp.measureLength);
+    min(sp.measureLength, 1);
+    validate(sp.measureLength, ({ value }) => (Number.isSafeInteger(value()) ? undefined : { kind: 'integral' }));
+    disabled(sp.measureLength, { when: ctx => ctx.valueOf(sp.state) === null });
+
+    required(sp.subdivision);
+    min(sp.subdivision, 1);
+    max(sp.subdivision, PULSES_PER_BEAT);
+    validate(sp.subdivision, ({ value }) => (Number.isSafeInteger(value()) ? undefined : { kind: 'integral' }));
+    validate(sp.subdivision, ({ value }) => (PULSES_PER_BEAT % (value() ?? 0) === 0 ? undefined : { kind: 'validSubdivision' }));
+    disabled(sp.subdivision, { when: ctx => ctx.valueOf(sp.state) === null });
+  });
+
+  @ViewChild("portalHelpOffset", { static: true }) portalHelpOffset!: CdkPortal;
+  @ViewChild("portalHelpTempo", { static: true }) portalHelpTempo!: CdkPortal;
+  @ViewChild("portalHelpOffsetEdit", { static: true }) portalHelpOffsetEdit!: CdkPortal;
+  @ViewChild("portalHelpTempoEdit", { static: true }) portalHelpTempoEdit!: CdkPortal;
 
   constructor(
     private readonly project: ProjectService,
     private readonly dialog: MatDialog,
     private readonly snackBar: MatSnackBar,
   ) {
-    const bindFormCtrlEnabled = (ctrl: FormControl, signal: Signal<boolean>) =>
+    for (const fieldName of ['startOffset', 'bpm', 'measureLength', 'subdivision'] as (keyof Meter)[]) {
       effect(() => {
-        if (signal()) {
-          ctrl.enable({ emitEvent: false });
-        } else {
-          ctrl.disable({ emitEvent: false });
+        if (this.formTree[fieldName]().valid()) {
+          const newValue = this.formTree[fieldName]().value();
+          if (newValue == null) return;
+          untracked(() => {
+            const projectHolder = this.project.currentProjectRaw();
+            if (projectHolder === undefined) return;
+            const meter = projectHolder.project().meter
+            if (meter === undefined || meter[fieldName] === newValue) return;
+            projectHolder.modify(ProjectLop(['meter', fieldName]).set(newValue), { fusionTag: fieldName === 'startOffset' || fieldName === 'bpm' ? fieldName : undefined });
+          });
         }
       });
-
-    bindFormCtrlEnabled(this.projectMeterCtrls.bpm, this.isMeterActive);
-    bindFormCtrlEnabled(this.projectMeterCtrls.startOffset, this.isMeterActive);
-    bindFormCtrlEnabled(this.projectMeterCtrls.measureLength, this.isMeterSet);
-    bindFormCtrlEnabled(this.projectMeterCtrls.subdivision, this.isMeterSet);
+    }
 
     effect(() => {
       this.liveMeter.emit(project.currentProjectRaw()?.project().meter ?? {})
     });
   }
 
-  readonly projectMeterCtrls = new ProjectMeterCtrls(this.project);
-
   readonly isMeterSet = computed(() => this.project.currentProjectRaw()?.project()?.meter !== undefined)
-  readonly isMeterActive = computed(() => this.project.currentProjectRaw()?.project()?.meter?.state === 'active')
+  // readonly isMeterActive = computed(() => this.project.currentProjectRaw()?.project()?.meter?.state === 'active')
   readonly isMeterLocked = computed(() => this.project.currentProjectRaw()?.project()?.meter?.state === 'locked')
 
   async onPickAllClick() {
@@ -198,7 +224,7 @@ export class MeterSettingsPanelComponent {
     }
   }
 
-  @ViewChild('meterUnlockDialog') meterUnlockDialog!: TemplateRef<this>;
+  @ViewChild('meterUnlockDialog', { static: true }) meterUnlockDialog!: TemplateRef<this>;
 
   onToggleLockClick() {
     const projectHolder = this.project.currentProjectRaw();
@@ -215,58 +241,9 @@ export class MeterSettingsPanelComponent {
       projectHolder.modify(ProjectLop(['meter', 'state']).set('locked'));
     }
   }
-
-  readonly PULSES_PER_BEAT = PULSES_PER_BEAT;
 }
 
 const ProjectAllNotes = ProjectLp(["parts"]).composeTraversal(fromTraversable(RA.Traversable)()).composeLens(PartL('notes')).composeTraversal(fromTraversable(RA.Traversable)());
-
-const bindProjectCtrl =
-  <U extends {}>(lens: Optional<Project, U>, fusionTag?: string): (this: { project: ProjectService; }, formCtrl: FormControl<U | null>) => FormControl<U | null> =>
-    function (formCtrl: FormControl<U | null>) {
-      effect(() => {
-        formCtrl.reset(
-          pipe(
-            O.fromNullable(this.project.currentProjectRaw()?.project()),
-            O.flatMap(lens.getOption),
-            O.toNullable,
-          ),
-          { emitEvent: false },
-        );
-      });
-      formCtrl.valueChanges.pipe(rxjs.filter(_v => formCtrl.valid), rxjs.filter(isNonnull)).forEach(x => {
-        const projectHolder = this.project.currentProjectRaw();
-        if (!projectHolder) return;
-        const storedVal = lens.getOption(projectHolder.project());
-        // TODO: maybe preserveSelection?
-        if (O.match(() => false, v => v !== x)(storedVal)) projectHolder.modify(lens.set(x), { fusionTag });
-      });
-      return formCtrl;
-    }
-
-const bindProjectMeterCtrl = <Name extends keyof Meter>(useFusionTag: boolean = false) => <This extends { project: ProjectService }>(_x: undefined, ctxt: ClassFieldDecoratorContext<This, FormControl<Meter[Name] | null>> & { name: Name }) => {
-  const fieldName: Name = ctxt.name;
-  return bindProjectCtrl(ProjectLop(['meter', fieldName]), useFusionTag ? fieldName : undefined)
-}
-
-class ProjectMeterCtrls {
-  constructor(readonly project: ProjectService) { }
-
-  @bindProjectMeterCtrl(true)
-  startOffset = new FormControl<number | null>(null, { validators: [Validators.required] });
-
-  @bindProjectMeterCtrl(true)
-  bpm = new FormControl<number | null>(null, { validators: [Validators.required] });
-
-  @bindProjectMeterCtrl()
-  measureLength = new FormControl<number | null>(null, { validators: [Validators.required, integral] });
-
-  @bindProjectMeterCtrl()
-  subdivision = new FormControl<number | null>(null, { validators: [Validators.required, integral, validSubdivision] });
-}
-
-const integral: ValidatorFn = (x) => (Number.isSafeInteger(x.value) ? null : { 'integral': x.value });
-const validSubdivision: ValidatorFn = (x) => (PULSES_PER_BEAT % x.value == 0 ? null : { 'validSubdivision': x.value });
 
 const assertNonnegativeThrown = Symbol();
 /// does not throw an `Error`
