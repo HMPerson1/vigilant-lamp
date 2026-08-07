@@ -216,7 +216,7 @@ export class MeterSettingsPanelComponent {
         // try to keep measures the same real length
         ProjectLop(['meter', 'measureLength']).modify(x => dir === 1 ? x * factor : (x % factor === 0 ? x / factor : x)),
         // try to keep subdivisions the same real length
-        ProjectLop(['meter', 'subdivision']).modify(x => dir === 1 ? (x % factor === 0 ? x / factor : x) : (PULSES_PER_BEAT % x * factor === 0 ? x * factor : x)),
+        ProjectLop(['meter', 'subdivision']).modify(x => dir === 1 ? (x % factor === 0 ? x / factor : x) : (PULSES_PER_BEAT % (x * factor) === 0 ? x * factor : x)),
       ));
     } catch (e) {
       if (e !== assertIntegralThrown) throw e;
